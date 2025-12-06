@@ -1,0 +1,56 @@
+global:
+  namespace: acmecorp
+
+ordersService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/orders-service
+    tag: latest
+  port: 8081
+
+billingService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/billing-service
+    tag: latest
+  port: 8082
+
+notificationService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/notification-service
+    tag: latest
+  port: 8083
+
+analyticsService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/analytics-service
+    tag: latest
+  port: 8084
+
+catalogService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/catalog-service
+    tag: latest
+  port: 8085
+
+
+gatewayService:
+  enabled: true
+  image:
+    repository: ghcr.io/acmecorp/gateway-service
+    tag: latest
+  port: 8080
+
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: acmecorp.local
+      paths:
+        - path: /
+          pathType: Prefix
+  annotations: {}

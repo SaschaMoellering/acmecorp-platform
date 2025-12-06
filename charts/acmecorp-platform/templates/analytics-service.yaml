@@ -1,0 +1,17 @@
+{{- if .Values.analyticsService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: analytics-service
+spec:
+  type: ClusterIP
+  selector:
+    app: analytics-service
+  ports:
+    - port: 80
+      targetPort: {{ .Values.analyticsService.port }}
+      name: http
+{{- end }}

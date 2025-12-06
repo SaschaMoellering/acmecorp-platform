@@ -1,0 +1,127 @@
+{
+  "id": null,
+  "title": "AcmeCorp JVM & HTTP Overview",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "JVM Overview",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1
+    },
+    {
+      "id": 2,
+      "type": "graph",
+      "title": "JVM Heap Usage",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{{job=~\"orders-service|billing-service|notification-service|analytics-service|gateway-service\",area=\"heap\"}}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "graph",
+      "title": "JVM CPU (process_cpu_usage)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "process_cpu_usage{{job=~\"orders-service|billing-service|notification-service|analytics-service|gateway-service\"}}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "HTTP & Gateway",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 4
+    },
+    {
+      "id": 5,
+      "type": "graph",
+      "title": "HTTP Request Rate (Spring Boot)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{{job=~\"orders-service|billing-service|notification-service|analytics-service\"}}[1m])",
+          "legendFormat": "{{job}} {{uri}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "graph",
+      "title": "Gateway HTTP Request Rate",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{{job=\"gateway-service\"}}[1m])",
+          "legendFormat": "{{uri}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "graph",
+      "title": "HTTP Latency p95 (Seconds)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{{job=~\"orders-service|billing-service|notification-service|analytics-service|gateway-service\"}}[5m])) by (le, job, uri))",
+          "legendFormat": "{{job}} {{uri}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  }
+}
