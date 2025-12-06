@@ -1,0 +1,20 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: rabbitmq
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: {{ .Values.rabbitmq.amqpPort }}
+      targetPort: {{ .Values.rabbitmq.amqpPort }}
+    - name: http
+      port: {{ .Values.rabbitmq.httpPort }}
+      targetPort: {{ .Values.rabbitmq.httpPort }}
+{{- end }}

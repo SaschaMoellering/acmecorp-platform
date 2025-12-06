@@ -22,15 +22,21 @@ public class GatewayService {
     private final String ordersBaseUrl;
     private final String catalogBaseUrl;
     private final String billingBaseUrl;
+    private final String notificationBaseUrl;
+    private final String analyticsBaseUrl;
 
     public GatewayService(WebClient.Builder builder,
                           @Value("${acmecorp.services.orders.base-url}") String ordersBaseUrl,
                           @Value("${acmecorp.services.catalog.base-url}") String catalogBaseUrl,
-                          @Value("${acmecorp.services.billing.base-url}") String billingBaseUrl) {
+                          @Value("${acmecorp.services.billing.base-url}") String billingBaseUrl,
+                          @Value("${acmecorp.services.notification.base-url}") String notificationBaseUrl,
+                          @Value("${acmecorp.services.analytics.base-url}") String analyticsBaseUrl) {
         this.webClient = builder.build();
         this.ordersBaseUrl = ordersBaseUrl;
         this.catalogBaseUrl = catalogBaseUrl;
         this.billingBaseUrl = billingBaseUrl;
+        this.notificationBaseUrl = notificationBaseUrl;
+        this.analyticsBaseUrl = analyticsBaseUrl;
     }
 
     public List<OrderSummary> latestOrders() {
@@ -99,6 +105,42 @@ public class GatewayService {
                 .bodyToMono(String.class);
     }
 
+    public Map<String, Long> analyticsCounters() {
+        try {
+            return webClient.get()
+                    .uri(analyticsBaseUrl + "/api/analytics/counters")
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
+                    .blockOptional()
+                    .orElse(Map.of());
+        } catch (Exception ex) {
+            log.warn("Analytics counters unavailable", ex);
+            return Map.of();
+        }
+    }
+
+    public List<SystemStatus> systemStatus() {
+        return List.of(
+                fetchStatus("orders-service", ordersBaseUrl + "/api/orders/status"),
+                fetchStatus("billing-service", billingBaseUrl + "/api/billing/status"),
+                fetchStatus("notification-service", notificationBaseUrl + "/api/notification/status"),
+                fetchStatus("analytics-service", analyticsBaseUrl + "/api/analytics/status"),
+                fetchStatus("catalog-service", catalogBaseUrl + "/api/catalog/status"),
+                new SystemStatus("gateway-service", "OK")
+        );
+    }
+
+    private SystemStatus fetchStatus(String service, String url) {
+        try {
+            var body = webClient.get().uri(url).retrieve().bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {}).block();
+            String status = body != null && body.get("status") != null ? body.get("status").toString() : "UNKNOWN";
+            return new SystemStatus(service, status);
+        } catch (Exception ex) {
+            log.warn("Status check failed for {}", service, ex);
+            return new SystemStatus(service, "DOWN");
+        }
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record OrderSummary(Long id,
                                String orderNumber,
@@ -141,5 +183,8 @@ public class GatewayService {
     }
 
     public record ProductSummary(String id, String sku, String name, String description, String category, String currency, String price, boolean active) {
+    }
+
+    public record SystemStatus(String service, String status) {
     }
 }

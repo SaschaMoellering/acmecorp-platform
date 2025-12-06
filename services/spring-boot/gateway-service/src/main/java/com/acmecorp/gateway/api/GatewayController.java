@@ -48,6 +48,16 @@ public class GatewayController {
         return gatewayService.proxyCatalogRaw();
     }
 
+    @GetMapping(path = "/analytics/counters", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Map<String, Long> analyticsCounters() {
+        return gatewayService.analyticsCounters();
+    }
+
+    @GetMapping(path = "/system/status", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<GatewayService.SystemStatus> systemStatus() {
+        return gatewayService.systemStatus();
+    }
+
     @GetMapping("/status")
     public Map<String, Object> status() {
         return Map.of("service", "gateway-service", "status", "OK");

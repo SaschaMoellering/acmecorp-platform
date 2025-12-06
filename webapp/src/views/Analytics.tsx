@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Card from '../components/ui/Card';
 import KpiTile from '../components/ui/KpiTile';
 import iconAnalytics from '../assets/icon-analytics.svg';
 import iconOrders from '../assets/icon-orders.svg';
 import iconNotifications from '../assets/icon-notifications.svg';
+import { fetchAnalyticsCounters } from '../api/client';
 
 const mockCounters = {
   'orders.created': 128,
@@ -15,14 +16,35 @@ const mockCounters = {
 };
 
 function Analytics() {
+  const [counters, setCounters] = useState<Record<string, number>>(mockCounters);
+  const [loading, setLoading] = useState(true);
+  const [usingDemo, setUsingDemo] = useState(false);
+
+  useEffect(() => {
+    fetchAnalyticsCounters()
+      .then((data) => {
+        if (Object.keys(data).length === 0) {
+          setUsingDemo(true);
+          setCounters(mockCounters);
+        } else {
+          setCounters(data);
+        }
+      })
+      .catch(() => {
+        setUsingDemo(true);
+        setCounters(mockCounters);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   const tiles = useMemo(
     () => [
-      { label: 'Orders Created', value: mockCounters['orders.created'], icon: iconOrders },
-      { label: 'Orders Confirmed', value: mockCounters['orders.confirmed'], icon: iconOrders },
-      { label: 'Invoices Paid', value: mockCounters['billing.invoice.paid'], icon: iconAnalytics },
-      { label: 'Notifications', value: mockCounters['notification.sent'], icon: iconNotifications }
+      { label: 'Orders Created', value: counters['orders.created'] ?? 0, icon: iconOrders },
+      { label: 'Orders Confirmed', value: counters['orders.confirmed'] ?? 0, icon: iconOrders },
+      { label: 'Invoices Paid', value: counters['billing.invoice.paid'] ?? 0, icon: iconAnalytics },
+      { label: 'Notifications', value: counters['notification.sent'] ?? 0, icon: iconNotifications }
     ],
-    []
+    [counters]
   );
 
   return (
@@ -33,11 +55,13 @@ function Analytics() {
         ))}
       </div>
       <Card title="Analytics Integration">
-        <p>
-          This view is wired for counters from the analytics-service. Connect the API client to
-          `/api/analytics/counters` and map keys like `orders.created` to these KPI tiles for live demos.
-          Charts can be added later using the same theme tokens.
-        </p>
+        {loading && <p>Loading counters…</p>}
+        {!loading && (
+          <p>
+            Showing {usingDemo ? 'demo' : 'live'} data from analytics-service. Extend this view with charts
+            once additional metrics are available.
+          </p>
+        )}
       </Card>
     </div>
   );

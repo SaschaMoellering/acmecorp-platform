@@ -7,6 +7,13 @@ ordersService:
     repository: ghcr.io/acmecorp/orders-service
     tag: latest
   port: 8081
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 billingService:
   enabled: true
@@ -14,6 +21,13 @@ billingService:
     repository: ghcr.io/acmecorp/billing-service
     tag: latest
   port: 8082
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 notificationService:
   enabled: true
@@ -21,6 +35,13 @@ notificationService:
     repository: ghcr.io/acmecorp/notification-service
     tag: latest
   port: 8083
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 analyticsService:
   enabled: true
@@ -28,6 +49,13 @@ analyticsService:
     repository: ghcr.io/acmecorp/analytics-service
     tag: latest
   port: 8084
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 catalogService:
   enabled: true
@@ -35,6 +63,13 @@ catalogService:
     repository: ghcr.io/acmecorp/catalog-service
     tag: latest
   port: 8085
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 
 gatewayService:
@@ -43,6 +78,13 @@ gatewayService:
     repository: ghcr.io/acmecorp/gateway-service
     tag: latest
   port: 8080
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 512Mi
 
 
 ingress:
@@ -54,3 +96,49 @@ ingress:
         - path: /
           pathType: Prefix
   annotations: {}
+
+postgres:
+  enabled: true
+  image: postgres:16
+  port: 5432
+  database: acmecorp
+  username: acmecorp
+  password: acmecorp
+  secretName: acmecorp-postgres-secret
+  configName: acmecorp-postgres-config
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
+redis:
+  enabled: true
+  image: redis:7
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+rabbitmq:
+  enabled: true
+  image: rabbitmq:3-management
+  amqpPort: 5672
+  httpPort: 15672
+  username: guest
+  password: guest
+  secretName: acmecorp-rabbitmq-secret
+  configName: acmecorp-rabbitmq-config
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
