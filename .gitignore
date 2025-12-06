@@ -1,0 +1,14 @@
+# Node / frontend
+node_modules/
+webapp/node_modules/
+dist/
+build/
+
+# Java / Maven
+target/
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.iml
