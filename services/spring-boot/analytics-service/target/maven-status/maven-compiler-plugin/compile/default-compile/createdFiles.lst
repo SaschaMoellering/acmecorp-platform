@@ -1,0 +1,4 @@
+com/acmecorp/analytics/web/TrackEventRequest.class
+com/acmecorp/analytics/api/AnalyticsController.class
+com/acmecorp/analytics/service/AnalyticsService.class
+com/acmecorp/analytics/AnalyticsServiceApplication.class

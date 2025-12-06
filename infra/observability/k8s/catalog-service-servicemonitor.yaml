@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: catalog-service
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - acmecorp
+  selector:
+    matchLabels:
+      app: catalog-service
+  endpoints:
+    - port: http
+      path: /q/metrics
+      interval: 15s

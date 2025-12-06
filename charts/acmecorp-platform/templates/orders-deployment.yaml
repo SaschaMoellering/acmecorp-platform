@@ -1,0 +1,37 @@
+{{- if .Values.ordersService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: orders-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-service
+  template:
+    metadata:
+      labels:
+        app: orders-service
+    spec:
+      containers:
+        - name: orders-service
+          image: "{{ .Values.ordersService.image.repository }}:{{ .Values.ordersService.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.ordersService.port }}
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+{{- end }}

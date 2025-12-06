@@ -1,0 +1,17 @@
+{{- if .Values.gatewayService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: gateway-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: gateway-service
+  ports:
+    - port: 80
+      targetPort: {{ .Values.gatewayService.port }}
+      name: http
+{{- end }}

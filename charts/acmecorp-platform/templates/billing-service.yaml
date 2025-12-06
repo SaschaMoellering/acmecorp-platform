@@ -1,0 +1,17 @@
+{{- if .Values.billingService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: billing-service
+spec:
+  type: ClusterIP
+  selector:
+    app: billing-service
+  ports:
+    - port: 80
+      targetPort: {{ .Values.billingService.port }}
+      name: http
+{{- end }}

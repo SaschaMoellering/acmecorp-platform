@@ -1,0 +1,119 @@
+.app-shell {
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  min-height: 100vh;
+}
+
+.app-header {
+  grid-column: 1 / span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-6);
+  background: linear-gradient(120deg, var(--color-surface), var(--color-surface-muted));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.logo {
+  height: 42px;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.brand-tagline {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.app-sidebar {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  position: sticky;
+  top: 0;
+  height: calc(100vh - var(--header-height));
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-weight: 600;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.nav-item img {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-item:hover {
+  background: var(--color-surface-muted);
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  background: linear-gradient(120deg, var(--color-primary), var(--color-primary-strong));
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+
+.foot-title {
+  font-weight: 700;
+}
+
+.foot-sub {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.app-main {
+  background: var(--color-bg);
+  padding: var(--spacing-6);
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .app-sidebar {
+    display: none;
+  }
+}

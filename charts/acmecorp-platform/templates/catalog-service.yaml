@@ -1,0 +1,17 @@
+{{- if .Values.catalogService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: catalog-service
+spec:
+  type: ClusterIP
+  selector:
+    app: catalog-service
+  ports:
+    - port: 80
+      targetPort: {{ .Values.catalogService.port }}
+      name: http
+{{- end }}

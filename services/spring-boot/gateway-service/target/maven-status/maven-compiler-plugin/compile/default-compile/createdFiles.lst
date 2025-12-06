@@ -1,0 +1,11 @@
+com/acmecorp/gateway/service/GatewayService$2.class
+com/acmecorp/gateway/service/GatewayService$OrderSummary.class
+com/acmecorp/gateway/service/GatewayService$ProductSummary.class
+com/acmecorp/gateway/GatewayServiceApplication.class
+com/acmecorp/gateway/service/GatewayService$OrderItemSummary.class
+com/acmecorp/gateway/service/GatewayService$InvoiceSummary.class
+com/acmecorp/gateway/service/GatewayService$OrderWithInvoice.class
+com/acmecorp/gateway/api/GatewayController.class
+com/acmecorp/gateway/service/GatewayService$1.class
+com/acmecorp/gateway/service/GatewayService$InvoicePage.class
+com/acmecorp/gateway/service/GatewayService.class
