@@ -22,6 +22,30 @@ spec:
           ports:
             - containerPort: {{ .Values.billingService.port }}
               name: http
+          env:
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.postgres.configName }}
+                  key: POSTGRES_DB
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.postgres.configName }}
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: POSTGRES_PASSWORD
+            - name: ANALYTICS_BASE_URL
+              value: http://analytics-service:{{ .Values.analyticsService.port }}
+          resources:
+{{ toYaml .Values.billingService.resources | indent 12 }}
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

@@ -22,6 +22,19 @@ spec:
           ports:
             - containerPort: {{ .Values.gatewayService.port }}
               name: http
+          env:
+            - name: ORDERS_BASE_URL
+              value: http://orders-service:{{ .Values.ordersService.port }}
+            - name: CATALOG_BASE_URL
+              value: http://catalog-service:{{ .Values.catalogService.port }}
+            - name: BILLING_BASE_URL
+              value: http://billing-service:{{ .Values.billingService.port }}
+            - name: NOTIFICATION_BASE_URL
+              value: http://notification-service:{{ .Values.notificationService.port }}
+            - name: ANALYTICS_BASE_URL
+              value: http://analytics-service:{{ .Values.analyticsService.port }}
+          resources:
+{{ toYaml .Values.gatewayService.resources | indent 12 }}
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

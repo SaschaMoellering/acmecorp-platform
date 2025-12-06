@@ -1,0 +1,9 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.rabbitmq.configName }}
+  namespace: {{ .Values.global.namespace }}
+data:
+  RABBITMQ_USERNAME: {{ .Values.rabbitmq.username | quote }}
+{{- end }}

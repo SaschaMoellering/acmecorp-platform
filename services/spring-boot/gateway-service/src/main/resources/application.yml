@@ -18,8 +18,12 @@ management:
 acmecorp:
   services:
     orders:
-      base-url: http://orders-service:8081
+      base-url: ${ORDERS_BASE_URL:http://orders-service:8081}
     catalog:
-      base-url: http://catalog-service:8085
+      base-url: ${CATALOG_BASE_URL:http://catalog-service:8085}
     billing:
-      base-url: http://billing-service:8082
+      base-url: ${BILLING_BASE_URL:http://billing-service:8082}
+    notification:
+      base-url: ${NOTIFICATION_BASE_URL:http://notification-service:8083}
+    analytics:
+      base-url: ${ANALYTICS_BASE_URL:http://analytics-service:8084}

@@ -63,25 +63,9 @@ export type SystemStatus = {
 };
 
 export async function fetchSystemStatus(): Promise<SystemStatus[]> {
-  const services = [
-    { name: 'gateway-service', path: '/api/gateway/status' },
-    { name: 'orders-service', path: '/api/orders/status' },
-    { name: 'billing-service', path: '/api/billing/status' },
-    { name: 'notification-service', path: '/api/notification/status' },
-    { name: 'analytics-service', path: '/api/analytics/status' },
-    { name: 'catalog-service', path: '/api/catalog/status' }
-  ];
+  return handle<SystemStatus[]>('/api/gateway/system/status');
+}
 
-  const results = await Promise.all(
-    services.map(async (svc) => {
-      try {
-        const data = await handle<{ service: string; status: string }>(svc.path);
-        return { service: data.service ?? svc.name, status: data.status ?? 'UNKNOWN' };
-      } catch (e) {
-        return { service: svc.name, status: 'DOWN' };
-      }
-    })
-  );
-
-  return results;
+export async function fetchAnalyticsCounters(): Promise<Record<string, number>> {
+  return handle<Record<string, number>>('/api/gateway/analytics/counters');
 }

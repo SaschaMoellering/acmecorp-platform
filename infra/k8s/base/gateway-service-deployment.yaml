@@ -21,6 +21,24 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+          env:
+            - name: ORDERS_BASE_URL
+              value: http://orders-service:8081
+            - name: CATALOG_BASE_URL
+              value: http://catalog-service:8085
+            - name: BILLING_BASE_URL
+              value: http://billing-service:8082
+            - name: NOTIFICATION_BASE_URL
+              value: http://notification-service:8083
+            - name: ANALYTICS_BASE_URL
+              value: http://analytics-service:8084
+          resources:
+            requests:
+              cpu: 150m
+              memory: 256Mi
+            limits:
+              cpu: 400m
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

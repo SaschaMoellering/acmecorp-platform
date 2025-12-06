@@ -22,6 +22,50 @@ spec:
           ports:
             - containerPort: {{ .Values.ordersService.port }}
               name: http
+          env:
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.postgres.configName }}
+                  key: POSTGRES_DB
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.postgres.configName }}
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: POSTGRES_PASSWORD
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+            - name: RABBITMQ_PORT
+              value: {{ .Values.rabbitmq.amqpPort | quote }}
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.rabbitmq.configName }}
+                  key: RABBITMQ_USERNAME
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.rabbitmq.secretName }}
+                  key: RABBITMQ_PASSWORD
+            - name: CATALOG_BASE_URL
+              value: http://catalog-service:{{ .Values.catalogService.port }}
+            - name: BILLING_BASE_URL
+              value: http://billing-service:{{ .Values.billingService.port }}
+            - name: ANALYTICS_BASE_URL
+              value: http://analytics-service:{{ .Values.analyticsService.port }}
+            - name: NOTIFICATION_BASE_URL
+              value: http://notification-service:{{ .Values.notificationService.port }}
+          resources:
+{{ toYaml .Values.ordersService.resources | indent 12 }}
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

@@ -39,6 +39,8 @@ Example calls:
 ```bash
 curl http://localhost:8080/api/gateway/orders
 curl http://localhost:8080/api/gateway/catalog
+curl http://localhost:8080/api/gateway/analytics/counters
+curl http://localhost:8080/api/gateway/system/status
 
 curl http://localhost:8083/api/notification/send?recipient=test@example.com&message=hello
 curl http://localhost:8084/api/analytics/track?event=page-view
@@ -89,6 +91,21 @@ You can access the gateway at:
 ```bash
 curl http://acmecorp.local/api/gateway/orders
 ```
+
+### Frontend (webapp) API base URL & Helm creds
+
+The React SPA reads `VITE_API_BASE_URL` (default `http://localhost:8080`). Set it to the ingress host when running in Kubernetes:
+
+```bash
+VITE_API_BASE_URL=http://acmecorp.local npm run dev
+```
+
+or bake it into a ConfigMap/ENV when serving the built assets.
+
+Helm chart credentials:
+- Postgres/RabbitMQ credentials are provided via Secrets (defaults in `values.yaml`, override with your own).
+- Non-sensitive DB settings (DB name, host, ports) are in ConfigMaps/values.
+Adjust them with a values override file when installing/upgrading Helm.
 
 ## 4. Helm Deployment
 
@@ -141,3 +158,9 @@ into Grafana (via "Import dashboard") to get a quick platform-wide view.
 - Extend analytics to track more events
 - Configure alerts in Prometheus / Grafana
 - Use this repo as the foundation for the video episodes and live demos
+
+## Tests and smoke checks
+
+- Backend tests: run `mvn test` inside each service directory under `services/spring-boot/*` or `services/quarkus/catalog-service`.
+- Frontend tests: run `npm test` in `webapp`.
+- Local smoke (docker compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
