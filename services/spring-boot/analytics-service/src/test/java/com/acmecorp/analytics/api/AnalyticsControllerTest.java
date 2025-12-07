@@ -37,7 +37,7 @@ class AnalyticsControllerTest {
 
         mockMvc.perform(get("/api/analytics/counters"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.\"orders.created\"").value(3));
+                .andExpect(jsonPath("$['orders.created']").value(3));
     }
 
     @Test
