@@ -164,3 +164,10 @@ into Grafana (via "Import dashboard") to get a quick platform-wide view.
 - Backend tests: run `mvn test` inside each service directory under `services/spring-boot/*` or `services/quarkus/catalog-service`.
 - Frontend tests: run `npm test` in `webapp`.
 - Local smoke (docker compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
+
+## Makefile shortcuts and CI
+
+- Run everything locally: `make test-all`
+- Only backend or frontend: `make test-backend` or `make test-frontend`
+- Local smoke with compose: `make up`, then `make smoke-local`, finish with `make down`
+- GitHub Actions runs backend tests, frontend tests, and smoke tests on every push and pull request
