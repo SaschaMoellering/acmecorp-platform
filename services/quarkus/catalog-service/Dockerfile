@@ -3,13 +3,10 @@ WORKDIR /workspace
 COPY pom.xml .
 RUN mvn -q dependency:go-offline
 COPY src ./src
-RUN mvn -q package -DskipTests
+RUN mvn -q package -DskipTests -Dquarkus.package.type=uber-jar
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /workspace/target/quarkus-app/quarkus-run.jar .
-COPY --from=build /workspace/target/quarkus-app/lib/ ./lib/
-COPY --from=build /workspace/target/quarkus-app/app/ ./app/
-COPY --from=build /workspace/target/quarkus-app/quarkus/ ./quarkus/
+COPY --from=build /workspace/target/*-runner.jar ./app.jar
 EXPOSE 8085
-CMD ["java","-jar","quarkus-run.jar"]
+CMD ["java","-jar","app.jar"]
