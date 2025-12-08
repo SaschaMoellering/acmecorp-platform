@@ -4,6 +4,7 @@ import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import com.acmecorp.orders.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -41,27 +42,27 @@ public class OrdersController {
     }
 
     @GetMapping("/{id}")
-    public OrderResponse getOrder(@PathVariable Long id) {
+    public OrderResponse getOrder(@PathVariable("id") Long id) {
         return orderService.toResponse(orderService.getOrder(id));
     }
 
     @GetMapping
-    public Page<OrderResponse> listOrders(@RequestParam(required = false) String customerEmail,
-                                          @RequestParam(required = false) OrderStatus status,
-                                          @RequestParam(defaultValue = "0") int page,
-                                          @RequestParam(defaultValue = "20") int size) {
+    public PageResponse<OrderResponse> listOrders(@RequestParam(name = "customerEmail", required = false) String customerEmail,
+                                                  @RequestParam(name = "status", required = false) OrderStatus status,
+                                                  @RequestParam(name = "page", defaultValue = "0") int page,
+                                                  @RequestParam(name = "size", defaultValue = "20") int size) {
         var ordersPage = orderService.listOrders(customerEmail, status, page, size);
         var responses = ordersPage.getContent().stream().map(OrderResponse::from).toList();
-        return new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements());
+        return PageResponse.from(new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements()));
     }
 
     @PostMapping("/{id}/confirm")
-    public OrderResponse confirm(@PathVariable Long id) {
+    public OrderResponse confirm(@PathVariable("id") Long id) {
         return OrderResponse.from(orderService.confirm(id));
     }
 
     @PostMapping("/{id}/cancel")
-    public OrderResponse cancel(@PathVariable Long id) {
+    public OrderResponse cancel(@PathVariable("id") Long id) {
         return OrderResponse.from(orderService.cancel(id));
     }
 
@@ -71,10 +72,10 @@ public class OrdersController {
     }
 
     @GetMapping("/vt")
-    public Page<OrderResponse> listOrdersWithVirtualThreads(@RequestParam(required = false) String customerEmail,
-                                                            @RequestParam(required = false) OrderStatus status,
-                                                            @RequestParam(defaultValue = "0") int page,
-                                                            @RequestParam(defaultValue = "20") int size) throws ExecutionException, InterruptedException {
+    public Page<OrderResponse> listOrdersWithVirtualThreads(@RequestParam(name = "customerEmail", required = false) String customerEmail,
+                                                            @RequestParam(name = "status", required = false) OrderStatus status,
+                                                            @RequestParam(name = "page", defaultValue = "0") int page,
+                                                            @RequestParam(name = "size", defaultValue = "20") int size) throws ExecutionException, InterruptedException {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var task = executor.submit(() -> orderService.listOrders(customerEmail, status, page, size));
             var ordersPage = task.get();

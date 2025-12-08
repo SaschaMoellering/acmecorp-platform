@@ -11,10 +11,10 @@ describe('App shell', () => {
       </MemoryRouter>
     );
     expect(screen.getByText(/AcmeCorp Platform/i)).toBeInTheDocument();
-    expect(screen.getByText(/Dashboard/i)).toBeInTheDocument();
-    expect(screen.getByText(/Orders/i)).toBeInTheDocument();
-    expect(screen.getByText(/Catalog/i)).toBeInTheDocument();
-    expect(screen.getByText(/Analytics/i)).toBeInTheDocument();
-    expect(screen.getByText(/System/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Orders/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Catalog/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Analytics/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /System/i })).toBeInTheDocument();
   });
 });

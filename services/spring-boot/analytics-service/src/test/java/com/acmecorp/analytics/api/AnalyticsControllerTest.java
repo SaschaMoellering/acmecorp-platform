@@ -41,6 +41,16 @@ class AnalyticsControllerTest {
     }
 
     @Test
+    void counterEndpointShouldReturnSingleCounter() throws Exception {
+        Mockito.when(analyticsService.getCounter("orders.created")).thenReturn(7L);
+
+        mockMvc.perform(get("/api/analytics/counters/orders.created"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.event").value("orders.created"))
+                .andExpect(jsonPath("$.count").value(7));
+    }
+
+    @Test
     void trackEndpointAcceptsEvent() throws Exception {
         mockMvc.perform(post("/api/analytics/track")
                         .contentType("application/json")

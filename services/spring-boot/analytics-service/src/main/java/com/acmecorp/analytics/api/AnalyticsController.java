@@ -38,7 +38,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/counters/{event}")
-    public Map<String, Object> counter(@PathVariable String event) {
+    public Map<String, Object> counter(@PathVariable("event") String event) {
         return Map.of("event", event, "count", analyticsService.getCounter(event));
     }
 }
