@@ -16,5 +16,7 @@ com/acmecorp/orders/messaging/NotificationPublisher.class
 com/acmecorp/orders/client/BillingClient$InvoiceRequest.class
 com/acmecorp/orders/client/BillingClient$InvoiceLine.class
 com/acmecorp/orders/web/OrderResponse.class
+com/acmecorp/orders/config/WebConfig.class
 com/acmecorp/orders/client/BillingClient$InvoiceResponse.class
+com/acmecorp/orders/web/PageResponse.class
 com/acmecorp/orders/client/BillingClient.class

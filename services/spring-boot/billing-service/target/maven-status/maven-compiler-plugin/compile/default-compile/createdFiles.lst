@@ -1,4 +1,5 @@
 com/acmecorp/billing/repository/PaymentRepository.class
+com/acmecorp/billing/web/PageResponse.class
 com/acmecorp/billing/client/AnalyticsClient.class
 com/acmecorp/billing/domain/Invoice.class
 com/acmecorp/billing/web/PaymentRequest.class
@@ -9,6 +10,7 @@ com/acmecorp/billing/web/InvoiceRequest.class
 com/acmecorp/billing/repository/InvoiceRepository.class
 com/acmecorp/billing/domain/InvoiceStatus.class
 com/acmecorp/billing/web/InvoiceRequest$InvoiceLine.class
+com/acmecorp/billing/config/WebConfig.class
 com/acmecorp/billing/web/InvoiceResponse$PaymentSummary.class
 com/acmecorp/billing/api/BillingController.class
 com/acmecorp/billing/BillingServiceApplication.class

@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.Year;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -30,8 +31,9 @@ public class BillingService {
     private final PaymentRepository paymentRepository;
     private final AnalyticsClient analyticsClient;
 
-    private final AtomicInteger dailyCounter = new AtomicInteger(0);
-    private Instant counterDate = Instant.now();
+    private final AtomicInteger sequenceCounter = new AtomicInteger(0);
+    private int counterYear = Year.now().getValue();
+    private boolean counterInitialized = false;
 
     public BillingService(InvoiceRepository invoiceRepository,
                           PaymentRepository paymentRepository,
@@ -102,13 +104,34 @@ public class BillingService {
     }
 
     private synchronized String generateInvoiceNumber() {
-        Instant now = Instant.now();
-        if (now.truncatedTo(java.time.temporal.ChronoUnit.DAYS).isAfter(counterDate.truncatedTo(java.time.temporal.ChronoUnit.DAYS))) {
-            dailyCounter.set(0);
-            counterDate = now;
+        int currentYear = Year.now().getValue();
+        String prefix = "INV-" + currentYear + "-";
+
+        if (!counterInitialized || currentYear != counterYear) {
+            int maxExisting = invoiceRepository.findTopByInvoiceNumberStartingWithOrderByInvoiceNumberDesc(prefix)
+                    .map(Invoice::getInvoiceNumber)
+                    .map(this::parseSequenceNumber)
+                    .orElse(0);
+            sequenceCounter.set(maxExisting);
+            counterYear = currentYear;
+            counterInitialized = true;
         }
-        int sequence = dailyCounter.incrementAndGet();
-        return "INV-" + Year.now().getValue() + "-" + String.format("%05d", sequence);
+
+        int sequence = sequenceCounter.incrementAndGet();
+        return prefix + String.format("%05d", sequence);
+    }
+
+    private int parseSequenceNumber(String invoiceNumber) {
+        // Expected format: INV-YYYY-XXXXX
+        String[] parts = invoiceNumber.split("-");
+        if (parts.length == 3) {
+            try {
+                return Integer.parseInt(parts[2]);
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        return 0;
     }
 
     @Transactional(readOnly = true)

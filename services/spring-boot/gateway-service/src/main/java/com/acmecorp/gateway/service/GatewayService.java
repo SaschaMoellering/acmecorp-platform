@@ -39,41 +39,43 @@ public class GatewayService {
         this.analyticsBaseUrl = analyticsBaseUrl;
     }
 
-    public List<OrderSummary> latestOrders() {
+    public Mono<List<OrderSummary>> latestOrders() {
         return webClient.get()
                 .uri(ordersBaseUrl + "/api/orders/latest")
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<OrderSummary>>() {})
-                .blockOptional()
-                .orElse(List.of());
+                .defaultIfEmpty(List.of())
+                .onErrorResume(ex -> {
+                    log.warn("Latest orders unavailable", ex);
+                    return Mono.just(List.of());
+                });
     }
 
-    public OrderWithInvoice orderDetails(Long id) {
-        OrderSummary order = webClient.get()
+    public Mono<OrderWithInvoice> orderDetails(Long id) {
+        Mono<OrderSummary> orderMono = webClient.get()
                 .uri(ordersBaseUrl + "/api/orders/{id}", id)
                 .retrieve()
                 .bodyToMono(OrderSummary.class)
-                .block();
+                .cache();
 
-        InvoiceSummary invoice = null;
-        try {
-            invoice = webClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path(billingBaseUrl + "/api/billing/invoices")
-                            .queryParam("orderId", order.id())
-                            .queryParam("size", 1)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(InvoicePage.class)
-                    .map(page -> page.content().isEmpty() ? null : page.content().getFirst())
-                    .block();
-        } catch (Exception ex) {
-            log.warn("Invoice lookup failed for order {}", id, ex);
-        }
-        return new OrderWithInvoice(order, invoice);
+        Mono<InvoiceSummary> invoiceMono = orderMono.flatMap(order -> webClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path(billingBaseUrl + "/api/billing/invoices")
+                                .queryParam("orderId", order.id())
+                                .queryParam("size", 1)
+                                .build())
+                        .retrieve()
+                        .bodyToMono(InvoicePage.class)
+                        .map(page -> page.content().isEmpty() ? null : page.content().getFirst()))
+                .onErrorResume(ex -> {
+                    log.warn("Invoice lookup failed for order {}", id, ex);
+                    return Mono.empty();
+                });
+
+        return orderMono.zipWith(invoiceMono.defaultIfEmpty(null), OrderWithInvoice::new);
     }
 
-    public List<ProductSummary> catalog(String category, String search) {
+    public Mono<List<ProductSummary>> catalog(String category, String search) {
         return webClient.get()
                 .uri(uriBuilder -> {
                     var builder = uriBuilder.path(catalogBaseUrl + "/api/catalog");
@@ -87,8 +89,11 @@ public class GatewayService {
                 })
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {})
-                .blockOptional()
-                .orElse(List.of());
+                .defaultIfEmpty(List.of())
+                .onErrorResume(ex -> {
+                    log.warn("Catalog lookup failed", ex);
+                    return Mono.just(List.of());
+                });
     }
 
     public Mono<String> proxyCatalogRaw() {
@@ -105,40 +110,49 @@ public class GatewayService {
                 .bodyToMono(String.class);
     }
 
-    public Map<String, Long> analyticsCounters() {
-        try {
-            return webClient.get()
-                    .uri(analyticsBaseUrl + "/api/analytics/counters")
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
-                    .blockOptional()
-                    .orElse(Map.of());
-        } catch (Exception ex) {
-            log.warn("Analytics counters unavailable", ex);
-            return Map.of();
-        }
+    public Mono<Map<String, Long>> analyticsCounters() {
+        return webClient.get()
+                .uri(analyticsBaseUrl + "/api/analytics/counters")
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
+                .defaultIfEmpty(Map.of())
+                .onErrorResume(ex -> {
+                    log.warn("Analytics counters unavailable", ex);
+                    return Mono.just(Map.of());
+                });
     }
 
-    public List<SystemStatus> systemStatus() {
-        return List.of(
-                fetchStatus("orders-service", ordersBaseUrl + "/api/orders/status"),
-                fetchStatus("billing-service", billingBaseUrl + "/api/billing/status"),
-                fetchStatus("notification-service", notificationBaseUrl + "/api/notification/status"),
-                fetchStatus("analytics-service", analyticsBaseUrl + "/api/analytics/status"),
-                fetchStatus("catalog-service", catalogBaseUrl + "/api/catalog/status"),
-                new SystemStatus("gateway-service", "OK")
-        );
+    public Mono<List<SystemStatus>> systemStatus() {
+        return Mono.zip(
+                        fetchStatus("orders-service", ordersBaseUrl + "/api/orders/status"),
+                        fetchStatus("billing-service", billingBaseUrl + "/api/billing/status"),
+                        fetchStatus("notification-service", notificationBaseUrl + "/api/notification/status"),
+                        fetchStatus("analytics-service", analyticsBaseUrl + "/api/analytics/status"),
+                        fetchStatus("catalog-service", catalogBaseUrl + "/api/catalog/status"),
+                        Mono.just(new SystemStatus("gateway-service", "OK"))
+                )
+                .map(tuple -> List.of(
+                        tuple.getT1(),
+                        tuple.getT2(),
+                        tuple.getT3(),
+                        tuple.getT4(),
+                        tuple.getT5(),
+                        tuple.getT6()
+                ));
     }
 
-    private SystemStatus fetchStatus(String service, String url) {
-        try {
-            var body = webClient.get().uri(url).retrieve().bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {}).block();
-            String status = body != null && body.get("status") != null ? body.get("status").toString() : "UNKNOWN";
-            return new SystemStatus(service, status);
-        } catch (Exception ex) {
-            log.warn("Status check failed for {}", service, ex);
-            return new SystemStatus(service, "DOWN");
-        }
+    private Mono<SystemStatus> fetchStatus(String service, String url) {
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .map(body -> body != null && body.get("status") != null ? body.get("status").toString() : "UNKNOWN")
+                .defaultIfEmpty("UNKNOWN")
+                .map(status -> new SystemStatus(service, status))
+                .onErrorResume(ex -> {
+                    log.warn("Status check failed for {}", service, ex);
+                    return Mono.just(new SystemStatus(service, "DOWN"));
+                });
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

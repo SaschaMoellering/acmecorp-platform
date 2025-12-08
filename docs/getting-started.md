@@ -19,7 +19,7 @@ From the repo root:
 
 ```bash
 cd infra/local
-docker compose up --build
+docker-compose up --build
 ```
 
 This will start:
@@ -45,6 +45,22 @@ curl http://localhost:8080/api/gateway/system/status
 curl http://localhost:8083/api/notification/send?recipient=test@example.com&message=hello
 curl http://localhost:8084/api/analytics/track?event=page-view
 ```
+
+### Integration tests for local deployment
+
+1. Start the local stack:
+   ```bash
+   cd infra/local && docker-compose up -d
+   ```
+2. Run integration tests:
+   ```bash
+   cd integration-tests && mvn test
+   ```
+   Optionally set `ACMECORP_BASE_URL` to override the default `http://localhost:8080`.
+
+These tests exercise real flows such as catalog → orders → analytics and verify system status via the gateway.
+
+Note: catalog-service now always builds as a Quarkus uber-jar (`*-runner.jar`) for Docker compatibility.
 
 ## 3. Kubernetes Deployment (Base Manifests)
 
@@ -163,7 +179,34 @@ into Grafana (via "Import dashboard") to get a quick platform-wide view.
 
 - Backend tests: run `mvn test` inside each service directory under `services/spring-boot/*` or `services/quarkus/catalog-service`.
 - Frontend tests: run `npm test` in `webapp`.
-- Local smoke (docker compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
+- Local smoke (docker-compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
+
+## Testing quick reference
+
+- Backend (Spring Boot + Quarkus): `make test-backend`
+- Frontend (Vitest): `cd webapp && npm install && npm test`
+- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker-compose up -d` first)
+- Integration tests (stack running):  
+  1) `cd infra/local && docker-compose up -d`  
+  2) `cd integration-tests && mvn test` (optionally set `ACMECORP_BASE_URL`, default `http://localhost:8080`)  
+  3) `cd infra/local && docker-compose down`
+- Smoke tests (stack running): `BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh`
+
+### Integration tests via docker-compose (step-by-step)
+```bash
+# start the platform
+cd infra/local
+docker-compose up -d
+
+# run the integration suite
+cd ../..
+cd integration-tests
+mvn test   # or ACMECORP_BASE_URL=http://localhost:8080 mvn test
+
+# optional: stop the stack when finished
+cd ../infra/local
+docker-compose down
+```
 
 ## Makefile shortcuts and CI
 

@@ -28,18 +28,18 @@ public class GatewayController {
     }
 
     @GetMapping(path = "/orders/latest", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<GatewayService.OrderSummary> latestOrders() {
+    public Mono<List<GatewayService.OrderSummary>> latestOrders() {
         return gatewayService.latestOrders();
     }
 
     @GetMapping(path = "/orders/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public GatewayService.OrderWithInvoice orderDetails(@PathVariable Long id) {
+    public Mono<GatewayService.OrderWithInvoice> orderDetails(@PathVariable("id") Long id) {
         return gatewayService.orderDetails(id);
     }
 
     @GetMapping(path = "/catalog", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<GatewayService.ProductSummary> catalog(@RequestParam(required = false) String category,
-                                                       @RequestParam(required = false) String search) {
+    public Mono<List<GatewayService.ProductSummary>> catalog(@RequestParam(name = "category", required = false) String category,
+                                                             @RequestParam(name = "search", required = false) String search) {
         return gatewayService.catalog(category, search);
     }
 
@@ -49,12 +49,12 @@ public class GatewayController {
     }
 
     @GetMapping(path = "/analytics/counters", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Map<String, Long> analyticsCounters() {
+    public Mono<Map<String, Long>> analyticsCounters() {
         return gatewayService.analyticsCounters();
     }
 
     @GetMapping(path = "/system/status", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<GatewayService.SystemStatus> systemStatus() {
+    public Mono<List<GatewayService.SystemStatus>> systemStatus() {
         return gatewayService.systemStatus();
     }
 

@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -38,9 +37,6 @@ public class OrderService {
     private final BillingClient billingClient;
     private final AnalyticsClient analyticsClient;
     private final NotificationPublisher notificationPublisher;
-
-    private final AtomicInteger dailyCounter = new AtomicInteger(0);
-    private Instant counterDate = Instant.now();
 
     public OrderService(OrderRepository orderRepository,
                         CatalogClient catalogClient,
@@ -157,13 +153,14 @@ public class OrderService {
     }
 
     private synchronized String generateOrderNumber() {
-        Instant now = Instant.now();
-        if (now.truncatedTo(java.time.temporal.ChronoUnit.DAYS).isAfter(counterDate.truncatedTo(java.time.temporal.ChronoUnit.DAYS))) {
-            dailyCounter.set(0);
-            counterDate = now;
-        }
-        int sequence = dailyCounter.incrementAndGet();
-        return "ORD-" + Year.now().getValue() + "-" + String.format("%05d", sequence);
+        String prefix = "ORD-" + Year.now().getValue() + "-";
+        return orderRepository.findTopByOrderNumberStartingWithOrderByOrderNumberDesc(prefix)
+                .map(order -> {
+                    String numPart = order.getOrderNumber().substring(prefix.length());
+                    int next = Integer.parseInt(numPart) + 1;
+                    return prefix + String.format("%05d", next);
+                })
+                .orElse(prefix + "00001");
     }
 
     @Transactional(readOnly = true)

@@ -1,7 +1,9 @@
 com/acmecorp/notification/domain/NotificationStatus.class
 com/acmecorp/notification/api/NotificationController.class
 com/acmecorp/notification/web/NotificationRequest.class
+com/acmecorp/notification/web/PageResponse.class
 com/acmecorp/notification/web/NotificationResponse.class
+com/acmecorp/notification/config/WebConfig.class
 com/acmecorp/notification/client/AnalyticsClient.class
 com/acmecorp/notification/messaging/NotificationListener.class
 com/acmecorp/notification/NotificationServiceApplication.class

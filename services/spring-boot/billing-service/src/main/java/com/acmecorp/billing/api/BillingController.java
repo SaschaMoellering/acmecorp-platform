@@ -5,6 +5,7 @@ import com.acmecorp.billing.service.BillingService;
 import com.acmecorp.billing.web.InvoiceRequest;
 import com.acmecorp.billing.web.InvoiceResponse;
 import com.acmecorp.billing.web.PaymentRequest;
+import com.acmecorp.billing.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -42,14 +43,14 @@ public class BillingController {
     }
 
     @GetMapping("/invoices")
-    public Page<InvoiceResponse> listInvoices(@RequestParam(required = false) String customerEmail,
-                                              @RequestParam(required = false) InvoiceStatus status,
-                                              @RequestParam(required = false) Long orderId,
-                                              @RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "20") int size) {
+    public PageResponse<InvoiceResponse> listInvoices(@RequestParam(name = "customerEmail", required = false) String customerEmail,
+                                                      @RequestParam(name = "status", required = false) InvoiceStatus status,
+                                                      @RequestParam(name = "orderId", required = false) Long orderId,
+                                                      @RequestParam(name = "page", defaultValue = "0") int page,
+                                                      @RequestParam(name = "size", defaultValue = "20") int size) {
         var invoices = billingService.listInvoices(customerEmail, status, orderId, page, size);
         var responses = invoices.getContent().stream().map(InvoiceResponse::from).toList();
-        return new PageImpl<>(responses, PageRequest.of(page, size), invoices.getTotalElements());
+        return PageResponse.from(new PageImpl<>(responses, PageRequest.of(page, size), invoices.getTotalElements()));
     }
 
     @PostMapping("/invoices/{id}/pay")
