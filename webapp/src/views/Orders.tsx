@@ -35,7 +35,8 @@ function Orders() {
       <Card title="Orders">
         {loading && <p>Loading orders...</p>}
         {error && <p>{error}</p>}
-        {!loading && !error && (
+        {!loading && !error && orders.length === 0 && <p>No orders available.</p>}
+        {!loading && !error && orders.length > 0 && (
           <Table
             headers={['Order', 'Customer', 'Status', 'Total', 'Created']}
             rows={orders.map((o) => [

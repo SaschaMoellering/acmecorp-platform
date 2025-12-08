@@ -7,9 +7,16 @@ function Catalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [error, setError] = useState<string | null>(null);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCatalog().then(setProducts).catch(() => setProducts([]));
+    fetchCatalog()
+      .then(setProducts)
+      .catch(() => {
+        setProducts([]);
+        setError('Failed to load catalog');
+      });
   }, []);
 
   const categories = useMemo(() => Array.from(new Set(products.map((p) => p.category))), [products]);
@@ -62,11 +69,21 @@ function Catalog() {
                   {p.currency} {p.price.toFixed?.(2) ?? p.price}
                 </span>
                 <span className="category-pill">{p.category}</span>
+                <button
+                  type="button"
+                  className="btn"
+                  aria-label={`Add ${p.name} to order`}
+                  onClick={() => setLastAdded(p.name)}
+                >
+                  Add to Order
+                </button>
               </div>
             </div>
           ))}
           {filtered.length === 0 && <p>No products match the filters.</p>}
+          {error && <p>{error}</p>}
         </div>
+        {lastAdded && <p style={{ marginTop: '12px' }}>Added to order: {lastAdded}</p>}
       </Card>
     </div>
   );
