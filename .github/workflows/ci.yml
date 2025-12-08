@@ -45,10 +45,72 @@ jobs:
           npm ci
           npm test
 
+  frontend-e2e:
+    name: Frontend E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          cd webapp
+          npm ci
+
+      - name: Install Playwright browsers
+        run: |
+          cd webapp
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: |
+          cd webapp
+          npm run test:e2e
+
+  integration:
+    name: Integration Tests (Docker Compose)
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Start Docker Compose stack
+        run: |
+          cd infra/local
+          docker compose up -d --build
+          # Give services time to start
+          sleep 40
+
+      - name: Run integration tests
+        env:
+          ACMECORP_BASE_URL: http://localhost:8080
+        run: |
+          cd integration-tests
+          mvn -q test
+
+      - name: Stop Docker Compose
+        if: always()
+        run: |
+          cd infra/local
+          docker compose down
+
   smoke:
     name: Smoke Tests (Docker Compose)
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, frontend-e2e, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
