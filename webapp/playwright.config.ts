@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const port = process.env.PORT ?? '5173';
-const baseURL = process.env.BASE_URL ?? `http://127.0.0.1:${port}/`;
+const host = process.env.HOST ?? '127.0.0.1';
+const baseURL = process.env.BASE_URL ?? `http://${host}:${port}/`;
 
 export default defineConfig({
   testDir: './tests-e2e',
@@ -12,7 +13,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `npm run dev -- --host --port ${port}`,
+    command: `npm run dev -- --host ${host} --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
