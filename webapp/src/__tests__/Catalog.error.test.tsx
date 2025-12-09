@@ -2,13 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import Catalog from '../views/Catalog';
-import { fetchCatalog } from '../api/client';
+import { listProducts } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  fetchCatalog: vi.fn()
+  listProducts: vi.fn()
 }));
 
-const mockedFetchCatalog = vi.mocked(fetchCatalog);
+const mockedListProducts = vi.mocked(listProducts);
 
 describe('Catalog view - error handling', () => {
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('Catalog view - error handling', () => {
   });
 
   it('renders a fallback when the catalog API fails', async () => {
-    mockedFetchCatalog.mockRejectedValue(new Error('network down'));
+    mockedListProducts.mockRejectedValue(new Error('network down'));
 
     render(
       <MemoryRouter>

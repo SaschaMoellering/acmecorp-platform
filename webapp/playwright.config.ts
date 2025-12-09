@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const port = process.env.PORT ?? '5173';
 const host = process.env.HOST ?? '127.0.0.1';
@@ -13,7 +17,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `npm run dev -- --host ${host} --port ${port}`,
+    command: `npx vite --host ${host} --port ${port} --strictPort --clearScreen false`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

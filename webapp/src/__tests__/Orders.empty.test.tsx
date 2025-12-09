@@ -2,13 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import Orders from '../views/Orders';
-import { fetchOrders } from '../api/client';
+import { listOrders } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  fetchOrders: vi.fn()
+  listOrders: vi.fn()
 }));
 
-const mockedFetchOrders = vi.mocked(fetchOrders);
+const mockedListOrders = vi.mocked(listOrders);
 
 describe('Orders view - empty state', () => {
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe('Orders view - empty state', () => {
   });
 
   it('shows a friendly empty message when no orders exist', async () => {
-    mockedFetchOrders.mockResolvedValue([]);
+    mockedListOrders.mockResolvedValue([]);
 
     render(
       <MemoryRouter>

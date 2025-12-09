@@ -63,6 +63,7 @@ const statusResponse = [
 test('demo order flow', async ({ page }) => {
   await page.route('**/api/gateway/catalog', (route) => route.fulfill({ json: catalogResponse }));
   await page.route('**/api/gateway/orders/latest', (route) => route.fulfill({ json: ordersResponse }));
+  await page.route('**/api/gateway/orders', (route) => route.fulfill({ json: ordersResponse }));
   await page.route('**/api/gateway/analytics/counters', (route) => route.fulfill({ json: analyticsResponse }));
   await page.route('**/api/gateway/system/status', (route) => route.fulfill({ json: statusResponse }));
 
