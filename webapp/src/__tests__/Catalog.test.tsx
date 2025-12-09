@@ -2,10 +2,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Catalog from '../views/Catalog';
-import { fetchCatalog } from '../api/client';
+import { listProducts } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  fetchCatalog: vi.fn()
+  listProducts: vi.fn()
 }));
 
 const mockProducts = [
@@ -13,12 +13,12 @@ const mockProducts = [
   { id: '2', sku: 'SKU-2', name: 'Shoes', description: 'Running shoes', price: 99, currency: 'USD', category: 'apparel', active: true }
 ];
 
-const mockedFetchCatalog = vi.mocked(fetchCatalog);
+const mockedListProducts = vi.mocked(listProducts);
 
 describe('Catalog view', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedFetchCatalog.mockResolvedValue(mockProducts);
+    mockedListProducts.mockResolvedValue(mockProducts);
   });
 
   it('filters products by text and category', async () => {

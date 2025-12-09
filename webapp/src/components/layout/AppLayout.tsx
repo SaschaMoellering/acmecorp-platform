@@ -16,6 +16,7 @@ const navItems = [
   { to: '/', label: 'Dashboard', icon: iconAnalytics },
   { to: '/orders', label: 'Orders', icon: iconOrders },
   { to: '/catalog', label: 'Catalog', icon: iconCatalog },
+  { to: '/test-data', label: 'Test Data', icon: iconCatalog },
   { to: '/analytics', label: 'Analytics', icon: iconAnalytics },
   { to: '/system', label: 'System', icon: iconNotifications }
 ];

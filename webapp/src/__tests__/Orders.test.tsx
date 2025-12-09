@@ -2,10 +2,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import Orders from '../views/Orders';
-import { fetchOrders } from '../api/client';
+import { listOrders } from '../api/client';
 
 vi.mock('../api/client', () => ({
-  fetchOrders: vi.fn()
+  listOrders: vi.fn()
 }));
 
 const mockOrders = [
@@ -22,7 +22,7 @@ const mockOrders = [
   }
 ];
 
-const mockedFetchOrders = vi.mocked(fetchOrders);
+const mockedListOrders = vi.mocked(listOrders);
 
 describe('Orders view', () => {
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe('Orders view', () => {
   });
 
   it('renders fetched orders', async () => {
-    mockedFetchOrders.mockResolvedValue(mockOrders);
+    mockedListOrders.mockResolvedValue(mockOrders);
 
     render(
       <MemoryRouter>
@@ -41,11 +41,11 @@ describe('Orders view', () => {
     expect(screen.getByText(/Loading orders/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
     expect(screen.getByText('orders@example.com')).toBeInTheDocument();
-    expect(mockedFetchOrders).toHaveBeenCalled();
+    expect(mockedListOrders).toHaveBeenCalled();
   });
 
   it('shows an error when the API fails', async () => {
-    mockedFetchOrders.mockRejectedValue(new Error('boom'));
+    mockedListOrders.mockRejectedValue(new Error('boom'));
 
     render(
       <MemoryRouter>

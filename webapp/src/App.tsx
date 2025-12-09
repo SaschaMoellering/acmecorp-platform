@@ -6,6 +6,7 @@ import OrderDetails from './views/OrderDetails';
 import Catalog from './views/Catalog';
 import Analytics from './views/Analytics';
 import SystemStatus from './views/SystemStatus';
+import TestData from './views/TestData';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/orders" element={<Orders />} />
         <Route path="/orders/:id" element={<OrderDetails />} />
         <Route path="/catalog" element={<Catalog />} />
+        <Route path="/test-data" element={<TestData />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/system" element={<SystemStatus />} />
         <Route path="*" element={<Navigate to="/" replace />} />

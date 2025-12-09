@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-const base = process.env.BASE_URL ?? 'http://localhost:5173/';
-
 test('navigate core views', async ({ page }) => {
-  await page.goto(base);
+  await page.goto('/');
 
   // Navigation bar is visible
   await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible();
