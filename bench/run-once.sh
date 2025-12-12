@@ -65,15 +65,32 @@ sleep 5
 containers_file="$("$ROOT_DIR/bench/collect.sh" "$RESULT_DIR")"
 containers_data="$(cat "$containers_file")"
 
-summary_json="$RESULT_DIR/summary.json"
+memory_summary_file="$RESULT_DIR/summary.json"
+median_json="$(python - <<PY
+import json
+data=json.load(open("$memory_summary_file"))
+print(json.dumps(data.get("median", {}), indent=2))
+PY
+)"
+
 cat <<EOF > "$summary_json"
 {
   "timestamp": "${timestamp}",
   "startup_time_seconds": ${startup_seconds},
   "health_endpoint": "${health_url}",
-  "containers": ${containers_data}
+  "containers": ${containers_data},
+  "median": ${median_json}
 }
 EOF
+
+median_lines="$(python - <<PY
+import json
+data=json.load(open("$summary_json"))
+median=data.get("median", {})
+for service, info in median.items():
+    print(f"- {service}: {info.get('median_readable', 'N/A')}")
+PY
+)"
 
 summary_md="$RESULT_DIR/summary.md"
 cat <<EOF > "$summary_md"
@@ -84,6 +101,9 @@ Health endpoint: ${health_url}
 
 Containers:
 ${containers_data}
+
+Median memory:
+${median_lines}
 EOF
 
 echo "Benchmark results written to $RESULT_DIR"
