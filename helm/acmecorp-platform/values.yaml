@@ -68,7 +68,7 @@ gateway-service:
   prometheus:
     annotations:
       prometheus.io/scrape: "true"
-      prometheus.io/path: /actuator/prometheus
+      prometheus.io/path: "/actuator/prometheus"
       prometheus.io/port: "8080"
     serviceMonitor:
       enabled: false
@@ -110,7 +110,7 @@ orders-service:
   prometheus:
     annotations:
       prometheus.io/scrape: "true"
-      prometheus.io/path: /actuator/prometheus
+      prometheus.io/path: "/actuator/prometheus"
       prometheus.io/port: "8081"
     serviceMonitor:
       enabled: false
@@ -136,7 +136,7 @@ catalog-service:
   prometheus:
     annotations:
       prometheus.io/scrape: "true"
-      prometheus.io/path: /q/metrics
+      prometheus.io/path: "/q/metrics"
       prometheus.io/port: "8085"
     serviceMonitor:
       enabled: false

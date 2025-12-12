@@ -23,9 +23,7 @@ spec:
       {{- end }}
       {{- if $pullSecrets }}
       imagePullSecrets:
-{{ toYaml $pullSecrets | nindent 6 }}
-      {{- end }}
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $pullSecrets | nindent 8 }}
       {{- end }}
       containers:
         - name: gateway

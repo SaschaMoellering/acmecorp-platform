@@ -49,7 +49,7 @@ secret:
 prometheus:
   annotations:
     prometheus.io/scrape: "true"
-    prometheus.io/path: /actuator/prometheus
+    prometheus.io/path: "/actuator/prometheus"
     prometheus.io/port: "8080"
   serviceMonitor:
     enabled: false
