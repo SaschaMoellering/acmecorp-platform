@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import Catalog from '../views/Catalog';
+import CatalogManage from '../views/CatalogManage';
 import { createProduct, deleteProduct, listProducts, updateProduct } from '../api/client';
 
 vi.mock('../api/client', () => ({
@@ -47,11 +47,13 @@ describe('Catalog CRUD view', () => {
 
     render(
       <MemoryRouter>
-        <Catalog />
+        <CatalogManage />
       </MemoryRouter>
     );
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
 
     // Create
     fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'SKU-2' } });
@@ -61,32 +63,27 @@ describe('Catalog CRUD view', () => {
     fireEvent.change(screen.getByLabelText(/Currency/i), { target: { value: 'USD' } });
     fireEvent.change(screen.getByLabelText(/Category/i), { target: { value: 'General' } });
     fireEvent.change(screen.getByLabelText(/Active/i), { target: { value: 'true' } });
-    fireEvent.click(screen.getByRole('button', { name: /Create Product/i }));
+    fireEvent.submit(screen.getByTestId('product-form'));
 
     await waitFor(() => expect(mockedCreateProduct).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText('New Product')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('New Product').length).toBeGreaterThan(0));
 
     // Update
     fireEvent.click(screen.getAllByRole('button', { name: /Edit/i })[0]);
 
-    const nameInputs = screen.getAllByLabelText(/^Name/i);
-    const priceInputs = screen.getAllByLabelText(/Price/i);
-
-    fireEvent.change(nameInputs[nameInputs.length - 1], { target: { value: 'Updated Product' } });
-    fireEvent.change(priceInputs[priceInputs.length - 1], { target: { value: '42' } });
-    fireEvent.click(screen.getByRole('button', { name: /Update Product/i }));
+    fireEvent.change(screen.getByLabelText(/^Name/i), { target: { value: 'Updated Product' } });
+    fireEvent.change(screen.getByLabelText(/Price/i), { target: { value: '42' } });
+    fireEvent.submit(screen.getByTestId('product-form'));
 
     await waitFor(() => expect(mockedUpdateProduct).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText('Updated Product')).toBeInTheDocument());
 
     // Delete
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getAllByRole('button', { name: /Delete/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Delete Product/i }));
 
     await waitFor(() => expect(mockedDeleteProduct).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByText('Base Product')).not.toBeInTheDocument());
-
-    confirmSpy.mockRestore();
   });
 
   it('shows an error message when create fails', async () => {
@@ -95,11 +92,13 @@ describe('Catalog CRUD view', () => {
 
     render(
       <MemoryRouter>
-        <Catalog />
+        <CatalogManage />
       </MemoryRouter>
     );
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
 
     // Fill required fields so submit fires and hits the mocked error
     fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'ERR-1' } });
@@ -110,8 +109,8 @@ describe('Catalog CRUD view', () => {
     fireEvent.change(screen.getByLabelText(/Category/i), { target: { value: 'Test' } });
     fireEvent.change(screen.getByLabelText(/Active/i), { target: { value: 'true' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Create Product/i }));
+    fireEvent.submit(screen.getByTestId('product-form'));
 
-    await waitFor(() => expect(screen.getByText(/Failed to save product/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/Failed to create product/i).length).toBeGreaterThan(0));
   });
 });

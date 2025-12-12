@@ -4,9 +4,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const port = process.env.PORT ?? '5173';
-const host = process.env.HOST ?? '127.0.0.1';
-const baseURL = process.env.BASE_URL ?? `http://${host}:${port}/`;
+const port = process.env.PORT ?? '4173';
+// bindHost is where the dev server listens; accessHost is what Playwright hits.
+const bindHost = process.env.HOST ?? '0.0.0.0';
+const accessHost = process.env.BASE_HOST ?? '127.0.0.1';
+const baseURL = process.env.BASE_URL ?? `http://${accessHost}:${port}/`;
 
 export default defineConfig({
   testDir: './tests-e2e',
@@ -16,12 +18,8 @@ export default defineConfig({
     baseURL,
     trace: 'retain-on-failure',
   },
-  webServer: {
-    command: `npx vite --host ${host} --port ${port} --strictPort --clearScreen false`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // Vite dev server is started programmatically in playwright.setup.ts to avoid sandbox port-binding limits on spawned processes.
+  globalSetup: './playwright.setup.ts',
   projects: [
     {
       name: 'chromium',

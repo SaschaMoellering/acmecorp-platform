@@ -15,8 +15,10 @@ type Props = {
 const navItems = [
   { to: '/', label: 'Dashboard', icon: iconAnalytics },
   { to: '/orders', label: 'Orders', icon: iconOrders },
+  { to: '/orders/manage', label: 'Manage Orders', icon: iconOrders },
   { to: '/catalog', label: 'Catalog', icon: iconCatalog },
-  { to: '/test-data', label: 'Test Data', icon: iconCatalog },
+  { to: '/catalog/manage', label: 'Manage Catalog', icon: iconCatalog },
+  { to: '/tools/seed', label: 'Seed Data', icon: iconAnalytics },
   { to: '/analytics', label: 'Analytics', icon: iconAnalytics },
   { to: '/system', label: 'System', icon: iconNotifications }
 ];
@@ -33,24 +35,26 @@ function AppLayout({ children }: Props) {
           </div>
         </div>
       </header>
-      <aside className="app-sidebar">
-        <nav className="nav">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
-              <img src={item.icon} alt="" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div className="nav-foot">
-          <img src={iconBilling} alt="" />
-          <div>
-            <div className="foot-title">Platform</div>
-            <div className="foot-sub">Gateway via 8080</div>
+      <div className="app-body">
+        <aside className="app-sidebar">
+          <nav className="nav">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+                <img src={item.icon} alt="" />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="nav-foot">
+            <img src={iconBilling} alt="" />
+            <div>
+              <div className="foot-title">Platform</div>
+              <div className="foot-sub">Gateway via 8080</div>
+            </div>
           </div>
-        </div>
-      </aside>
-      <main className="app-main">{children}</main>
+        </aside>
+        <main className="app-main">{children}</main>
+      </div>
     </div>
   );
 }

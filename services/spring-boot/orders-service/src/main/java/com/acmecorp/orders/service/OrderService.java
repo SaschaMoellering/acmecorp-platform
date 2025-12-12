@@ -24,7 +24,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -63,34 +66,7 @@ public class OrderService {
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
 
-        BigDecimal total = BigDecimal.ZERO;
-        String currency = null;
-
-        for (OrderRequest.Item itemRequest : request.items()) {
-            if (itemRequest.quantity() <= 0) {
-                throw new ResponseStatusException(BAD_REQUEST, "Quantity must be greater than zero");
-            }
-            var product = catalogClient.fetchProduct(itemRequest.productId());
-            if (!product.active()) {
-                throw new ResponseStatusException(BAD_REQUEST, "Product is not active: " + product.sku());
-            }
-            if (currency == null) {
-                currency = product.currency();
-            } else if (!currency.equalsIgnoreCase(product.currency())) {
-                throw new ResponseStatusException(BAD_REQUEST, "Mixed currencies not supported");
-            }
-            OrderItem item = new OrderItem();
-            item.setProductId(product.id());
-            item.setProductName(product.name());
-            item.setUnitPrice(product.price());
-            item.setQuantity(itemRequest.quantity());
-            item.setLineTotal(product.price().multiply(BigDecimal.valueOf(itemRequest.quantity())));
-            order.addItem(item);
-            total = total.add(item.getLineTotal());
-        }
-
-        order.setCurrency(Optional.ofNullable(currency).orElse("USD"));
-        order.setTotalAmount(total);
+        applyItems(order, request.items());
 
         Order saved = orderRepository.save(order);
         analyticsClient.track("orders.created", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
@@ -112,12 +88,26 @@ public class OrderService {
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        return orderRepository.findAll(spec, PageRequest.of(page, size));
+        Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
+        preloadItems(ordersPage.getContent());
+        return ordersPage;
     }
 
     @Transactional(readOnly = true)
     public List<Order> latestOrders() {
-        return orderRepository.findTop10ByOrderByCreatedAtDesc();
+        List<Order> orders = orderRepository.findTop10ByOrderByCreatedAtDesc();
+        preloadItems(orders);
+        return orders;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> listOrdersNPlusOneDemo(int limit) {
+        var pageRequest = PageRequest.of(0, Math.max(1, limit));
+        return orderRepository.findAll(pageRequest)
+                .getContent()
+                .stream()
+                .map(OrderResponse::from)
+                .toList();
     }
 
     @Transactional
@@ -152,17 +142,6 @@ public class OrderService {
         return saved;
     }
 
-    private synchronized String generateOrderNumber() {
-        String prefix = "ORD-" + Year.now().getValue() + "-";
-        return orderRepository.findTopByOrderNumberStartingWithOrderByOrderNumberDesc(prefix)
-                .map(order -> {
-                    String numPart = order.getOrderNumber().substring(prefix.length());
-                    int next = Integer.parseInt(numPart) + 1;
-                    return prefix + String.format("%05d", next);
-                })
-                .orElse(prefix + "00001");
-    }
-
     @Transactional(readOnly = true)
     public List<OrderResponse> toResponses(List<Order> orders) {
         return orders.stream()
@@ -174,5 +153,161 @@ public class OrderService {
     @Transactional(readOnly = true)
     public OrderResponse toResponse(Order order) {
         return OrderResponse.from(order);
+    }
+
+    @Transactional
+    public Order updateOrder(Long id, OrderRequest request) {
+        Order order = getOrder(id);
+
+        if (request.customerEmail() != null) {
+            order.setCustomerEmail(request.customerEmail());
+        }
+        if (request.status() != null) {
+            order.setStatus(request.status());
+        }
+
+        if (request.items() != null && !request.items().isEmpty()) {
+            applyItems(order, request.items());
+        }
+
+        order.setUpdatedAt(Instant.now());
+        if (order.getCreatedAt() == null) {
+            order.setCreatedAt(order.getUpdatedAt());
+        }
+
+        Order saved = orderRepository.save(order);
+        analyticsClient.track("orders.updated", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
+        return saved;
+    }
+
+    @Transactional
+    public void deleteOrder(Long id) {
+        Order order = getOrder(id);
+        orderRepository.delete(order);
+        analyticsClient.track("orders.deleted", Map.of("orderId", order.getId(), "orderNumber", order.getOrderNumber()));
+    }
+
+    @Transactional
+    public List<OrderResponse> seedDemoData(List<OrderRequest> requests) {
+        orderRepository.deleteAll();
+
+        List<OrderRequest> seeds = (requests == null || requests.isEmpty()) ? defaultSeeds() : requests;
+        return seeds.stream()
+                .map(this::createSeedOrder)
+                .map(OrderResponse::from)
+                .toList();
+    }
+
+    private void applyItems(Order order, List<OrderRequest.Item> items) {
+        var existingByProduct = order.getItems().stream()
+                .collect(java.util.stream.Collectors.toMap(OrderItem::getProductId, oi -> oi));
+
+        order.getItems().clear();
+
+        BigDecimal total = BigDecimal.ZERO;
+        String currency = order.getCurrency();
+
+        for (OrderRequest.Item itemRequest : items) {
+            if (itemRequest.quantity() <= 0) {
+                throw new ResponseStatusException(BAD_REQUEST, "Quantity must be greater than zero");
+            }
+
+            OrderItem resolved = existingByProduct.get(itemRequest.productId());
+            String resolvedCurrency = currency;
+            if (resolved == null) {
+                BigDecimal unitPrice = BigDecimal.TEN;
+                String productName = itemRequest.productId();
+                String productCurrency = resolvedCurrency != null ? resolvedCurrency : "USD";
+                try {
+                    var product = catalogClient.fetchProduct(itemRequest.productId());
+                    if (!product.active()) {
+                        throw new ResponseStatusException(BAD_REQUEST, "Product is not active: " + product.sku());
+                    }
+                    unitPrice = product.price();
+                    productName = product.name();
+                    productCurrency = product.currency();
+                } catch (Exception ignored) {
+                }
+
+                resolvedCurrency = resolvedCurrency != null ? resolvedCurrency : productCurrency;
+                if (resolvedCurrency != null && !resolvedCurrency.equalsIgnoreCase(productCurrency)) {
+                    throw new ResponseStatusException(BAD_REQUEST, "Mixed currencies not supported");
+                }
+                resolved = new OrderItem();
+                resolved.setProductId(itemRequest.productId());
+                resolved.setProductName(productName);
+                resolved.setUnitPrice(unitPrice);
+            } else {
+                resolvedCurrency = resolvedCurrency != null ? resolvedCurrency : order.getCurrency();
+            }
+
+            resolved.setQuantity(itemRequest.quantity());
+            resolved.setLineTotal(resolved.getUnitPrice().multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            order.addItem(resolved);
+            total = total.add(resolved.getLineTotal());
+            currency = resolvedCurrency;
+        }
+
+        String resolvedCurrency = currency != null ? currency : "USD";
+        order.setCurrency(resolvedCurrency);
+        order.setTotalAmount(total);
+    }
+
+    private Order createSeedOrder(OrderRequest request) {
+        Order order = new Order();
+        order.setOrderNumber(generateOrderNumber());
+        order.setCustomerEmail(request.customerEmail());
+        order.setStatus(Optional.ofNullable(request.status()).orElse(OrderStatus.NEW));
+        order.setCreatedAt(Instant.now());
+        order.setUpdatedAt(order.getCreatedAt());
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderRequest.Item itemRequest : request.items()) {
+            OrderItem item = new OrderItem();
+            item.setProductId(itemRequest.productId());
+            item.setProductName(itemRequest.productId());
+            item.setUnitPrice(BigDecimal.TEN);
+            item.setQuantity(itemRequest.quantity());
+            item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            order.addItem(item);
+            total = total.add(item.getLineTotal());
+        }
+
+        order.setCurrency("USD");
+        order.setTotalAmount(total);
+        return orderRepository.save(order);
+    }
+
+    private List<OrderRequest> defaultSeeds() {
+        return List.of(
+                new OrderRequest("seed+1@acme.test", List.of(new OrderRequest.Item("SKU-1", 1)), OrderStatus.NEW),
+                new OrderRequest("seed+2@acme.test", List.of(new OrderRequest.Item("SKU-2", 2)), OrderStatus.CONFIRMED),
+                new OrderRequest("seed+3@acme.test", List.of(new OrderRequest.Item("SKU-3", 1)), OrderStatus.CANCELLED)
+        );
+    }
+
+    private void preloadItems(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return;
+        }
+        Set<Long> ids = orders.stream()
+                .map(Order::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return;
+        }
+        orderRepository.findAllWithItemsByIds(ids);
+    }
+
+    private synchronized String generateOrderNumber() {
+        String prefix = "ORD-" + Year.now().getValue() + "-";
+        return orderRepository.findTopByOrderNumberStartingWithOrderByOrderNumberDesc(prefix)
+                .map(order -> {
+                    String numPart = order.getOrderNumber().substring(prefix.length());
+                    int next = Integer.parseInt(numPart) + 1;
+                    return prefix + String.format("%05d", next);
+                })
+                .orElse(prefix + "00001");
     }
 }

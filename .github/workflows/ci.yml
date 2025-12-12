@@ -30,6 +30,10 @@ jobs:
   frontend:
     name: Frontend Tests (Vite + Vitest)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,12 +42,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
 
-      - name: Install and test webapp
+      - name: Install dependencies
+        run: npm ci
+
+      # Optional but robust: provide a dist/worker.js at repo root
+      # so Tinypool is happy even if it resolves there.
+      - name: Ensure Vitest worker shim
         run: |
-          cd webapp
-          npm ci
-          npm test
+          cd ..
+          mkdir -p dist
+          # symlink root dist/worker.js -> webapp's Vitest worker
+          ln -sf webapp/node_modules/vitest/dist/worker.js dist/worker.js
+
+      - name: Run unit tests (Vitest)
+        run: npx vitest run --runInBand
 
   frontend-e2e:
     name: Frontend E2E (Playwright)

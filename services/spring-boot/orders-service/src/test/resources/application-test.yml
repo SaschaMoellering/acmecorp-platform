@@ -1,0 +1,32 @@
+server:
+  port: 0
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:orders;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        generate_statistics: true
+        format_sql: false
+  data:
+    web:
+      pageable:
+        serialization-mode: via_dto
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+acmecorp:
+  services:
+    catalog: http://localhost
+    billing: http://localhost
+    analytics: http://localhost
+    notification: http://localhost

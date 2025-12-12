@@ -1,20 +1,24 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import Orders from '../views/Orders';
-import { createOrder, deleteOrder, listOrders, updateOrder } from '../api/client';
+import OrdersManage from '../views/OrdersManage';
+import { cancelOrder, confirmOrder, createOrder, deleteOrder, listOrders, updateOrder } from '../api/client';
 
 vi.mock('../api/client', () => ({
   listOrders: vi.fn(),
   createOrder: vi.fn(),
   updateOrder: vi.fn(),
-  deleteOrder: vi.fn()
+  deleteOrder: vi.fn(),
+  confirmOrder: vi.fn(),
+  cancelOrder: vi.fn()
 }));
 
 const mockedListOrders = vi.mocked(listOrders);
 const mockedCreateOrder = vi.mocked(createOrder);
 const mockedUpdateOrder = vi.mocked(updateOrder);
 const mockedDeleteOrder = vi.mocked(deleteOrder);
+const mockedConfirmOrder = vi.mocked(confirmOrder);
+const mockedCancelOrder = vi.mocked(cancelOrder);
 
 const baseOrder = {
   id: 10,
@@ -40,17 +44,19 @@ const baseOrder = {
 describe('Orders CRUD view', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedConfirmOrder.mockResolvedValue(baseOrder as any);
+    mockedCancelOrder.mockResolvedValue({ ...baseOrder, status: 'CANCELLED' } as any);
   });
 
   it('creates, updates, and deletes orders with feedback', async () => {
     const createdOrder = { ...baseOrder, id: 11, orderNumber: 'ORD-11', customerEmail: 'new@example.com' };
     const updatedOrder = { ...createdOrder, customerEmail: 'updated@example.com', status: 'CONFIRMED' };
 
-    // listOrders is called on mount, after create, and after update
+    // listOrders is called on mount and after create
     mockedListOrders
       .mockResolvedValueOnce([baseOrder]) // initial load
       .mockResolvedValueOnce([baseOrder, createdOrder]) // after create
-      .mockResolvedValueOnce([baseOrder, updatedOrder]); // after update
+      .mockResolvedValueOnce([baseOrder, createdOrder]); // refresh after create
 
     mockedCreateOrder.mockResolvedValue(createdOrder);
     mockedUpdateOrder.mockResolvedValue(updatedOrder);
@@ -58,13 +64,14 @@ describe('Orders CRUD view', () => {
 
     render(
       <MemoryRouter>
-        <Orders />
+        <OrdersManage />
       </MemoryRouter>
     );
 
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
 
-    // Create
+    fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
+
     fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'new@example.com' } });
     fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-2' } });
     fireEvent.change(screen.getByLabelText(/Quantity/i), { target: { value: '2' } });
@@ -77,24 +84,19 @@ describe('Orders CRUD view', () => {
     // Update
     fireEvent.click(screen.getAllByRole('button', { name: /Edit/i })[0]);
 
-    const emailInputs = screen.getAllByLabelText(/Customer Email/i);
-    const statusSelects = screen.getAllByLabelText(/Status/i);
-
-    fireEvent.change(emailInputs[emailInputs.length - 1], { target: { value: 'updated@example.com' } });
-    fireEvent.change(statusSelects[statusSelects.length - 1], { target: { value: 'CONFIRMED' } });
+    fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'updated@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Status/i), { target: { value: 'CONFIRMED' } });
     fireEvent.click(screen.getByRole('button', { name: /Update Order/i }));
 
     await waitFor(() => expect(mockedUpdateOrder).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/updated@example.com/i)).toBeInTheDocument());
 
     // Delete
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getAllByRole('button', { name: /Delete/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Delete Order/i }));
 
     await waitFor(() => expect(mockedDeleteOrder).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByText('ORD-10')).not.toBeInTheDocument());
-
-    confirmSpy.mockRestore();
   });
 
   it('shows an error message when create fails', async () => {
@@ -103,11 +105,13 @@ describe('Orders CRUD view', () => {
 
     render(
       <MemoryRouter>
-        <Orders />
+        <OrdersManage />
       </MemoryRouter>
     );
 
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
 
     fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'err@example.com' } });
     fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-x' } });
@@ -116,6 +120,6 @@ describe('Orders CRUD view', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Create Order/i }));
 
-    await waitFor(() => expect(screen.getByText(/Failed to save order/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/Failed to create order/i).length).toBeGreaterThan(0));
   });
 });

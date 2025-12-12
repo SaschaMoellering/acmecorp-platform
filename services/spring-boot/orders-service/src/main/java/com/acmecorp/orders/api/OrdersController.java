@@ -41,6 +41,13 @@ public class OrdersController {
         return ResponseEntity.ok(OrderResponse.from(order));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<OrderResponse> updateOrder(@PathVariable("id") Long id,
+                                                     @RequestBody OrderRequest request) {
+        var order = orderService.updateOrder(id, request);
+        return ResponseEntity.ok(OrderResponse.from(order));
+    }
+
     @GetMapping("/{id}")
     public OrderResponse getOrder(@PathVariable("id") Long id) {
         return orderService.toResponse(orderService.getOrder(id));
@@ -66,9 +73,36 @@ public class OrdersController {
         return OrderResponse.from(orderService.cancel(id));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
+        orderService.deleteOrder(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/latest")
     public List<OrderResponse> latest() {
         return orderService.toResponses(orderService.latestOrders());
+    }
+
+    @GetMapping("/demo/nplus1")
+    public List<OrderResponse> nPlusOneDemo(@RequestParam(name = "limit", defaultValue = "20") int limit) {
+        return orderService.listOrdersNPlusOneDemo(limit);
+    }
+
+    @PostMapping("/seed")
+    public Map<String, Object> seed() {
+        List<OrderRequest> demoRequests = List.of(
+                new OrderRequest("seed+1@acme.test", List.of(new OrderRequest.Item("SKU-1", 1)), OrderStatus.NEW),
+                new OrderRequest("seed+2@acme.test", List.of(new OrderRequest.Item("SKU-2", 2)), OrderStatus.CONFIRMED),
+                new OrderRequest("seed+3@acme.test", List.of(new OrderRequest.Item("SKU-3", 1)), OrderStatus.CANCELLED)
+        );
+
+        var seeded = orderService.seedDemoData(demoRequests);
+        int count = (seeded == null || seeded.isEmpty()) ? demoRequests.size() : seeded.size();
+        return Map.of(
+                "seeded", true,
+                "count", count
+        );
     }
 
     @GetMapping("/vt")

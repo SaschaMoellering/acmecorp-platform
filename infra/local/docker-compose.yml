@@ -75,8 +75,18 @@ services:
     depends_on:
       - orders-service
       - catalog-service
+      - billing-service
+      - analytics-service
+      - notification-service
     environment:
       SPRING_PROFILES_ACTIVE: docker
+
+      ORDERS_BASE_URL: http://orders-service:8081
+      CATALOG_BASE_URL: http://catalog-service:8085
+      BILLING_BASE_URL: http://billing-service:8082
+      NOTIFICATION_BASE_URL: http://notification-service:8083
+      ANALYTICS_BASE_URL: http://analytics-service:8084
+
     ports:
       - "8080:8080"
 

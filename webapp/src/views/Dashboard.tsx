@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Card from '../components/ui/Card';
 import KpiTile from '../components/ui/KpiTile';
 import Table from '../components/ui/Table';
-import { Order, fetchCatalog, fetchOrders } from '../api/client';
+import { Order, Product, fetchCatalog, fetchOrders } from '../api/client';
 import iconOrders from '../assets/icon-orders.svg';
 import iconCatalog from '../assets/icon-catalog.svg';
 import iconAnalytics from '../assets/icon-analytics.svg';

@@ -7,13 +7,13 @@ test('navigate core views', async ({ page }) => {
   await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible();
 
   // ---- Orders ----
-  await page.getByRole('link', { name: /Orders/i }).click();
+  await page.getByRole('link', { name: /^Orders$/i }).click();
   await expect(
     page.getByRole('main').getByText('Orders', { exact: true })
   ).toBeVisible();
 
   // ---- Catalog ----
-  await page.getByRole('link', { name: /Catalog/i }).click();
+  await page.getByRole('link', { name: /^Catalog$/i }).click();
   await expect(
     page.getByRole('main').getByText('Catalog', { exact: true })
   ).toBeVisible();
