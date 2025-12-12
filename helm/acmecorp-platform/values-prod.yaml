@@ -1,0 +1,35 @@
+postgres:
+  host: <postgres-host>
+  port: 5432
+  database: acmecorp
+  username: acmecorp
+  passwordSecret:
+    name: prod-postgres-credentials
+    key: password
+
+rabbitmq:
+  host: <rabbitmq-host>
+  port: 5672
+  username: acmecorp
+  passwordSecret:
+    name: prod-rabbitmq-credentials
+    key: password
+
+gateway-service:
+  ingress:
+    enabled: true
+    host: api.acmecorp.example.com
+    tls:
+      enabled: true
+      certificateArn: <arn:aws:acm:...>
+    internal: false
+
+orders-service:
+  config:
+    dbHost: <postgres-host>
+    dbPort: 5432
+    dbName: acmecorp
+
+catalog-service:
+  config:
+    jdbcUrl: jdbc:postgresql://<postgres-host>:5432/acmecorp

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gateway-service
+description: Gateway WebFlux entrypoint for AcmeCorp Platform
+type: application
+version: 0.1.0
+appVersion: "1.0"
