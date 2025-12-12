@@ -26,8 +26,8 @@ vi.mock('../api/client', () => ({
   createProduct: vi.fn(),
   updateProduct: vi.fn(),
   deleteProduct: vi.fn(),
-  seedCatalogDemoData: vi.fn(),
-  seedOrdersDemoData: vi.fn()
+  confirmOrder: vi.fn(),
+  cancelOrder: vi.fn()
 }));
 
 const mockOrders = [
@@ -83,5 +83,16 @@ describe('App routing', () => {
     );
 
     await waitFor(() => expect(screen.getByText(/Active Products/i)).toBeInTheDocument());
+  });
+
+  it('renders manage pages', async () => {
+    render(
+      <MemoryRouter initialEntries={['/orders/manage']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(screen.getAllByText(/Manage Orders/i).length).toBeGreaterThan(0));
+    expect(mockedListOrders).toHaveBeenCalled();
   });
 });

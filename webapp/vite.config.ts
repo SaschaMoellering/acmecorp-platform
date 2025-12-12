@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    globals: true,                    // 👈 keep this
+    globals: true,
     setupFiles: './src/setupTests.ts',
     include: ['src/__tests__/**/*.test.{ts,tsx}'],
     exclude: [
@@ -14,5 +14,5 @@ export default defineConfig({
       'cypress/**',
       '.{idea,git,cache,output,temp}/**'
     ]
-  },
+  }
 })

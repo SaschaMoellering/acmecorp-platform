@@ -3,6 +3,7 @@ package com.acmecorp.orders.api;
 import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
+import com.acmecorp.orders.web.OrderRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,6 +93,40 @@ class OrdersControllerTest {
     }
 
     @Test
+    void updateOrderShouldReturnUpdatedOrder() throws Exception {
+        Order order = new Order();
+        order.setOrderNumber("ORD-2025-00060");
+        order.setCustomerEmail("updated@acme.test");
+        order.setStatus(OrderStatus.CONFIRMED);
+        order.setTotalAmount(new BigDecimal("25.00"));
+        order.setCurrency("USD");
+        order.setCreatedAt(Instant.now());
+        order.setUpdatedAt(order.getCreatedAt());
+        Mockito.when(orderService.updateOrder(Mockito.eq(5L), Mockito.any(OrderRequest.class))).thenReturn(order);
+
+        mockMvc.perform(put("/api/orders/5")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "customerEmail": "updated@acme.test",
+                                  "items": [{"productId":"SKU-1","quantity":2}],
+                                  "status": "CONFIRMED"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.customerEmail").value("updated@acme.test"))
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void deleteOrderShouldReturnNoContent() throws Exception {
+        mockMvc.perform(delete("/api/orders/3"))
+                .andExpect(status().isNoContent());
+
+        Mockito.verify(orderService).deleteOrder(Mockito.eq(3L));
+    }
+
+    @Test
     void confirmOrderShouldReturnUpdatedStatus() throws Exception {
         Order order = new Order();
         order.setOrderNumber("ORD-2025-00077");
@@ -134,13 +171,23 @@ class OrdersControllerTest {
     void createOrderShouldFailValidationWhenItemsMissing() throws Exception {
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                .content("""
                                 {
                                   "customerEmail": "demo@acme.test",
                                   "items": []
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void seedOrdersShouldReturnCount() throws Exception {
+        mockMvc.perform(post("/api/orders/seed"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seeded").value(true))
+                .andExpect(jsonPath("$.count").value(3));
+
+        Mockito.verify(orderService).seedDemoData(Mockito.<OrderRequest>anyList());
     }
 
     @Test

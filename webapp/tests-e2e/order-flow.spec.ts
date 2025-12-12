@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * Mocks gateway endpoints used by the Orders view:
+ * - catalog: list products to populate product selectors
+ * - orders: GET (paged) + POST create; latest for dashboard tiles
+ * - analytics/system: lightweight stubs for navigation checks
+ * The test creates a new order via the UI and asserts it renders in the table.
+ */
+
 const catalogResponse = [
   {
     id: 'p-1',
@@ -23,28 +31,17 @@ const catalogResponse = [
   }
 ];
 
-const ordersResponse = [
-  {
-    id: 501,
-    orderNumber: 'ORD-501',
-    customerEmail: 'demo@example.com',
-    status: 'CONFIRMED',
-    totalAmount: 1999,
-    currency: 'USD',
-    createdAt: '2025-01-01T00:00:00Z',
-    updatedAt: '2025-01-01T00:00:00Z',
-    items: [
-      {
-        id: 1,
-        productId: 'p-1',
-        productName: 'Performance Laptop',
-        unitPrice: 1999,
-        quantity: 1,
-        lineTotal: 1999
-      }
-    ]
-  }
-];
+let ordersResponse: Array<{
+  id: number;
+  orderNumber: string;
+  customerEmail: string;
+  status: string;
+  totalAmount: number;
+  currency: string;
+  createdAt: string;
+  updatedAt: string;
+  items: any[];
+}> = [];
 
 const analyticsResponse = {
   'orders.created': 320,
@@ -61,22 +58,59 @@ const statusResponse = [
 ];
 
 test('demo order flow', async ({ page }) => {
-  await page.route('**/api/gateway/catalog', (route) => route.fulfill({ json: catalogResponse }));
-  await page.route('**/api/gateway/orders/latest', (route) => route.fulfill({ json: ordersResponse }));
-  await page.route('**/api/gateway/orders', (route) => route.fulfill({ json: ordersResponse }));
+  page.on('console', (msg) => console.log('BROWSER', msg.type(), msg.text()));
+  // reset shared state per test run
+  ordersResponse = [];
+
+  await page.route('**/api/gateway/catalog**', (route) => route.fulfill({ json: catalogResponse }));
+  await page.route('**/api/gateway/orders/latest**', (route) => {
+    console.log('route orders/latest', route.request().method(), route.request().url());
+    return route.fulfill({ json: ordersResponse });
+  });
+  await page.route('**/api/gateway/orders**', async (route) => {
+    console.log('route orders', route.request().method(), route.request().url());
+    const req = route.request();
+    const url = new URL(req.url());
+    if (req.method() === 'GET') {
+      if (url.searchParams.has('page')) {
+        return route.fulfill({
+          json: { content: ordersResponse, page: 0, size: 20, totalElements: ordersResponse.length, totalPages: 1 }
+        });
+      }
+      return route.fulfill({ json: ordersResponse });
+    }
+    if (req.method() === 'POST') {
+      const body = await req.postDataJSON();
+      const nextId = ordersResponse.length + 1;
+      const newOrder = {
+        id: nextId,
+        orderNumber: `ORD-E2E-${nextId}`,
+        customerEmail: body.customerEmail,
+        status: body.status ?? 'NEW',
+        totalAmount: 100,
+        currency: 'USD',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        items: body.items ?? []
+      };
+      ordersResponse = [...ordersResponse, newOrder];
+      return route.fulfill({ status: 201, json: newOrder });
+    }
+    return route.fallback();
+  });
   await page.route('**/api/gateway/analytics/counters', (route) => route.fulfill({ json: analyticsResponse }));
   await page.route('**/api/gateway/system/status', (route) => route.fulfill({ json: statusResponse }));
 
-  await page.goto('/');
+  const email = `e2e-order-${Date.now()}@example.com`;
 
-  await page.getByRole('link', { name: 'Catalog' }).click();
-  const firstProduct = page.locator('.catalog-card').first();
-  await expect(firstProduct.locator('.catalog-name', { hasText: 'Performance Laptop' })).toBeVisible();
-  await firstProduct.getByRole('button', { name: 'Add Performance Laptop to order' }).click();
-
-  await page.getByRole('link', { name: 'Orders' }).click();
-  await expect(page.getByRole('link', { name: 'ORD-501' })).toBeVisible();
-  await expect(page.getByText('demo@example.com')).toBeVisible();
+  await page.goto('/orders');
+  await page.getByLabel(/Customer Email/i).fill(email);
+  await page.getByLabel(/^Product ID/i).fill('p-1');
+  await page.getByLabel(/Quantity/i).fill('1');
+  await page.getByLabel(/Status/i).selectOption('NEW');
+  await page.getByRole('button', { name: /Create Order/i }).click();
+  await page.reload();
+  await expect(page.getByRole('row', { name: new RegExp(email, 'i') })).toBeVisible({ timeout: 20000 });
 
   await page.getByRole('link', { name: 'Analytics' }).click();
   await expect(page.getByText('Orders Created')).toBeVisible();

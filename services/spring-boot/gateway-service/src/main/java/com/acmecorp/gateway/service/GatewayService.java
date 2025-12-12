@@ -1,15 +1,18 @@
 package com.acmecorp.gateway.service;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,166 +42,428 @@ public class GatewayService {
         this.analyticsBaseUrl = analyticsBaseUrl;
     }
 
-    public Mono<List<OrderSummary>> latestOrders() {
+    // -------------------------------------------------------------------------
+    // Orders
+    // -------------------------------------------------------------------------
+
+    public Mono<PageResponse<OrderSummary>> listOrders(int page, int size) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(ordersBaseUrl + "/api/orders")
+                .queryParam("page", page)
+                .queryParam("size", size)
+                .toUriString();
+
+        log.debug("Listing orders via Orders Service: {}", url);
+
         return webClient.get()
-                .uri(ordersBaseUrl + "/api/orders/latest")
+                .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<OrderSummary>>() {})
-                .defaultIfEmpty(List.of())
-                .onErrorResume(ex -> {
-                    log.warn("Latest orders unavailable", ex);
-                    return Mono.just(List.of());
-                });
+                .bodyToMono(new ParameterizedTypeReference<PageResponse<OrderSummary>>() {});
     }
 
-    public Mono<OrderWithInvoice> orderDetails(Long id) {
-        Mono<OrderSummary> orderMono = webClient.get()
-                .uri(ordersBaseUrl + "/api/orders/{id}", id)
+    public Mono<OrderSummary> createOrder(OrderRequest request) {
+        String url = ordersBaseUrl + "/api/orders";
+
+        log.debug("Creating order via Orders Service: {}", url);
+
+        return webClient.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
                 .retrieve()
-                .bodyToMono(OrderSummary.class)
-                .cache();
-
-        Mono<InvoiceSummary> invoiceMono = orderMono.flatMap(order -> webClient.get()
-                        .uri(uriBuilder -> uriBuilder
-                                .path(billingBaseUrl + "/api/billing/invoices")
-                                .queryParam("orderId", order.id())
-                                .queryParam("size", 1)
-                                .build())
-                        .retrieve()
-                        .bodyToMono(InvoicePage.class)
-                        .map(page -> page.content().isEmpty() ? null : page.content().getFirst()))
-                .onErrorResume(ex -> {
-                    log.warn("Invoice lookup failed for order {}", id, ex);
-                    return Mono.empty();
-                });
-
-        return orderMono.zipWith(invoiceMono.defaultIfEmpty(null), OrderWithInvoice::new);
+                .bodyToMono(OrderSummary.class);
     }
 
-    public Mono<List<ProductSummary>> catalog(String category, String search) {
-        return webClient.get()
-                .uri(uriBuilder -> {
-                    var builder = uriBuilder.path(catalogBaseUrl + "/api/catalog");
-                    if (category != null && !category.isBlank()) {
-                        builder.queryParam("category", category);
-                    }
-                    if (search != null && !search.isBlank()) {
-                        builder.queryParam("search", search);
-                    }
-                    return builder.build();
-                })
+    public Mono<OrderSummary> updateOrder(Long id, OrderRequest request) {
+        String url = ordersBaseUrl + "/api/orders/{id}";
+
+        log.debug("Updating order {} via Orders Service: {}", id, url);
+
+        Map<String, Object> body = normalizeOrderUpdatePayload(request);
+
+        return webClient.put()
+                .uri(url, id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {})
-                .defaultIfEmpty(List.of())
-                .onErrorResume(ex -> {
-                    log.warn("Catalog lookup failed", ex);
-                    return Mono.just(List.of());
-                });
+                .bodyToMono(OrderSummary.class);
     }
 
-    public Mono<String> proxyCatalogRaw() {
-        return webClient.get()
-                .uri(catalogBaseUrl + "/api/catalog")
+    public Mono<Void> deleteOrder(Long id) {
+        String url = ordersBaseUrl + "/api/orders/{id}";
+
+        log.debug("Deleting order {} via Orders Service: {}", id, url);
+
+        return webClient.delete()
+                .uri(url, id)
                 .retrieve()
-                .bodyToMono(String.class);
+                .bodyToMono(Void.class);
+    }
+
+    public Mono<OrderSummary> confirmOrder(Long id) {
+        String url = ordersBaseUrl + "/api/orders/{id}/confirm";
+
+        log.debug("Confirming order {} via Orders Service: {}", id, url);
+
+        return webClient.post()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(OrderSummary.class);
+    }
+
+    public Mono<OrderSummary> cancelOrder(Long id) {
+        String url = ordersBaseUrl + "/api/orders/{id}/cancel";
+
+        log.debug("Cancelling order {} via Orders Service: {}", id, url);
+
+        return webClient.post()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(OrderSummary.class);
     }
 
     public Mono<String> proxyOrdersStatus() {
+        // Typically Spring Boot actuator
+        String url = ordersBaseUrl + "/actuator/health";
+
+        log.debug("Proxying Orders Service status: {}", url);
+
         return webClient.get()
-                .uri(ordersBaseUrl + "/api/orders/status")
+                .uri(url)
                 .retrieve()
                 .bodyToMono(String.class);
     }
 
-    public Mono<Map<String, Long>> analyticsCounters() {
+    public Mono<List<OrderSummary>> latestOrders() {
+        String url = ordersBaseUrl + "/api/orders/latest";
+
+        log.debug("Fetching latest orders via Orders Service: {}", url);
+
         return webClient.get()
-                .uri(analyticsBaseUrl + "/api/analytics/counters")
+                .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
-                .defaultIfEmpty(Map.of())
-                .onErrorResume(ex -> {
-                    log.warn("Analytics counters unavailable", ex);
-                    return Mono.just(Map.of());
-                });
+                .bodyToMono(new ParameterizedTypeReference<List<OrderSummary>>() {});
     }
+
+    public Mono<OrderWithInvoice> orderDetails(Long id) {
+        // Order details from Orders Service
+        String orderUrl = ordersBaseUrl + "/api/orders/{id}";
+        // Invoices for that order from Billing Service (assumed endpoint)
+        String invoiceUrl = billingBaseUrl + "/api/invoices?orderId={orderId}";
+
+        log.debug("Fetching order details for {} via Orders Service: {}", id, orderUrl);
+        log.debug("Fetching invoices for order {} via Billing Service: {}", id, invoiceUrl);
+
+        Mono<OrderSummary> orderMono = webClient.get()
+                .uri(orderUrl, id)
+                .retrieve()
+                .bodyToMono(OrderSummary.class);
+
+        Mono<List<InvoiceSummary>> invoicesMono = webClient.get()
+                .uri(invoiceUrl, id)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<InvoiceSummary>>() {})
+                .onErrorReturn(new ArrayList<>());
+
+        return Mono.zip(orderMono, invoicesMono)
+                .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
+    }
+
+    // -------------------------------------------------------------------------
+    // Catalog
+    // -------------------------------------------------------------------------
+
+    public Mono<List<ProductSummary>> catalog(String category, String search) {
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(catalogBaseUrl + "/api/catalog");
+
+        if (category != null && !category.isBlank()) {
+            builder.queryParam("category", category);
+        }
+        if (search != null && !search.isBlank()) {
+            builder.queryParam("search", search);
+        }
+
+        String url = builder.toUriString();
+        log.debug("Listing catalog via Catalog Service: {}", url);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {});
+    }
+
+    public Mono<ProductSummary> getProduct(String id) {
+        String url = catalogBaseUrl + "/api/catalog/{id}";
+
+        log.debug("Getting product {} via Catalog Service: {}", id, url);
+
+        return webClient.get()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(ProductSummary.class);
+    }
+
+    public Mono<String> proxyCatalogRaw() {
+        String url = catalogBaseUrl + "/api/catalog";
+
+        log.debug("Proxying raw catalog response from Catalog Service: {}", url);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(String.class);
+    }
+
+    public Mono<ProductSummary> createProduct(ProductRequest request) {
+        String url = catalogBaseUrl + "/api/catalog";
+
+        log.debug("Creating product via Catalog Service: {}", url);
+
+        return webClient.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(ProductSummary.class);
+    }
+
+    public Mono<ProductSummary> updateProduct(String id, ProductRequest request) {
+        String url = catalogBaseUrl + "/api/catalog/{id}";
+
+        log.debug("Updating product {} via Catalog Service: {}", id, url);
+
+        return webClient.put()
+                .uri(url, id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(ProductSummary.class);
+    }
+
+    public Mono<Void> deleteProduct(String id) {
+        String url = catalogBaseUrl + "/api/catalog/{id}";
+
+        log.debug("Deleting product {} via Catalog Service: {}", id, url);
+
+        return webClient.delete()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(Void.class);
+    }
+
+    // -------------------------------------------------------------------------
+    // Analytics
+    // -------------------------------------------------------------------------
+
+    public Mono<Map<String, Long>> analyticsCounters() {
+        String url = analyticsBaseUrl + "/api/analytics/counters";
+
+        log.debug("Fetching analytics counters via Analytics Service: {}", url);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {});
+    }
+
+    // -------------------------------------------------------------------------
+    // System status aggregation
+    // -------------------------------------------------------------------------
 
     public Mono<List<SystemStatus>> systemStatus() {
-        return Mono.zip(
-                        fetchStatus("orders-service", ordersBaseUrl + "/api/orders/status"),
-                        fetchStatus("billing-service", billingBaseUrl + "/api/billing/status"),
-                        fetchStatus("notification-service", notificationBaseUrl + "/api/notification/status"),
-                        fetchStatus("analytics-service", analyticsBaseUrl + "/api/analytics/status"),
-                        fetchStatus("catalog-service", catalogBaseUrl + "/api/catalog/status"),
-                        Mono.just(new SystemStatus("gateway-service", "OK"))
-                )
-                .map(tuple -> List.of(
-                        tuple.getT1(),
-                        tuple.getT2(),
-                        tuple.getT3(),
-                        tuple.getT4(),
-                        tuple.getT5(),
-                        tuple.getT6()
-                ));
+        List<ServiceDescriptor> services = List.of(
+                // Spring Boot services: actuator health
+                new ServiceDescriptor("orders",       ordersBaseUrl,       "/actuator/health"),
+                new ServiceDescriptor("billing",      billingBaseUrl,      "/actuator/health"),
+                new ServiceDescriptor("notification", notificationBaseUrl, "/actuator/health"),
+                new ServiceDescriptor("analytics",    analyticsBaseUrl,    "/actuator/health"),
+
+                // Quarkus catalog service: /q/health
+                new ServiceDescriptor("catalog",      catalogBaseUrl,      "/q/health")
+        );
+
+        return Flux.fromIterable(services)
+                .flatMap(this::fetchSystemStatus)
+                .collectList();
     }
 
-    private Mono<SystemStatus> fetchStatus(String service, String url) {
+    private Mono<SystemStatus> fetchSystemStatus(ServiceDescriptor descriptor) {
+        String url = descriptor.baseUrl + descriptor.healthPath;
+
+        log.debug("Fetching system status for {}: {}", descriptor.name, url);
+
         return webClient.get()
                 .uri(url)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                .map(body -> body != null && body.get("status") != null ? body.get("status").toString() : "UNKNOWN")
-                .defaultIfEmpty("UNKNOWN")
-                .map(status -> new SystemStatus(service, status))
+                .map(health -> {
+                    Object status = health.getOrDefault("status", "UNKNOWN");
+                    SystemStatus s = new SystemStatus();
+                    s.service = descriptor.name;
+                    s.status = String.valueOf(status);
+                    s.details = health;
+                    return s;
+                })
                 .onErrorResume(ex -> {
-                    log.warn("Status check failed for {}", service, ex);
-                    return Mono.just(new SystemStatus(service, "DOWN"));
+                    log.warn("Failed to fetch health for {}: {}", descriptor.name, ex.getMessage());
+                    SystemStatus s = new SystemStatus();
+                    s.service = descriptor.name;
+                    s.status = "DOWN";
+                    s.details = Map.of("error", ex.getMessage());
+                    return Mono.just(s);
                 });
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record OrderSummary(Long id,
-                               String orderNumber,
-                               String customerEmail,
-                               String status,
-                               java.math.BigDecimal totalAmount,
-                               String currency,
-                               java.time.Instant createdAt,
-                               java.time.Instant updatedAt,
-                               List<OrderItemSummary> items) {
+    // -------------------------------------------------------------------------
+    // Seed data
+    // -------------------------------------------------------------------------
+
+    public Mono<SeedResult> seedData() {
+        String ordersSeedUrl = ordersBaseUrl + "/api/orders/seed";
+        String catalogSeedUrl = catalogBaseUrl + "/api/catalog/seed";
+
+        log.debug("Seeding orders via Orders Service: {}", ordersSeedUrl);
+        log.debug("Seeding catalog via Catalog Service: {}", catalogSeedUrl);
+
+        Mono<Integer> ordersSeed = webClient.post()
+                .uri(ordersSeedUrl)
+                .retrieve()
+                .bodyToMono(OrdersSeedResponse.class)
+                .map(resp -> resp != null ? resp.count : 0)
+                .onErrorResume(ex -> {
+                    log.warn("Failed to seed orders: {}", ex.getMessage());
+                    return Mono.just(0);
+                });
+
+        Mono<Integer> catalogSeed = webClient.post()
+                .uri(catalogSeedUrl)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {})
+                .map(list -> list != null ? list.size() : 0)
+                .onErrorResume(ex -> {
+                    log.warn("Failed to seed catalog: {}", ex.getMessage());
+                    return Mono.just(0);
+                });
+
+        return Mono.zip(ordersSeed, catalogSeed)
+                .map(tuple -> {
+                    int ordersCreated = tuple.getT1();
+                    int productsCreated = tuple.getT2();
+                    SeedResult result = new SeedResult();
+                    result.ordersCreated = ordersCreated;
+                    result.productsCreated = productsCreated;
+                    result.message = "Seed completed";
+                    return result;
+                });
     }
+
+    // -------------------------------------------------------------------------
+    // DTOs
+    // -------------------------------------------------------------------------
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record OrderItemSummary(Long id,
-                                   String productId,
-                                   String productName,
-                                   java.math.BigDecimal unitPrice,
-                                   int quantity,
-                                   java.math.BigDecimal lineTotal) {
+    public static class PageResponse<T> {
+        public List<T> content;
+        public int page;
+        public int size;
+        public long totalElements;
+        public int totalPages;
+        public boolean last;
+    }
+
+    /**
+     * Generic order representation; we treat orders as a flexible JSON object.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class OrderSummary extends java.util.HashMap<String, Object> {
+    }
+
+    /**
+     * Flexible order request body (proxy to Orders Service).
+     */
+    public static class OrderRequest extends java.util.HashMap<String, Object> {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record InvoiceSummary(Long id,
-                                 String invoiceNumber,
-                                 Long orderId,
-                                 String orderNumber,
-                                 String customerEmail,
-                                 String status,
-                                 String currency,
-                                 java.math.BigDecimal amount,
-                                 java.time.Instant createdAt,
-                                 java.time.Instant updatedAt) {
+    public static class InvoiceSummary extends java.util.HashMap<String, Object> {
+    }
+
+    public static class OrderWithInvoice {
+        public OrderSummary order;
+        public List<InvoiceSummary> invoices;
+
+        public OrderWithInvoice() {
+        }
+
+        public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
+            this.order = order;
+            this.invoices = invoices;
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record InvoicePage(List<InvoiceSummary> content) {
+    public static class ProductSummary extends java.util.HashMap<String, Object> {
     }
 
-    public record OrderWithInvoice(OrderSummary order, InvoiceSummary invoice) {
+    public static class ProductRequest extends java.util.HashMap<String, Object> {
     }
 
-    public record ProductSummary(String id, String sku, String name, String description, String category, String currency, String price, boolean active) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class OrdersSeedResponse {
+        public int count;
+        public boolean seeded;
     }
 
-    public record SystemStatus(String service, String status) {
+    public static class SystemStatus {
+        public String service;
+        public String status;
+        public Map<String, Object> details;
+    }
+
+    public static class SeedResult {
+        public int ordersCreated;
+        public int productsCreated;
+        public String message;
+    }
+
+    private static class ServiceDescriptor {
+        final String name;
+        final String baseUrl;
+        final String healthPath;
+
+        ServiceDescriptor(String name, String baseUrl, String healthPath) {
+            this.name = name;
+            this.baseUrl = baseUrl;
+            this.healthPath = healthPath;
+        }
+    }
+
+    private Map<String, Object> normalizeOrderUpdatePayload(OrderRequest request) {
+        Map<String, Object> body = new java.util.HashMap<>();
+
+        Object customerEmail = request.get("customerEmail");
+        Object status = request.get("status");
+        Object productId = request.get("productId");
+        Object quantity = request.get("quantity");
+        Object items = request.get("items");
+
+        if (customerEmail != null) {
+            body.put("customerEmail", customerEmail);
+        }
+        if (status != null) {
+            body.put("status", status);
+        }
+
+        if (items instanceof List<?> itemList && !itemList.isEmpty()) {
+            body.put("items", itemList);
+        } else if (productId != null && quantity != null) {
+            Map<String, Object> item = new java.util.HashMap<>();
+            item.put("productId", productId);
+            item.put("quantity", quantity);
+            body.put("items", List.of(item));
+        }
+
+        return body;
     }
 }

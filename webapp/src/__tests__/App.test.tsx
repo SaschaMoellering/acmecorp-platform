@@ -12,8 +12,8 @@ describe('App shell', () => {
     );
     expect(screen.getByText(/AcmeCorp Platform/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Orders/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Catalog/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Orders/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Catalog/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /Analytics/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /System/i })).toBeInTheDocument();
   });

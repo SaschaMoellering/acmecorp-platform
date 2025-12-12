@@ -60,6 +60,21 @@ public class CatalogResource {
         product.persist();
     }
 
+    @POST
+    @Path("/seed")
+    @Transactional
+    public List<Product> seed() {
+        productRepository.deleteAll();
+        List<Product> products = List.of(
+                build(UUID.fromString("11111111-1111-1111-1111-111111111111"), "ACME-STREAM-001", "Acme Streamer Pro", "HD streaming subscription with analytics dashboard", "SAAS", new java.math.BigDecimal("49.00")),
+                build(UUID.fromString("22222222-2222-2222-2222-222222222222"), "ACME-ALERT-001", "Alerting Add-on", "Real-time alerts and incidents with on-call rotation", "ADDON", new java.math.BigDecimal("19.00")),
+                build(UUID.fromString("33333333-3333-3333-3333-333333333333"), "ACME-STORAGE-010", "Secure Storage 1TB", "Encrypted cloud storage for media and backups", "STORAGE", new java.math.BigDecimal("29.00")),
+                build(UUID.fromString("44444444-4444-4444-4444-444444444444"), "ACME-AI-001", "AI Insights", "Predictive recommendations for digital storefronts", "SAAS", new java.math.BigDecimal("59.00"))
+        );
+        products.forEach(productRepository::persist);
+        return products;
+    }
+
     @GET
     @Path("/status")
     public Object status() {
@@ -75,5 +90,20 @@ public class CatalogResource {
         product.category = request.category();
         product.active = request.active();
         product.updatedAt = java.time.Instant.now();
+    }
+
+    private Product build(UUID id, String sku, String name, String description, String category, java.math.BigDecimal price) {
+        Product product = new Product();
+        product.id = id;
+        product.sku = sku;
+        product.name = name;
+        product.description = description;
+        product.category = category;
+        product.price = price;
+        product.currency = "USD";
+        product.active = true;
+        product.createdAt = java.time.Instant.now();
+        product.updatedAt = product.createdAt;
+        return product;
     }
 }

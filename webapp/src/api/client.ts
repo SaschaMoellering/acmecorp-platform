@@ -39,7 +39,7 @@ export type OrderItemPayload = {
 
 export type NewOrderPayload = {
   customerEmail: string;
-  status: OrderStatus;
+  status?: OrderStatus;
   items: OrderItemPayload[];
   currency?: string;
 };
@@ -58,6 +58,14 @@ export type NewProductPayload = {
 
 export type UpdateProductPayload = Partial<Omit<Product, 'id'>>;
 
+export type PageResponse<T> = {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function handle<T>(path: string, init?: RequestInit): Promise<T> {
@@ -66,7 +74,8 @@ async function handle<T>(path: string, init?: RequestInit): Promise<T> {
     ...init
   });
   if (!res.ok) {
-    throw new Error(`Request failed: ${res.status}`);
+      console.error('API error for', path, 'status:', res.status, 'body:', text);
+      throw new Error(`Request failed: ${res.status}`);
   }
 
   const text = await res.text();
@@ -102,8 +111,13 @@ export async function fetchAnalyticsCounters(): Promise<Record<string, number>> 
   return handle<Record<string, number>>('/api/gateway/analytics/counters');
 }
 
-export function listOrders(): Promise<Order[]> {
-  return handle<Order[]>('/api/gateway/orders');
+export function listOrdersPage(page = 0, size = 20): Promise<PageResponse<Order>> {
+  return handle<PageResponse<Order>>(`/api/gateway/orders?page=${page}&size=${size}`);
+}
+
+export async function listOrders(page = 0, size = 20): Promise<Order[]> {
+  const response = await listOrdersPage(page, size);
+  return response.content;
 }
 
 export function getOrder(id: string): Promise<Order> {
@@ -128,6 +142,14 @@ export async function deleteOrder(id: string): Promise<void> {
   await handle<void>(`/api/gateway/orders/${id}`, {
     method: 'DELETE'
   });
+}
+
+export function confirmOrder(id: string): Promise<Order> {
+  return handle<Order>(`/api/gateway/orders/${id}/confirm`, { method: 'POST' });
+}
+
+export function cancelOrder(id: string): Promise<Order> {
+  return handle<Order>(`/api/gateway/orders/${id}/cancel`, { method: 'POST' });
 }
 
 export function listProducts(): Promise<Product[]> {
@@ -158,14 +180,14 @@ export async function deleteProduct(id: string): Promise<void> {
   });
 }
 
-export async function seedCatalogDemoData(): Promise<void> {
-  await handle<void>('/api/gateway/seed/catalog', {
-    method: 'POST'
-  });
-}
+export type SeedResult = {
+  ordersCreated: number;
+  productsCreated: number;
+  message: string;
+};
 
-export async function seedOrdersDemoData(): Promise<void> {
-  await handle<void>('/api/gateway/seed/orders', {
+export async function seedDemoData(): Promise<SeedResult> {
+  return handle<SeedResult>('/api/gateway/tools/seed', {
     method: 'POST'
   });
 }

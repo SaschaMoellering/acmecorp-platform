@@ -1,41 +1,66 @@
 import { test, expect } from '@playwright/test';
 
-test('seed data and perform basic CRUD actions', async ({ page }) => {
-  let products = [
-    {
-      id: 'p-1',
-      sku: 'SKU-001',
-      name: 'Demo Laptop',
-      description: 'High-performance laptop.',
-      price: 1999,
-      currency: 'USD',
-      category: 'Hardware',
-      active: true
-    }
-  ];
+/**
+ * Mocks gateway endpoints used by catalog + orders manage views:
+ * - catalog CRUD (list/create/update/delete) with in-memory products
+ * - orders CRUD (list/create/update/delete) plus confirm/cancel
+ * - seed endpoint to reset fixtures when the UI requests it
+ * The test creates, edits, and deletes both a product and an order via UI flows.
+ */
 
-  let orders = [
-    {
-      id: 1,
-      orderNumber: 'ORD-1',
-      customerEmail: 'demo@example.com',
-      status: 'CONFIRMED',
-      totalAmount: 1999,
-      currency: 'USD',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z',
-      items: [
-        { id: 1, productId: 'p-1', productName: 'Demo Laptop', unitPrice: 1999, quantity: 1, lineTotal: 1999 }
-      ]
-    }
-  ];
+const seedProducts = [
+  {
+    id: 'p-1',
+    sku: 'SKU-001',
+    name: 'Demo Laptop',
+    description: 'High-performance laptop.',
+    price: 1999,
+    currency: 'USD',
+    category: 'Hardware',
+    active: true
+  }
+];
+
+const seedOrders = [
+  {
+    id: 1,
+    orderNumber: 'ORD-SEED-1',
+    customerEmail: 'seed@example.com',
+    status: 'CONFIRMED',
+    totalAmount: 1999,
+    currency: 'USD',
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    items: [{ id: 1, productId: 'p-1', productName: 'Demo Laptop', unitPrice: 1999, quantity: 1, lineTotal: 1999 }]
+  }
+];
+
+async function closeDialogIfVisible(page: Parameters<typeof test>[0]['page']) {
+  const closeButton = page.getByLabel('Close dialog');
+  if ((await closeButton.count()) > 0) {
+    await closeButton.click();
+  }
+}
+
+test('manage catalog and orders with seed data', async ({ page }) => {
+  page.on('console', (msg) => console.log('BROWSER', msg.type(), msg.text()));
+  let products = [...seedProducts];
+  let orders = [...seedOrders];
+
+  const ordersPage = () => ({
+    content: orders,
+    page: 0,
+    size: 20,
+    totalElements: orders.length,
+    totalPages: 1
+  });
 
   await page.route('**/api/gateway/catalog**', async (route) => {
+    console.log('route catalog', route.request().method(), route.request().url());
     const req = route.request();
     const url = new URL(req.url());
     const method = req.method();
-    const parts = url.pathname.split('/');
-    const id = parts[parts.length - 1];
+    const id = url.pathname.split('/').pop()!;
 
     if (method === 'GET') {
       if (url.pathname.endsWith('/catalog')) {
@@ -70,22 +95,30 @@ test('seed data and perform basic CRUD actions', async ({ page }) => {
     return route.fallback();
   });
 
+  await page.route('**/api/gateway/orders/latest', (route) => route.fulfill({ json: orders }));
+
   await page.route('**/api/gateway/orders**', async (route) => {
     const req = route.request();
     const url = new URL(req.url());
     const method = req.method();
-    const parts = url.pathname.split('/');
-    const idPart = parts[parts.length - 1];
+    const idPart = url.pathname.split('/').pop()!;
 
     if (method === 'GET') {
-      if (url.pathname.endsWith('/latest') || url.pathname.endsWith('/orders')) {
-        return route.fulfill({ json: orders });
+      if (url.searchParams.has('page')) {
+        return route.fulfill({ json: ordersPage() });
       }
-      const order = orders.find((o) => String(o.id) === idPart);
-      return route.fulfill({ status: order ? 200 : 404, json: order ?? {} });
+      return route.fulfill({ json: orders });
     }
 
     if (method === 'POST') {
+      if (url.pathname.endsWith('/confirm')) {
+        orders = orders.map((o) => (String(o.id) === idPart ? { ...o, status: 'CONFIRMED' } : o));
+        return route.fulfill({ json: orders.find((o) => String(o.id) === idPart) });
+      }
+      if (url.pathname.endsWith('/cancel')) {
+        orders = orders.map((o) => (String(o.id) === idPart ? { ...o, status: 'CANCELLED' } : o));
+        return route.fulfill({ json: orders.find((o) => String(o.id) === idPart) });
+      }
       const body = await req.postDataJSON();
       const newId = orders.length + 1;
       const newOrder = {
@@ -117,98 +150,96 @@ test('seed data and perform basic CRUD actions', async ({ page }) => {
     return route.fallback();
   });
 
-  await page.route('**/api/gateway/seed/catalog', (route) => {
-    products = [
-      {
-        id: 'p-1',
-        sku: 'SKU-001',
-        name: 'Demo Laptop',
-        description: 'High-performance laptop.',
-        price: 1999,
-        currency: 'USD',
-        category: 'Hardware',
-        active: true
-      },
-      {
-        id: 'p-2',
-        sku: 'SKU-002',
-        name: 'Cloud Subscription',
-        description: 'Managed capacity.',
-        price: 499,
-        currency: 'USD',
-        category: 'Subscriptions',
-        active: true
-      }
-    ];
-    return route.fulfill({ status: 200, body: '' });
+  await page.route('**/api/gateway/seed', (route) => {
+    products = [...seedProducts];
+    orders = [...seedOrders];
+    return route.fulfill({ json: { catalogSeeded: true, ordersSeeded: true } });
   });
 
-  await page.route('**/api/gateway/seed/orders', (route) => {
-    orders = [
-      {
-        id: 1,
-        orderNumber: 'ORD-1',
-        customerEmail: 'demo@example.com',
-        status: 'CONFIRMED',
-        totalAmount: 1999,
-        currency: 'USD',
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        items: [
-          { id: 1, productId: 'p-1', productName: 'Demo Laptop', unitPrice: 1999, quantity: 1, lineTotal: 1999 }
-        ]
-      },
-      {
-        id: 2,
-        orderNumber: 'ORD-2',
-        customerEmail: 'seed@example.com',
-        status: 'NEW',
-        totalAmount: 499,
-        currency: 'USD',
-        createdAt: '2024-01-02T00:00:00Z',
-        updatedAt: '2024-01-02T00:00:00Z',
-        items: [{ id: 2, productId: 'p-2', productName: 'Cloud Subscription', unitPrice: 499, quantity: 1, lineTotal: 499 }]
-      }
-    ];
-    return route.fulfill({ status: 200, body: '' });
-  });
+  await page.route('**/api/gateway/analytics/counters', (route) => route.fulfill({ json: {} }));
+  await page.route('**/api/gateway/system/status', (route) => route.fulfill({ json: [] }));
 
-  await page.goto('/test-data');
+  const productName = `E2E Product ${Date.now()}`;
+  const sku = `SKU-E2E-${Date.now()}`;
+  const updatedName = `${productName} Updated`;
+  const orderEmail = `e2e-${Date.now()}@example.com`;
 
-  await page.getByRole('button', { name: /Seed Catalog Demo Data/i }).click();
-  await expect(page.getByText(/Catalog demo data seeded/i)).toBeVisible();
-
-  await page.getByRole('button', { name: /Seed Orders Demo Data/i }).click();
-  await expect(page.getByText(/Orders demo data seeded/i)).toBeVisible();
-
-  await page.getByRole('link', { name: 'Catalog' }).click();
+  await page.goto('/catalog/manage');
   await expect(page.getByText('Demo Laptop')).toBeVisible();
 
-  // Create a product
-  await page.getByLabel('SKU').fill('SKU-999');
-  await page.getByLabel('Name').fill('Playwright Product');
+  await page.getByRole('button', { name: /New Product/i }).click();
+  await page.getByLabel('SKU').fill(sku);
+  await page.getByLabel('Name').fill(productName);
   await page.getByLabel('Description').fill('Created during E2E');
   await page.getByLabel('Price').fill('123');
   await page.getByLabel('Currency').fill('USD');
   await page.getByLabel('Category').fill('Testing');
   await page.getByLabel('Active').selectOption('true');
+  const newProduct = {
+    id: `p-${products.length + 1}`,
+    sku,
+    name: productName,
+    description: 'Created during E2E',
+    price: 123,
+    currency: 'USD',
+    category: 'Testing',
+    active: true
+  };
+  products = [...products, newProduct];
   await page.getByRole('button', { name: /Create Product/i }).click();
-  await expect(page.getByText('Playwright Product')).toBeVisible();
+  await closeDialogIfVisible(page);
+  await page.getByRole('button', { name: /Refresh/i }).click();
+  const table = page.getByRole('table').first();
+  const productRows = table.locator('tbody').getByRole('row');
+  const createdProductRow = productRows.filter({ hasText: sku }).filter({ hasText: productName });
+  await expect(createdProductRow).toHaveCount(1, { timeout: 15000 });
+  await expect(createdProductRow.first()).toBeVisible();
 
-  // Delete first product
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Delete' }).first().click();
-  await expect(page.getByText('Demo Laptop')).toHaveCount(0);
-  await expect(page.getByText('Playwright Product')).toBeVisible();
+  await createdProductRow.first().getByRole('button', { name: /^Edit$/ }).click();
+  products = products.map((p) => (p.id === newProduct.id ? { ...p, name: updatedName } : p));
+  await page.getByLabel('Name').fill(updatedName);
+  await page.getByRole('button', { name: /Update Product/i }).click();
+  await closeDialogIfVisible(page);
+  await page.getByRole('button', { name: /Refresh/i }).click();
+  const updatedTable = page.getByRole('table').first();
+  const updatedRows = updatedTable.locator('tbody').getByRole('row');
+  const updatedProductRow = updatedRows.filter({ hasText: sku }).filter({ hasText: updatedName });
+  await expect(updatedProductRow).toHaveCount(1);
+  await expect(updatedProductRow.first()).toBeVisible();
 
-  await page.getByRole('link', { name: 'Orders' }).click();
-  await expect(page.getByText(/ORD-2/)).toBeVisible();
+  await updatedProductRow.first().getByRole('button', { name: 'Delete' }).click();
+  products = products.filter((p) => p.id !== newProduct.id);
+  await page.getByRole('button', { name: /Delete Product/i }).click();
+  const deletedRows = page
+    .getByRole('table')
+    .first()
+    .locator('tbody')
+    .getByRole('row')
+    .filter({ hasText: sku });
+  await expect(deletedRows).toHaveCount(0);
 
-  await page.getByLabel(/Customer Email/i).fill('browser@example.com');
-  await page.getByLabel(/^Product ID/i).fill('p-2');
-  await page.getByLabel(/Quantity/i).fill('2');
+  await page.goto('/orders/manage');
+  await page.getByRole('button', { name: /New Order/i }).click();
+  await page.getByLabel(/Customer Email/i).fill(orderEmail);
+  await page.getByLabel(/^Product ID/i).fill('p-1');
+  await page.getByLabel(/Quantity/i).fill('1');
   await page.getByLabel(/Status/i).selectOption('NEW');
-  await page.getByRole('button', { name: /Create Order/i }).click();
+  await Promise.all([
+    page.waitForResponse(
+      (res) => res.url().includes('/api/gateway/orders') && res.request().method() === 'POST' && res.ok()
+    ),
+    page.getByRole('button', { name: /Create Order/i }).click()
+  ]);
+  const createdOrderRow = page.getByRole('row', { name: new RegExp(orderEmail, 'i') });
+  await expect(createdOrderRow).toBeVisible({ timeout: 15000 });
 
-  await expect(page.getByText(/browser@example.com/i)).toBeVisible();
+  await createdOrderRow.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel(/Status/i).selectOption('CONFIRMED');
+  await page.getByRole('button', { name: /Update Order/i }).click();
+  await expect(page.getByRole('row', { name: new RegExp(orderEmail, 'i') })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(orderEmail, 'i') }).getByText('CONFIRMED')).toBeVisible();
+
+  await page.getByRole('row', { name: new RegExp(orderEmail, 'i') }).getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: /Delete Order/i }).click();
+  await expect(page.getByRole('row', { name: new RegExp(orderEmail, 'i') })).toHaveCount(0);
 });

@@ -44,6 +44,22 @@ curl http://localhost:8080/api/gateway/system/status
 
 curl http://localhost:8083/api/notification/send?recipient=test@example.com&message=hello
 curl http://localhost:8084/api/analytics/track?event=page-view
+
+# create a catalog product
+curl -X POST http://localhost:8080/api/gateway/catalog \
+  -H "Content-Type: application/json" \
+  -d '{"sku":"SKU-CLI-01","name":"CLI Created","description":"from docs","price":42,"currency":"USD","category":"DOCS","active":true}'
+
+# create then confirm an order
+curl -X POST http://localhost:8080/api/gateway/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerEmail":"docs@example.com","items":[{"productId":"11111111-1111-1111-1111-111111111111","quantity":1}]}'
+curl -X POST http://localhost:8080/api/gateway/orders/1/confirm
+
+UI quick tour (replace with real screenshots):
+- Dashboard: [UI screenshot: dashboard-kpis.png]
+- Manage Catalog (/catalog/manage): [UI screenshot: catalog-manage.png]
+- Manage Orders (/orders/manage): [UI screenshot: orders-manage.png]
 ```
 
 ### Integration tests for local deployment
@@ -168,6 +184,12 @@ You can import the dashboard JSON under:
 
 into Grafana (via "Import dashboard") to get a quick platform-wide view.
 
+## Seed Data Tool
+
+- API: `POST /api/gateway/seed` triggers deterministic catalog + orders demo content by calling the downstream services.
+- UI: `Tools > Seed Data` in the webapp. Click **Load Demo Data** to pre-fill the dashboards and management pages.
+- Deterministic IDs for the seeded catalog (UUIDs ending with repeating digits) keep the orders-service happy when you create test orders manually.
+
 ## 6. Next Steps
 
 - Integrate the React UI and point it at the gateway-service
@@ -185,7 +207,8 @@ into Grafana (via "Import dashboard") to get a quick platform-wide view.
 
 - Backend (Spring Boot + Quarkus): `make test-backend`
 - Frontend (Vitest): `cd webapp && npm install && npm test`
-- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker-compose up -d` first)
+- Frontend CRUD form specs (Vitest): `cd webapp && npm test -- --runInBand OrderFormDialog ProductFormDialog`
+- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker-compose up -d` first). Use `npm run test:e2e -- --grep \"manage catalog\"` to target the CRUD + seed flow.
 - Integration tests (stack running):  
   1) `cd infra/local && docker-compose up -d`  
   2) `cd integration-tests && mvn test` (optionally set `ACMECORP_BASE_URL`, default `http://localhost:8080`)  
