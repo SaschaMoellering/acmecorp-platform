@@ -40,3 +40,13 @@ acmecorp:
     billing: http://billing-service:8082
     analytics: http://analytics-service:8084
     notification: http://notification-service:8083
+  postgres:
+    host: ${ACMECORP_PG_HOST:postgres}
+    port: ${ACMECORP_PG_PORT:5432}
+    database: ${ACMECORP_PG_DB:acmecorp}
+    username: ${ACMECORP_PG_USER:acmecorp}
+    region: ${ACMECORP_PG_REGION:${AWS_REGION:eu-west-1}}
+    iam-auth:
+      enabled: ${ACMECORP_PG_IAM_AUTH:false}
+      max-lifetime: 9m
+      pool-size: 10

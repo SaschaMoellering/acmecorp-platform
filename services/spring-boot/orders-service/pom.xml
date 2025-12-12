@@ -11,6 +11,7 @@
   <properties>
     <java.version>21</java.version>
     <spring.boot.version>3.3.4</spring.boot.version>
+    <aws.sdk.version>2.20.107</aws.sdk.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
   </properties>
@@ -51,6 +52,11 @@
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>rds</artifactId>
+      <version>${aws.sdk.version}</version>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
