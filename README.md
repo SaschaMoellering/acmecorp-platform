@@ -1,128 +1,95 @@
 # AcmeCorp Platform
 
-AcmeCorp Platform is a cloud-native enterprise demo that stitches together Spring Boot, Quarkus, and a Vite/React UI to showcase architecting, deploying, and observing a microservices suite (orders, catalog, billing, analytics, notifications) in Docker, Kubernetes, and EKS labs.
+AcmeCorp Platform is a cloud-native demo built as a learning ground for JVM + modern infra projects: it ties together Spring Boot, Quarkus, React, Docker Compose, Helm/EKS, observing tools, and benchmarking around performance regressions (Hibernate N+1, Java 11/17/21/25). The repo exists to power deep-dive videos that cover architecture, observability, DevOps automation, and the performance implications of each stack layer.
 
-## What’s Included
+## What’s inside
 
-- **Gateway** – Spring WebFlux entry point that composes downstream microservices and offers `/api/gateway/*` APIs.
-- **Orders, Billing, Notification, Analytics** – Spring Boot services backed by Postgres, RabbitMQ, and Redis.
-- **Catalog** – Quarkus product service that feeds the catalog UI and integrates with the gateway.
-- **Webapp** – React + Vite SPA consumed via `VITE_API_BASE_URL`.
-- **Observability stack** – Prometheus/Grafana resources (manifests + dashboards) scrape JVM + HTTP metrics for each service.
+- **Gateway** – Spring WebFlux entrypoint (`gateway-service`) that routes `/api/gateway/*` traffic to downstream services.
+- **Orders, Billing, Notification, Analytics** – Spring Boot microservices backed by Postgres, RabbitMQ, and Redis.
+- **Catalog** – Quarkus-based catalog service (optional) consumed by the webapp and gateway.
+- **Webapp** – React + Vite SPA (`webapp/`) wired to the gateway via `VITE_API_BASE_URL`.
+- **Observability & monitoring** – `infra/observability/` holds ServiceMonitors and Grafana dashboards for Prometheus scraping.
 
-## Architecture
+## Repository layout
 
 ```
-           ┌────────────┐
-           │ React UI   │
-           │ (webapp)   │
-           └─────┬──────┘
-                 ▼
-        ┌───────────────────────┐
-        │ Gateway Service (8080) │
-        └─────┬─────┬────┬──────┘
-              │     │    │
-              ▼     ▼    ▼
-     ┌──────────┐ ┌──────────┐ ┌────────────┐
-     │ Orders   │ │ Catalog  │ │ Billing    │
-     │ (8081)   │ │ (8085)   │ │ (8082)     │
-     └────┬─────┘ └────┬─────┘ └────┬───────┘
-          │            │            │
-          ▼            ▼            ▼
-     PostgreSQL    PostgreSQL    PostgreSQL
-     Redis         (shared via    (shared via
-     RabbitMQ       Kafka/AMQP)    analytics)
+services/                   # Java + Quarkus service sources
+infra/local/docker-compose.yml  # local stack (Postgres, Redis, RabbitMQ, services)
+helm/acmecorp-platform/     # backend Helm umbrella chart (gateway, orders, catalog)
+bench/                      # benchmarking harness + scripts
+webapp/                     # React + Vite single-page app
+docs/                       # supplementary guides (AWS, benchmarking, etc.)
 ```
 
-The gateway forwards HTTP traffic to the Spring Boot services (orders, billing, notification, analytics) plus the Quarkus catalog service, while shared infrastructure (Postgres, Redis, RabbitMQ) supports persistence, caching, and messaging.
-
-## Quickstart (Local)
-
-1. **Prerequisites**
-   - Docker Desktop / Docker Engine + Compose plugin
-   - Java 21 / Maven (build Java services)
-   - Node.js (React UI via Vite)
-
-2. **Start the stack**
+## Quick start (Local)
 
 ```bash
 cd infra/local
-docker compose up --build
+docker compose up -d --build
 ```
 
-3. **Access the platform**
+- Check gateway health: `curl http://localhost:8080/api/gateway/status`
+- Seed deterministic data: `curl -X POST http://localhost:8080/api/gateway/seed`
+- Teardown: `docker compose down --volumes`
 
-```text
-- React UI:            http://localhost:5173 (run `cd webapp && npm run dev`)
-- Gateway health:      http://localhost:8080/api/gateway/status
-- Orders service:      http://localhost:8081/actuator/health
-- RabbitMQ UI:         http://localhost:15672
-- Grafana (when enabled via infra/observability): http://localhost:3000
-```
+The webapp defaults to `VITE_API_BASE_URL=http://localhost:8080`; run `npm install && npm run dev` inside `webapp/`.
 
-4. **Seed demo data**
+## Kubernetes deployment (Helm)
+
+See `helm/README.md` for install/upgrade guidance.
 
 ```bash
-curl -X POST http://localhost:8080/api/gateway/seed
+kubectl create namespace acmecorp
+helm upgrade --install acmecorp helm/acmecorp-platform -n acmecorp -f helm/acmecorp-platform/values-prod.yaml
 ```
 
-The UI uses `VITE_API_BASE_URL` (default `http://localhost:8080`). Adjust that env var when running the SPA against a different gateway host.
+- Helm deploys **only the backend** services; the React SPA stays on S3/CloudFront (Terraform-managed).
+- Ingress is handled via AWS Load Balancer Controller (ALB) when `ingress.enabled=true`.
+- ServiceMonitors are optional; enable `prometheus.serviceMonitor.enabled=true` per subchart when running kube-prometheus-stack.
 
-## API Overview
+## Java versions & performance benchmarking
 
-- `GET /api/gateway/status` – lightweight service health.
-- `GET /api/gateway/orders` – paged list of orders (filters via `page`, `size`).
-- `POST /api/gateway/orders` – place a new order.
-- `PUT /api/gateway/orders/{id}` – update order metadata/items.
-- `POST /api/gateway/orders/{id}/confirm` – confirm payment intent.
-- `POST /api/gateway/orders/{id}/cancel` – cancel a new order.
-- `GET /api/gateway/orders/latest` – dashboard-friendly recents.
-- `GET /api/gateway/catalog` – list products and filter by `category`/`search`.
-- `POST /api/gateway/catalog` – create or edit catalog entries.
-- `POST /api/gateway/seed` – seed catalog + orders data from a deterministic payload.
-- `GET /api/gateway/system/status` – aggregate status from each downstream service.
+Branches follow the Java matrix in `VERSION_MATRIX.md`: `main` is Java 21, while `java11`, `java17`, `java21`, `java25` are configuration-only variants that swap JDK/JRE images/toolchains (no Aurora or docs changes). Benchmarks run via the `bench/` scripts:
 
-Other services expose their native endpoints (`/api/orders/*`, `/api/catalog/*`, etc.) for deeper debugging.
+```bash
+./bench/run-once.sh      # capture startup + median RSS for current branch
+./bench/run-matrix.sh    # iterate java11/java17/java21/main/java25
+```
 
-## Observability
+The harness expects Docker Compose v2 (or `docker-compose` as fallback) and records memory snapshots at T0/T+30s/T+60s to reduce sampling noise.
 
-- Deploy the Prometheus/Grafana stack referenced under `infra/observability/k8s/` (`ServiceMonitor` YAMLs) once you have `kube-prometheus-stack`.
-- Import the dashboard JSON at `infra/observability/grafana/acmecorp-jvm-http-overview.json` into Grafana for JVM/HTTP telemetry.
-- Each Spring Boot service exposes `/actuator/prometheus`, `/actuator/health`, and `/actuator/info`.
-- The Quarkus catalog service exposes `/q/metrics`.
-- Grafana sees metrics via the service monitors that scrape the above endpoints every 15s.
+## Performance demo: Hibernate N+1
 
-## Database Performance: Hibernate N+1
-
-- **Demo endpoint**: `GET /api/orders/demo/nplus1?limit=N` runs `OrderService.listOrdersNPlusOneDemo(limit)` which fetches orders via `orderRepository.findAll(...)` and maps `OrderResponse.from(order)` without preloading `items`. This produces the classic 1 (orders) + N (items) queries.
-- **Optimized flow**: `listOrders` and `latestOrders` now call `preloadItems(...)`, which collects the returned IDs and runs `OrderRepository.findAllWithItemsByIds(ids)` (a `left join fetch`), so only the orders query plus one join-fetch covers all items.
-- **Regression guard**: `OrderServiceQueryCountTest` seeds 10 orders × 5 items, enables `hibernate.generate_statistics` (see `services/spring-boot/orders-service/src/test/resources/application-test.yml` for the H2 profile), and asserts that the optimized path runs no more than 3 SQL statements. Run it via:
+- Path vs fix: `GET /api/orders/demo/nplus1` exercises the naive per-row item fetch; `listOrders`/`latestOrders` call `preloadItems(...)` which batches with `OrderRepository.findAllWithItemsByIds(ids)` to avoid the 1+N queries.
+- Regression guard: `OrderServiceQueryCountTest` seeds 10 orders × 5 items, enables `hibernate.generate_statistics`, and asserts the optimized path issues ≤3 SQL statements. Run it via:
 
 ```bash
 cd services/spring-boot/orders-service
 mvn test -Dtest=OrderServiceQueryCountTest
 ```
 
-The test ensures the fixed flow cannot regresses into N+1 while developers can still invoke `/api/orders/demo/nplus1` to observe the pathological behavior.
+## AWS deployment overview
 
-## Learning Path: Season 1 (8×10 min)
+- **Backend**: deployed to EKS via `helm/acmecorp-platform`.
+- **Frontend**: hosted on S3 (optionally fronted by CloudFront) with `VITE_API_BASE_URL` pointing to the gateway.
+- **Database**: Aurora PostgreSQL (shared via `infra/local/docker-compose` for local dev).
 
-1. Episode 1 – Foundation: Platform, Spring Boot & Quarkus on Kubernetes  
-2. Episode 2 – JVM Deep Dive: Virtual Threads, N+1, Profiling  
-3. Episode 3 – Deploying & Optimizing on EKS Auto Mode  
-4. Episode 4 – Observability with Prometheus & Grafana  
-5. Episode 5 – Reactive Gateway & API Composition  
-6. Episode 6 – Catalog and Orders Management Workflows  
-7. Episode 7 – Automation, GitOps, and Helm Deployments  
-8. Episode 8 – Monitoring, Alerts, and Runbook Drills  
+### Aurora IAM auth + EKS Pod Identity
 
-## Troubleshooting
+See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 
-- **Ports in use** – stop conflicting containers/processes if `docker compose` fails to bind 8080–8085, 5432, 6379, or 5672.
-- **Docker resource limits** – bump CPU/memory if the JVMs or PostgreSQL repeatedly restart under load.
-- **Clean rebuild** – run `docker compose down --volumes` followed by `docker compose up --build` and `mvn -pl services/spring-boot/orders-service clean test` when caches cause inconsistent data.
-- **UI not talking to gateway** – ensure `VITE_API_BASE_URL` matches the gateway URL before running `npm run dev`.
+- Enable IAM DB authentication and grant `rds_iam` to the target user.
+- Apply the IAM policy in `docs/aws/iam/policy-rds-db-connect.json` (fill in account/region/resource/user).
+- Create IAMRoleBindings (`docs/aws/pod-identity/*.yaml`) to associate Pod service accounts with the IAM role that has `rds-db:connect`.
+- When IAM auth is active, set env vars `ACMECORP_PG_IAM_AUTH=true`, `ACMECORP_PG_HOST`, `ACMECORP_PG_PORT`, `ACMECORP_PG_DB`, `ACMECORP_PG_USER`, and `AWS_REGION`; the services generate short-lived tokens (orders: 9m max lifetime, catalog similar).
+
+## Docs index
+
+- [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md)
+- [`helm/README.md`](helm/README.md)
+- [`bench/README.md`](bench/README.md)
+- [`VERSION_MATRIX.md`](VERSION_MATRIX.md)
 
 ## License / Contributing
 
-This repository does not publish a formal `LICENSE` or `CONTRIBUTING.md`; please coordinate with the AcmeCorp maintainers before sharing or extending the code.
+No formal `LICENSE`/`CONTRIBUTING.md` is included; coordinate with the AcmeCorp maintainers before extending or sharing this code.
