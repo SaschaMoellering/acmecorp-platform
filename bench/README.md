@@ -22,6 +22,8 @@ bash bench/run-once.sh
 
 Results will be under `bench/results/<timestamp>/`. Each run produces `summary.json`, `summary.md`, and `containers.json`.
 
+We pin the JVM containers in `infra/local/docker-compose.yml` (0.5 CPU + 1GiB memory per JVM) so that Java 11/17/21/25 runs can be compared on equal footing.
+
 ```bash
 bash bench/run-matrix.sh
 ```
