@@ -1,0 +1,10 @@
+apiVersion: iam.amazonaws.com/v1alpha1
+kind: IAMRoleBinding
+metadata:
+  name: orders-service-iam
+spec:
+  rolearn: arn:aws:iam::ACCOUNT_ID:role/orders-service-db-connect
+  serviceAccount:
+    name: gateway-service
+    namespace: acmecorp
+  roleSessionName: orders-service-session

@@ -1,0 +1,10 @@
+apiVersion: iam.amazonaws.com/v1alpha1
+kind: IAMRoleBinding
+metadata:
+  name: catalog-service-iam
+spec:
+  rolearn: arn:aws:iam::ACCOUNT_ID:role/catalog-service-db-connect
+  serviceAccount:
+    name: catalog-service
+    namespace: acmecorp
+  roleSessionName: catalog-service-session
