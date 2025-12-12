@@ -1,6 +1,6 @@
 # Helm charts for AcmeCorp Platform
 
-This directory introduces the canonical umbrella Helm chart (`helm/acmecorp-platform`) for deploying the backend services (gateway, orders, catalog) to Amazon EKS. Do **not** edit the older `charts/acmecorp-platform` chart; the one under `helm/` is the active source of truth moving forward.
+This directory holds the canonical umbrella Helm chart (`helm/acmecorp-platform`) for deploying the backend services (gateway, orders, catalog) to Amazon EKS. The previous `charts/acmecorp-platform` chart is archived and should not be modified.
 
 ## Install (example)
 
@@ -8,14 +8,14 @@ This directory introduces the canonical umbrella Helm chart (`helm/acmecorp-plat
 helm upgrade --install acmecorp helm/acmecorp-platform -f helm/acmecorp-platform/values-dev.yaml
 ```
 
-Customize values files or pass `--set` overrides for secrets (Postgres/RabbitMQ credentials) and ingress host/ALB settings. The chart expects the following secrets before install:
+Customize values files or pass `--set` overrides for image tags, ingress host, and downstream service URLs. Ensure the following secrets exist before installing:
 
-- `postgres.passwordSecret.name` (`acmecorp-postgres` by default)
-- `rabbitmq.passwordSecret.name` (`acmecorp-rabbitmq`)
-- `orders-service.secret.name` (`orders-service-credentials`)
-- `catalog-service.secret.name` (`catalog-service-db`)
+- `postgres.passwordSecret.name` (default `acmecorp-postgres`) with key `password`
+- `rabbitmq.passwordSecret.name` (default `acmecorp-rabbitmq`) with keys `password`, `username` if needed
+- `orders-service.secret.name` (default `orders-service-credentials`) with keys `username`, `password`, `rabbitmqUsername`, `rabbitmqPassword`
+- `catalog-service.secret.name` (default `catalog-service-db`) with keys `username`, `password`
 
-Each secret must expose the keys referenced in the values (e.g., `password`, `username`, `rabbitmqPassword`).
+Use `helm template` to validate rendered manifests before applying them.
 
 ## Upgrade
 
@@ -23,4 +23,4 @@ Each secret must expose the keys referenced in the values (e.g., `password`, `us
 helm upgrade acmecorp helm/acmecorp-platform -f helm/acmecorp-platform/values-prod.yaml
 ```
 
-Secrets referenced via `postgres.passwordSecret.name`/`key` and `rabbitmq.passwordSecret` must exist before install.
+When using production values, ensure secrets (Postgres + RabbitMQ credentials) are created in the target namespace, and update `ingress.host`, `ingress.tls.certificateArn`, and resource requests/limits as needed.
