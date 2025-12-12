@@ -1,0 +1,42 @@
+enabled: true
+image:
+  repository: acmecorp/catalog-service
+  tag: latest
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+service:
+  port: 8085
+config:
+  jdbcUrl: jdbc:postgresql://postgres:5432/acmecorp
+  username: acmecorp
+serviceAccount:
+  create: true
+  annotations: {}
+secret:
+  create: false
+  name: catalog-service-db
+  data:
+    username: ""
+    password: ""
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+probes:
+  enabled: false
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 60
+prometheus:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /q/metrics
+    prometheus.io/port: "8085"
+  serviceMonitor:
+    enabled: false
+    interval: 15s

@@ -1,0 +1,33 @@
+postgres:
+  host: localhost
+  port: 5432
+  database: acmecorp
+  username: acmecorp
+  passwordSecret:
+    name: local-postgres
+    key: password
+
+rabbitmq:
+  host: localhost
+  port: 5672
+  username: guest
+  passwordSecret:
+    name: local-rabbitmq
+    key: password
+
+gateway-service:
+  ingress:
+    enabled: true
+    host: api.local
+    tls:
+      enabled: false
+
+orders-service:
+  config:
+    dbHost: localhost
+    dbPort: 5432
+    dbName: acmecorp
+
+catalog-service:
+  config:
+    jdbcUrl: jdbc:postgresql://localhost:5432/acmecorp

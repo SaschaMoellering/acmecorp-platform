@@ -1,0 +1,19 @@
+{{- if .Values.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "gateway-service.fullname" . }}
+  labels:
+    {{- include "gateway-service.labels" . | nindent 4 }}
+spec:
+  endpoints:
+    - port: http
+      interval: {{ .Values.prometheus.serviceMonitor.interval }}
+      path: {{ .Values.prometheus.annotations.prometheus.io/path }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "gateway-service.labels" . | nindent 6 }}
+{{- end }}
