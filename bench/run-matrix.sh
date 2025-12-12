@@ -17,6 +17,16 @@ for cmd in docker curl git mvn; do
   fi
 done
 
+COMPOSE_CMD=()
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker-compose)
+else
+  echo "docker compose or docker-compose CLI not found" >&2
+  exit 1
+fi
+
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "docker compose file missing: $COMPOSE_FILE" >&2
   exit 1
@@ -36,7 +46,7 @@ initial_branch="$(git rev-parse --abbrev-ref HEAD)"
 trap 'git checkout "$initial_branch" >/dev/null 2>&1' EXIT
 
 function ensure_compose_down() {
-  docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
+  "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
 trap 'ensure_compose_down' EXIT
 
@@ -68,7 +78,7 @@ for branch in "${branches[@]}"; do
   mvn -q -DskipTests package
 
   ensure_compose_down
-  docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
+  ("${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up --build -d) >/dev/null
   start_ts="$(date +%s)"
   ready_ts=""
   echo "Waiting for health endpoint ($HEALTH_URL)..."

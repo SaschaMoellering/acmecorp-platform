@@ -12,6 +12,16 @@ for cmd in docker curl; do
   fi
 done
 
+COMPOSE_CMD=()
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker-compose)
+else
+  echo "docker compose or docker-compose CLI not found" >&2
+  exit 1
+fi
+
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "docker-compose file not found: $COMPOSE_FILE" >&2
   exit 1
@@ -22,13 +32,13 @@ RESULT_DIR="$RESULT_BASE/$timestamp"
 mkdir -p "$RESULT_DIR"
 
 function cleanup() {
-  echo "Tearing down docker-compose stack..."
-  docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
+  echo "Tearing down compose stack..."
+  "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 echo "Starting docker compose stack..."
-docker compose -f "$COMPOSE_FILE" up --build -d
+("${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up --build -d)
 
 start_ts=$(date +%s)
 health_url="http://localhost:8080/api/gateway/status"
