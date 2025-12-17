@@ -47,13 +47,13 @@ module "eks" {
 module "aurora" {
   source = "./modules/aurora-postgres"
   
-  cluster_name       = "${local.cluster_name}-aurora"
-  database_name      = var.db_name
-  username           = var.db_username
-  vpc_id             = module.vpc.vpc_id
-  subnet_ids         = module.vpc.private_subnet_ids
-  allowed_cidr_blocks = [var.vpc_cidr]
-  environment        = var.environment
+  cluster_name = "${local.cluster_name}-aurora"
+  database_name = var.db_name
+  username      = var.db_username
+  vpc_id        = module.vpc.vpc_id
+  subnet_ids    = module.vpc.private_subnet_ids
+  vpc_cidr      = var.vpc_cidr
+  environment   = var.environment
   
   tags = local.common_tags
   
@@ -97,6 +97,21 @@ module "s3_frontend" {
   tags = local.common_tags
 }
 
+# ElastiCache Redis Module - Well-Architected: Performance, Reliability
+module "elasticache" {
+  source = "./modules/elasticache"
+  
+  cluster_name = local.cluster_name
+  vpc_id       = module.vpc.vpc_id
+  subnet_ids   = module.vpc.private_subnet_ids
+  vpc_cidr     = var.vpc_cidr
+  environment  = var.environment
+  
+  tags = local.common_tags
+  
+  depends_on = [module.vpc]
+}
+
 # CloudFront Module - Well-Architected: Performance, Security
 module "cloudfront" {
   source = "./modules/cloudfront"
@@ -109,6 +124,18 @@ module "cloudfront" {
   tags = local.common_tags
   
   depends_on = [module.s3_frontend]
+}
+
+# Cost Monitoring Module - Well-Architected: Cost Optimization
+module "cost_monitoring" {
+  source = "./modules/cost-monitoring"
+  
+  environment          = var.environment
+  monthly_budget_limit = var.monthly_budget_limit
+  eks_budget_limit     = var.eks_budget_limit
+  alert_emails         = var.budget_alert_emails
+  
+  tags = local.common_tags
 }
 
 # Update S3 bucket policy after CloudFront is created

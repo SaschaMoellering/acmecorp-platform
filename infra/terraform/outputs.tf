@@ -57,3 +57,13 @@ output "cloudfront_domain_name" {
   description = "CloudFront distribution domain name"
   value       = module.cloudfront.domain_name
 }
+
+output "redis_endpoint" {
+  description = "ElastiCache Redis endpoint"
+  value       = module.elasticache.redis_endpoint
+}
+
+output "redis_port" {
+  description = "ElastiCache Redis port"
+  value       = module.elasticache.redis_port
+}

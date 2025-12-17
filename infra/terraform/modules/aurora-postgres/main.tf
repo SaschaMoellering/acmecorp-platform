@@ -20,8 +20,8 @@ resource "aws_security_group" "aurora" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = var.allowed_cidr_blocks
-    description = "PostgreSQL access from VPC"
+    cidr_blocks = [var.vpc_cidr]
+    description = "PostgreSQL access from VPC only"
   }
   
   egress {
@@ -135,6 +135,32 @@ resource "aws_rds_cluster_instance" "cluster_instances" {
   tags = merge(var.tags, {
     Name = "${var.cluster_name}-${count.index}"
   })
+}
+
+# Aurora Auto Scaling for production
+resource "aws_appautoscaling_target" "aurora_read_replica" {
+  count              = var.environment == "prod" ? 1 : 0
+  max_capacity       = 5
+  min_capacity       = 1
+  resource_id        = "cluster:${aws_rds_cluster.main.cluster_identifier}"
+  scalable_dimension = "rds:cluster:ReadReplicaCount"
+  service_namespace  = "rds"
+}
+
+resource "aws_appautoscaling_policy" "aurora_read_replica_policy" {
+  count              = var.environment == "prod" ? 1 : 0
+  name               = "${var.cluster_name}-read-replica-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.aurora_read_replica[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.aurora_read_replica[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.aurora_read_replica[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "RDSReaderAverageCPUUtilization"
+    }
+    target_value = 70.0
+  }
 }
 
 # Create IAM database user (requires manual setup post-deployment)

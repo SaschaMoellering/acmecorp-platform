@@ -4,6 +4,7 @@ com/acmecorp/gateway/service/GatewayService$ServiceDescriptor.class
 com/acmecorp/gateway/service/GatewayService$4.class
 com/acmecorp/gateway/GatewayServiceApplication.class
 com/acmecorp/gateway/service/GatewayService$7.class
+com/acmecorp/gateway/config/RedisConfig.class
 com/acmecorp/gateway/service/GatewayService$OrderWithInvoice.class
 com/acmecorp/gateway/service/GatewayService$OrdersSeedResponse.class
 com/acmecorp/gateway/service/GatewayService$OrderRequest.class
@@ -14,6 +15,7 @@ com/acmecorp/gateway/service/GatewayService$2.class
 com/acmecorp/gateway/service/GatewayService$PageResponse.class
 com/acmecorp/gateway/service/GatewayService$OrderSummary.class
 com/acmecorp/gateway/service/GatewayService$SeedResult.class
+com/acmecorp/gateway/config/RateLimitFilter.class
 com/acmecorp/gateway/service/GatewayService$InvoiceSummary.class
 com/acmecorp/gateway/service/GatewayService$6.class
 com/acmecorp/gateway/service/GatewayService$1.class

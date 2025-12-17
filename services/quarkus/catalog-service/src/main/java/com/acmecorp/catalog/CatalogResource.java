@@ -26,6 +26,13 @@ public class CatalogResource {
     }
 
     @GET
+    @Path("/products")
+    public List<Product> products(@QueryParam("category") String category,
+                                  @QueryParam("search") String search) {
+        return productRepository.active(category, search);
+    }
+
+    @GET
     @Path("/{id}")
     public Product get(@PathParam("id") UUID id) {
         return productRepository.findByIdOptional(id)

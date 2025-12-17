@@ -1,15 +1,5 @@
 variable "cluster_name" {
-  description = "Aurora cluster name"
-  type        = string
-}
-
-variable "database_name" {
-  description = "Database name"
-  type        = string
-}
-
-variable "username" {
-  description = "IAM database username"
+  description = "ElastiCache cluster name"
   type        = string
 }
 
@@ -19,12 +9,12 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids" {
-  description = "Subnet IDs for Aurora"
+  description = "Subnet IDs for ElastiCache"
   type        = list(string)
 }
 
 variable "vpc_cidr" {
-  description = "VPC CIDR block for Aurora access"
+  description = "VPC CIDR block for Redis access"
   type        = string
 }
 

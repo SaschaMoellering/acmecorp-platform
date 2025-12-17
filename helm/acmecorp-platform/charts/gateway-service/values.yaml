@@ -15,24 +15,25 @@ config:
   springProfilesActive: default
 resources:
   limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
     cpu: 500m
     memory: 512Mi
-  requests:
-    cpu: 250m
-    memory: 256Mi
 serviceAccount:
   create: true
   annotations: {}
 
 probes:
   enabled: true
-  livenessPath: /actuator/health
-  readinessPath: /actuator/health
+  livenessPath: /actuator/health/liveness
+  readinessPath: /actuator/health/readiness
 autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 60
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
 ingress:
   enabled: false
   host: api.acmecorp.example.com

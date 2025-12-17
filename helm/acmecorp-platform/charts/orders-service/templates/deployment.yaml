@@ -83,6 +83,28 @@ spec:
                 secretKeyRef:
                   name: {{ $secretName }}
                   key: rabbitmqPassword
+            # IAM Database Authentication
+            - name: ACMECORP_PG_IAM_AUTH
+              value: "true"
+            - name: ACMECORP_PG_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "orders-service.fullname" . }}-config
+                  key: DB_HOST
+            - name: ACMECORP_PG_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "orders-service.fullname" . }}-config
+                  key: DB_PORT
+            - name: ACMECORP_PG_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "orders-service.fullname" . }}-config
+                  key: DB_NAME
+            - name: ACMECORP_PG_USER
+              value: "iam_user"
+            - name: AWS_REGION
+              value: "{{ .Values.global.aws.region | default "us-west-2" }}"
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

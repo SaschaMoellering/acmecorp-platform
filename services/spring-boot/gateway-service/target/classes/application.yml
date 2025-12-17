@@ -4,6 +4,15 @@ server:
 spring:
   application:
     name: gateway-service
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+  session:
+    store-type: redis
+    redis:
+      namespace: "acmecorp:sessions"
+    timeout: 30m
 
 management:
   endpoints:

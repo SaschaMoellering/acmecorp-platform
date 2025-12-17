@@ -24,6 +24,9 @@ rabbitmq:
 redis:
   host: redis
   port: 6379
+  # For production, use ElastiCache endpoint
+  # host: <elasticache-endpoint>
+  # port: 6379
 
 gateway-service:
   enabled: true

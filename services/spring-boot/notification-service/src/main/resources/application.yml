@@ -18,6 +18,9 @@ spring:
     web:
       pageable:
         serialization-mode: via_dto
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
   rabbitmq:
     host: ${RABBITMQ_HOST:rabbitmq}
     port: ${RABBITMQ_PORT:5672}

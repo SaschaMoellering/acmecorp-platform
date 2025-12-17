@@ -7,6 +7,10 @@ postgres:
     name: prod-postgres-credentials
     key: password
 
+redis:
+  host: <redis-endpoint>
+  port: 6379
+
 rabbitmq:
   host: <rabbitmq-host>
   port: 5672

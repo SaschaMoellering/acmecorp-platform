@@ -8,13 +8,14 @@ AcmeCorp Platform is a cloud-native demo built as a learning ground for JVM + mo
 - **Orders, Billing, Notification, Analytics** – Spring Boot microservices backed by Postgres, RabbitMQ, and Redis.
 - **Catalog** – Quarkus-based catalog service (optional) consumed by the webapp and gateway.
 - **Webapp** – React + Vite SPA (`webapp/`) wired to the gateway via `VITE_API_BASE_URL`.
-- **Observability & monitoring** – `infra/observability/` holds ServiceMonitors and Grafana dashboards for Prometheus scraping.
+- **Observability & monitoring** – `infra/observability/` contains Grafana dashboards (`grafana/`) and Kubernetes ServiceMonitors (`k8s/`) for Prometheus integration.
 
 ## Repository layout
 
 ```
 services/                   # Java + Quarkus service sources
 infra/local/docker-compose.yml  # local stack (Postgres, Redis, RabbitMQ, services)
+infra/terraform/            # AWS infrastructure (VPC, EKS, Aurora, S3/CloudFront)
 helm/acmecorp-platform/     # backend Helm umbrella chart (gateway, orders, catalog)
 bench/                      # benchmarking harness + scripts
 webapp/                     # React + Vite single-page app
@@ -70,9 +71,11 @@ mvn test -Dtest=OrderServiceQueryCountTest
 
 ## AWS deployment overview
 
+- **Infrastructure**: Terraform modules in `infra/terraform/` for VPC, EKS Auto Mode, Aurora, S3/CloudFront
 - **Backend**: deployed to EKS via `helm/acmecorp-platform`.
 - **Frontend**: hosted on S3 (optionally fronted by CloudFront) with `VITE_API_BASE_URL` pointing to the gateway.
-- **Database**: Aurora PostgreSQL (shared via `infra/local/docker-compose` for local dev).
+- **Database**: Aurora PostgreSQL with IAM authentication (shared via `infra/local/docker-compose` for local dev).
+- **Cache**: Redis for session management, rate limiting, and application caching (ElastiCache in production).
 
 ### Aurora IAM auth + EKS Pod Identity
 
@@ -85,6 +88,7 @@ See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 
 ## Docs index
 
+- [`infra/terraform/README.md`](infra/terraform/README.md) - AWS infrastructure deployment
 - [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md)
 - [`helm/README.md`](helm/README.md)
 - [`bench/README.md`](bench/README.md)

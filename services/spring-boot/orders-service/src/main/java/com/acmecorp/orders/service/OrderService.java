@@ -10,6 +10,7 @@ import com.acmecorp.orders.messaging.NotificationPublisher;
 import com.acmecorp.orders.repository.OrderRepository;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import io.micrometer.core.annotation.Timed;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -33,6 +34,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
+@Timed("orders.service")
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -54,6 +56,7 @@ public class OrderService {
     }
 
     @Transactional
+    @Timed("orders.create")
     public Order createOrder(OrderRequest request) {
         if (request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Order must contain at least one item");
@@ -80,6 +83,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    @Timed("orders.list")
     public Page<Order> listOrders(String customerEmail, OrderStatus status, int page, int size) {
         Specification<Order> spec = Specification.where(null);
         if (customerEmail != null && !customerEmail.isBlank()) {

@@ -1,5 +1,6 @@
 package com.acmecorp.catalog;
 
+import io.quarkus.cache.CacheResult;
 import io.quarkus.hibernate.orm.panache.PanacheRepositoryBase;
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -9,6 +10,7 @@ import java.util.UUID;
 @ApplicationScoped
 public class ProductRepository implements PanacheRepositoryBase<Product, UUID> {
 
+    @CacheResult(cacheName = "products")
     public List<Product> active(String category, String search) {
         StringBuilder query = new StringBuilder("active = true");
         if (category != null && !category.isBlank()) {

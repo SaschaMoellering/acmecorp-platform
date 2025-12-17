@@ -35,8 +35,8 @@ resource "aws_eks_cluster" "main" {
   vpc_config {
     subnet_ids              = var.subnet_ids
     endpoint_private_access = true
-    endpoint_public_access  = true
-    public_access_cidrs     = ["0.0.0.0/0"]
+    endpoint_public_access  = var.environment == "prod" ? false : true
+    public_access_cidrs     = var.environment == "prod" ? [] : ["0.0.0.0/0"]
   }
   
   # Auto Mode will be enabled via separate configuration

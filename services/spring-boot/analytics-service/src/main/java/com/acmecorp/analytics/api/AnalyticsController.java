@@ -32,6 +32,12 @@ public class AnalyticsController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/track/{event}")
+    public ResponseEntity<Void> trackEvent(@PathVariable("event") String event) {
+        analyticsService.track(event);
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping("/counters")
     public Map<String, Long> all() {
         return analyticsService.allCounters();

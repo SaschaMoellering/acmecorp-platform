@@ -66,3 +66,21 @@ variable "frontend_domain" {
   type        = string
   default     = ""
 }
+
+variable "monthly_budget_limit" {
+  description = "Monthly budget limit in USD"
+  type        = string
+  default     = "500"
+}
+
+variable "eks_budget_limit" {
+  description = "EKS monthly budget limit in USD"
+  type        = string
+  default     = "200"
+}
+
+variable "budget_alert_emails" {
+  description = "Email addresses for budget alerts"
+  type        = list(string)
+  default     = ["admin@acmecorp.example.com"]
+}

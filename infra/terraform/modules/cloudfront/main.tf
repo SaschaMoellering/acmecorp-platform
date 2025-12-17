@@ -32,16 +32,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
     
-    forwarded_values {
-      query_string = false
-      cookies {
-        forward = "none"
-      }
-    }
+    cache_policy_id = aws_cloudfront_cache_policy.optimized.id
     
     min_ttl     = 0
-    default_ttl = 3600
-    max_ttl     = 86400
+    default_ttl = 86400   # 1 day for HTML
+    max_ttl     = 31536000 # 1 year max
   }
   
   # Cache behavior for static assets
@@ -100,6 +95,31 @@ resource "aws_cloudfront_distribution" "frontend" {
   tags = merge(var.tags, {
     Name = "${var.bucket_name}-distribution"
   })
+}
+
+# Optimized cache policy
+resource "aws_cloudfront_cache_policy" "optimized" {
+  name        = "${var.bucket_name}-optimized-cache"
+  default_ttl = 86400
+  max_ttl     = 31536000
+  min_ttl     = 0
+  
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+    
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+    
+    headers_config {
+      header_behavior = "none"
+    }
+    
+    cookies_config {
+      cookie_behavior = "none"
+    }
+  }
 }
 
 # Security headers policy

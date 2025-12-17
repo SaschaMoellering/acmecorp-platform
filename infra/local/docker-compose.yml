@@ -29,8 +29,11 @@ services:
     build: ../../services/spring-boot/orders-service
     depends_on:
       - postgres
+      - redis
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "8081:8081"
     deploy:
@@ -53,8 +56,11 @@ services:
     depends_on:
       - postgres
       - rabbitmq
+      - redis
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "8083:8083"
 
@@ -72,6 +78,10 @@ services:
     build: ../../services/quarkus/catalog-service
     depends_on:
       - postgres
+      - redis
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "8085:8085"
     deploy:
@@ -88,9 +98,11 @@ services:
       - billing-service
       - analytics-service
       - notification-service
+      - redis
     environment:
       SPRING_PROFILES_ACTIVE: docker
-
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       ORDERS_BASE_URL: http://orders-service:8081
       CATALOG_BASE_URL: http://catalog-service:8085
       BILLING_BASE_URL: http://billing-service:8082
