@@ -59,7 +59,7 @@ jobs:
           ln -s webapp/node_modules/vitest/dist/worker.js dist/worker.js
 
       - name: Run unit tests (Vitest)
-        run: npx vitest run --runInBand
+        run: npx vitest run --no-coverage
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
