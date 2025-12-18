@@ -1,6 +1,16 @@
 # Aurora PostgreSQL Module - Well-Architected: Security (IAM auth), Reliability (Multi-AZ)
 # Creates Aurora PostgreSQL cluster with IAM authentication enabled
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # DB Subnet Group for Aurora
 resource "aws_db_subnet_group" "main" {
   name       = "${var.cluster_name}-subnet-group"

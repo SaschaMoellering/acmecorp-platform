@@ -1,6 +1,20 @@
 # EKS Auto Mode Module - Well-Architected: Performance (mixed arch), Cost Optimization (Spot)
 # Creates EKS cluster with Auto Mode for serverless node management
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
+  }
+}
+
 # EKS Cluster Service Role
 resource "aws_iam_role" "cluster" {
   name = "${var.cluster_name}-cluster-role"

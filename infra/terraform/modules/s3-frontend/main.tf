@@ -1,6 +1,16 @@
 # S3 Frontend Module - Well-Architected: Security (encryption, blocked public access)
 # Creates S3 bucket for React frontend with secure defaults
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # S3 bucket for frontend static assets
 resource "aws_s3_bucket" "frontend" {
   bucket = var.bucket_name

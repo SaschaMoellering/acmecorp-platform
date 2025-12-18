@@ -54,8 +54,9 @@ jobs:
         run: |
           cd ..
           mkdir -p dist
-          # symlink root dist/worker.js -> webapp's Vitest worker
-          ln -sf webapp/node_modules/vitest/dist/worker.js dist/worker.js
+          # Remove existing symlink if it exists, then create new one
+          rm -f dist/worker.js
+          ln -s webapp/node_modules/vitest/dist/worker.js dist/worker.js
 
       - name: Run unit tests (Vitest)
         run: npx vitest run --runInBand

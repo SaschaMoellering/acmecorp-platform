@@ -1,5 +1,19 @@
 # ElastiCache Redis Module - Well-Architected: Performance (caching), Reliability (Multi-AZ)
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+  }
+}
+
 resource "aws_elasticache_subnet_group" "redis" {
   name       = "${var.cluster_name}-redis"
   subnet_ids = var.subnet_ids

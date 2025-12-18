@@ -1,6 +1,16 @@
 # Pod Identity Module - Well-Architected: Security (no IRSA, direct Pod Identity)
 # Creates EKS Pod Identity associations for service accounts
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # Pod Identity Association for Orders Service
 resource "aws_eks_pod_identity_association" "orders_service" {
   cluster_name    = var.cluster_name

@@ -1,6 +1,16 @@
 # CloudFront Module - Well-Architected: Performance (global CDN), Security (OAC, HTTPS)
 # Creates CloudFront distribution for React frontend with secure defaults
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # Origin Access Control for S3
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "${var.bucket_name}-oac"

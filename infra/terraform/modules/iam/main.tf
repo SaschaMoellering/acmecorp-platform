@@ -1,6 +1,16 @@
 # IAM Module - Well-Architected: Security (least privilege, no static credentials)
 # Creates IAM roles for EKS Pod Identity with minimal required permissions
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 

@@ -1,6 +1,16 @@
 # Cost Monitoring Module - Well-Architected: Cost Optimization
 # Creates budgets and cost alerts for AWS spending control
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 # Monthly budget with alerts
 resource "aws_budgets_budget" "monthly" {
   name         = "${var.environment}-monthly-budget"

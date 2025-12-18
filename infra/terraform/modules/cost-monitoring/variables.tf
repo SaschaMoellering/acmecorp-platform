@@ -18,8 +18,3 @@ variable "alert_emails" {
   type        = list(string)
 }
 
-variable "tags" {
-  description = "Tags to apply to resources"
-  type        = map(string)
-  default     = {}
-}

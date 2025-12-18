@@ -1,6 +1,16 @@
 # VPC Module - Well-Architected: Security (network isolation), Reliability (multi-AZ)
 # Creates a production-ready VPC with public/private subnets across 3 AZs
 
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
 locals {
   # Calculate subnet CIDRs - /20 for private, /24 for public
   private_subnet_cidrs = [for i, az in var.availability_zones : cidrsubnet(var.vpc_cidr, 4, i)]

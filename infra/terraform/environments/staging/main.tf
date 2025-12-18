@@ -2,6 +2,7 @@
 # Well-Architected: Reliability (production-like setup), Security (isolated network)
 
 terraform {
+  required_version = ">= 1.0"
   # Configure backend for state management
   # backend "s3" {
   #   bucket = "acmecorp-terraform-state-staging"
