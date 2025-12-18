@@ -186,8 +186,26 @@ export type SeedResult = {
   message: string;
 };
 
+export type Notification = {
+  id: number;
+  recipient: string;
+  message: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export async function seedDemoData(): Promise<SeedResult> {
   return handle<SeedResult>('/api/gateway/tools/seed', {
     method: 'POST'
   });
+}
+
+export function listNotifications(page = 0, size = 20): Promise<PageResponse<Notification>> {
+  return handle<PageResponse<Notification>>(`/api/gateway/notifications?page=${page}&size=${size}`);
+}
+
+export function getNotification(id: string): Promise<Notification> {
+  return handle<Notification>(`/api/gateway/notifications/${id}`);
 }

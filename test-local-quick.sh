@@ -40,6 +40,9 @@ echo "Total orders: $ORDERS"
 PRODUCTS=$(curl -s http://localhost:8080/api/gateway/catalog/products | jq 'length')
 echo "Total products: $PRODUCTS"
 
+NOTIFICATIONS=$(curl -s http://localhost:8080/api/gateway/notifications | jq '.totalElements')
+echo "Total notifications: $NOTIFICATIONS"
+
 # Redis check
 echo -e "\n🔴 Redis integration:"
 docker exec acmecorp-redis redis-cli KEYS '*'

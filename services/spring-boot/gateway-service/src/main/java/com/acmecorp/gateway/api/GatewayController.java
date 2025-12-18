@@ -125,6 +125,22 @@ public class GatewayController {
     }
 
     // -------------------------------------------------------------------------
+    // Notifications
+    // -------------------------------------------------------------------------
+
+    @GetMapping("/notifications")
+    public Mono<PageResponse<Map<String, Object>>> listNotifications(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return gatewayService.listNotifications(page, size);
+    }
+
+    @GetMapping("/notifications/{id}")
+    public Mono<Map<String, Object>> getNotification(@PathVariable("id") Long id) {
+        return gatewayService.getNotification(id);
+    }
+
+    // -------------------------------------------------------------------------
     // Analytics / system
     // -------------------------------------------------------------------------
 

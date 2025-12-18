@@ -18,4 +18,4 @@ The app expects the gateway-service at `http://localhost:8080` (configurable via
 - `src/assets` — SVG logo and icons
 - `src/api` — gateway API client
 - `src/components` — layout shell, UI primitives, feature widgets
-- `src/views` — routed pages: Dashboard, Orders, Catalog, Analytics, System
+- `src/views` — routed pages: Dashboard, Orders, Catalog, Notifications, Analytics, System

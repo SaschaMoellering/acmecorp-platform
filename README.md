@@ -7,7 +7,7 @@ AcmeCorp Platform is a cloud-native demo built as a learning ground for JVM + mo
 - **Gateway** – Spring WebFlux entrypoint (`gateway-service`) that routes `/api/gateway/*` traffic to downstream services.
 - **Orders, Billing, Notification, Analytics** – Spring Boot microservices backed by Postgres, RabbitMQ, and Redis.
 - **Catalog** – Quarkus-based catalog service (optional) consumed by the webapp and gateway.
-- **Webapp** – React + Vite SPA (`webapp/`) wired to the gateway via `VITE_API_BASE_URL`.
+- **Webapp** – React + Vite SPA (`webapp/`) wired to the gateway via `VITE_API_BASE_URL` with full notification UI integration.
 - **Observability & monitoring** – `infra/observability/` contains Grafana dashboards (`grafana/`) and Kubernetes ServiceMonitors (`k8s/`) for Prometheus integration.
 
 ## Repository layout
@@ -59,6 +59,26 @@ Branches follow the Java matrix in `VERSION_MATRIX.md`: `main` is Java 21, while
 
 The harness expects Docker Compose v2 (or `docker-compose` as fallback) and records memory snapshots at T0/T+30s/T+60s to reduce sampling noise.
 
+## Notification System
+
+**RabbitMQ-based messaging** between Orders and Notification services:
+
+- **Message Flow**: Orders Service → RabbitMQ → Notification Service → Database
+- **UI Integration**: React frontend displays notifications via Gateway API (`/api/gateway/notifications`)
+- **Message Types**: Order confirmations, invoice notifications, generic messages
+- **Frontend Features**: Real-time notification list with status badges and filtering
+
+**Test the system**:
+```bash
+# Create order (triggers notification)
+curl -X POST http://localhost:8080/api/gateway/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'
+
+# View notifications in UI
+# Navigate to "Notifications" in webapp sidebar
+```
+
 ## Performance demo: Hibernate N+1
 
 - Path vs fix: `GET /api/orders/demo/nplus1` exercises the naive per-row item fetch; `listOrders`/`latestOrders` call `preloadItems(...)` which batches with `OrderRepository.findAllWithItemsByIds(ids)` to avoid the 1+N queries.
@@ -90,6 +110,7 @@ See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 
 - [`infra/terraform/README.md`](infra/terraform/README.md) - AWS infrastructure deployment
 - [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md)
+- [`docs/notification-system.md`](docs/notification-system.md) - RabbitMQ messaging and UI integration
 - [`helm/README.md`](helm/README.md)
 - [`bench/README.md`](bench/README.md)
 - [`VERSION_MATRIX.md`](VERSION_MATRIX.md)

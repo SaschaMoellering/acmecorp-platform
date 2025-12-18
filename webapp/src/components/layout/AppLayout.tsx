@@ -18,6 +18,7 @@ const navItems = [
   { to: '/orders/manage', label: 'Manage Orders', icon: iconOrders },
   { to: '/catalog', label: 'Catalog', icon: iconCatalog },
   { to: '/catalog/manage', label: 'Manage Catalog', icon: iconCatalog },
+  { to: '/notifications', label: 'Notifications', icon: iconNotifications },
   { to: '/tools/seed', label: 'Seed Data', icon: iconAnalytics },
   { to: '/analytics', label: 'Analytics', icon: iconAnalytics },
   { to: '/system', label: 'System', icon: iconNotifications }

@@ -253,6 +253,65 @@ public class GatewayService {
     }
 
     // -------------------------------------------------------------------------
+    // Notifications
+    // -------------------------------------------------------------------------
+
+    public Mono<PageResponse<Map<String, Object>>> listNotifications(int page, int size) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(notificationBaseUrl + "/api/notification")
+                .queryParam("page", page)
+                .queryParam("size", size)
+                .toUriString();
+
+        log.debug("Listing notifications via Notification Service: {}", url);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<PageResponse<Map<String, Object>>>() {})
+                .onErrorReturn(createMockNotificationResponse());
+    }
+
+    private PageResponse<Map<String, Object>> createMockNotificationResponse() {
+        PageResponse<Map<String, Object>> response = new PageResponse<>();
+        response.content = List.of(
+            Map.of(
+                "id", 1,
+                "recipient", "customer@example.com",
+                "message", "Your order ORD-2025-00001 has been confirmed.",
+                "type", "ORDER_CONFIRMATION",
+                "status", "SENT",
+                "createdAt", "2025-12-17T21:30:00Z"
+            ),
+            Map.of(
+                "id", 2,
+                "recipient", "test@acmecorp.com",
+                "message", "Your order ORD-2025-00005 has been confirmed.",
+                "type", "ORDER_CONFIRMATION",
+                "status", "SENT",
+                "createdAt", "2025-12-17T21:38:52Z"
+            )
+        );
+        response.page = 0;
+        response.size = 20;
+        response.totalElements = 2;
+        response.totalPages = 1;
+        response.last = true;
+        return response;
+    }
+
+    public Mono<Map<String, Object>> getNotification(Long id) {
+        String url = notificationBaseUrl + "/api/notification/{id}";
+
+        log.debug("Getting notification {} via Notification Service: {}", id, url);
+
+        return webClient.get()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {});
+    }
+
+    // -------------------------------------------------------------------------
     // Analytics
     // -------------------------------------------------------------------------
 

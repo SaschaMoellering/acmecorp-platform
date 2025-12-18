@@ -9,6 +9,7 @@ import CatalogManage from './views/CatalogManage';
 import SeedTools from './views/SeedTools';
 import Analytics from './views/Analytics';
 import SystemStatus from './views/SystemStatus';
+import Notifications from './views/Notifications';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/tools/seed" element={<SeedTools />} />
         <Route path="/test-data" element={<Navigate to="/tools/seed" replace />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/system" element={<SystemStatus />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
