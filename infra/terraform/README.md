@@ -190,6 +190,39 @@ aws eks update-cluster-config --name acmecorp-dev --logging '{"enable":["api","a
    aws eks put-cluster-config --name acmecorp-dev --compute-config enabled=true
    ```
 
+## Code Quality & Linting
+
+### TFLint Integration
+
+The project includes comprehensive Terraform linting using [TFLint](https://github.com/terraform-linters/tflint) with AWS-specific rules.
+
+#### Setup
+```bash
+# Install TFLint and AWS plugin
+make install-tflint
+
+# Run linting
+make lint
+
+# Run complete test suite (validate + format + lint)
+make test ENV=dev
+```
+
+#### Linting Rules
+- **Provider Constraints**: Ensures version constraints for all providers
+- **Terraform Version**: Requires terraform version specification
+- **Unused Variables**: Detects unused variable declarations
+- **Module Structure**: Enforces standard module file structure
+- **AWS Best Practices**: AWS-specific security and performance rules
+- **Naming Conventions**: Enforces snake_case naming
+
+#### Configuration
+TFLint configuration is in `.tflint.hcl` with:
+- AWS plugin for cloud-specific rules
+- Standard Terraform best practices
+- Module structure validation
+- Documentation requirements
+
 ## Maintenance
 
 ### Terraform State

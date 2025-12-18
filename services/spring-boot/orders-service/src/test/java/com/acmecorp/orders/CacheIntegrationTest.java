@@ -1,8 +1,10 @@
 package com.acmecorp.orders;
 
+import com.acmecorp.orders.client.CatalogClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -14,9 +16,22 @@ import org.testcontainers.utility.DockerImageName;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+    "acmecorp.services.catalog=http://localhost:8080",
+    "acmecorp.services.billing=http://localhost:8081",
+    "acmecorp.services.analytics=http://localhost:8082"
+})
 @Testcontainers
 class CacheIntegrationTest {
+
+    @MockBean
+    private CatalogClient catalogClient;
+    
+    @MockBean
+    private com.acmecorp.orders.client.BillingClient billingClient;
+    
+    @MockBean
+    private com.acmecorp.orders.client.AnalyticsClient analyticsClient;
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7"))
