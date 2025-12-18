@@ -109,11 +109,15 @@ See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 ## Docs index
 
 - [`infra/terraform/README.md`](infra/terraform/README.md) - AWS infrastructure deployment
-- [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md)
+- [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md) - Aurora PostgreSQL IAM authentication
 - [`docs/notification-system.md`](docs/notification-system.md) - RabbitMQ messaging and UI integration
-- [`helm/README.md`](helm/README.md)
-- [`bench/README.md`](bench/README.md)
-- [`VERSION_MATRIX.md`](VERSION_MATRIX.md)
+- [`docs/redis-testing-guide.md`](docs/redis-testing-guide.md) - Redis integration testing
+- [`docs/getting-started.md`](docs/getting-started.md) - Platform setup guide
+- [`docs/app-architecture-and-branches.md`](docs/app-architecture-and-branches.md) - Application architecture overview
+- [`services/spring-boot/orders-service/README.md`](services/spring-boot/orders-service/README.md) - Orders service IAM auth
+- [`helm/README.md`](helm/README.md) - Kubernetes deployment
+- [`bench/README.md`](bench/README.md) - Performance benchmarking
+- [`VERSION_MATRIX.md`](VERSION_MATRIX.md) - Java version matrix
 
 ## License / Contributing
 
