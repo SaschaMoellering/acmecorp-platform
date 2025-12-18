@@ -18,8 +18,13 @@ export default mergeConfig(
         'cypress/**',
         '.{idea,git,cache,output,temp}/**'
       ],
-      // Avoid any Tinypool worker shenanigans
-      pool: 'forks',
+      // Use threads pool to avoid worker bootstrap issues
+      pool: 'threads',
+      poolOptions: {
+        threads: {
+          singleThread: true
+        }
+      }
     },
   }),
 )

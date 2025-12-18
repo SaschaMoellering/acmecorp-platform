@@ -18,15 +18,6 @@ export function parsePrice(input: string): PriceParseResult {
     return { ok: false, error: PRICE_INVALID_FORMAT };
   }
 
-  if (!/^\d+(\.\d+)?$/.test(normalized)) {
-    return { ok: false, error: PRICE_INVALID_FORMAT };
-  }
-
-  const [, fraction = ''] = normalized.split('.');
-  if (fraction.length > 2) {
-    return { ok: false, error: PRICE_PRECISION };
-  }
-
   const value = Number(normalized);
   if (Number.isNaN(value)) {
     return { ok: false, error: PRICE_INVALID_FORMAT };
@@ -34,6 +25,15 @@ export function parsePrice(input: string): PriceParseResult {
 
   if (value < 0) {
     return { ok: false, error: PRICE_NEGATIVE };
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(normalized)) {
+    return { ok: false, error: PRICE_INVALID_FORMAT };
+  }
+
+  const [, fraction = ''] = normalized.split('.');
+  if (fraction.length > 2) {
+    return { ok: false, error: PRICE_PRECISION };
   }
 
   return { ok: true, value };

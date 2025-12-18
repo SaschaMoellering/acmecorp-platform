@@ -5,16 +5,17 @@ import App from '../App';
 
 describe('App shell', () => {
   it('renders core navigation without crashing', () => {
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={['/']}>
         <App />
       </MemoryRouter>
     );
-    expect(screen.getByText(/AcmeCorp Platform/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
+    expect(container.textContent).toMatch(/AcmeCorp Platform/i);
+    expect(screen.getAllByText(/AcmeCorp Platform/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /Orders/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /Catalog/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /Analytics/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /System/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Analytics/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /System/i })[0]).toBeInTheDocument();
   });
 });

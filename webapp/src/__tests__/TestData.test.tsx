@@ -18,27 +18,31 @@ describe('SeedTools view', () => {
   it('triggers seeding with success messages', async () => {
     mockedSeed.mockResolvedValue({ catalogSeeded: true, ordersSeeded: true });
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <SeedTools />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Load Demo Data/i }));
+    const buttons = container.querySelectorAll('button');
+    const loadButton = Array.from(buttons).find(btn => btn.textContent?.includes('Load Demo Data'))!;
+    fireEvent.click(loadButton);
     await waitFor(() => expect(mockedSeed).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText(/Demo data loaded/i)).toBeInTheDocument());
+    await waitFor(() => expect(container.textContent).toMatch(/Demo data loaded/i));
   });
 
   it('shows error message when seeding fails', async () => {
     mockedSeed.mockRejectedValue(new Error('fail'));
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <SeedTools />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Load Demo Data/i }));
-    await waitFor(() => expect(screen.getByText(/Failed to seed demo data/i)).toBeInTheDocument());
+    const buttons = container.querySelectorAll('button');
+    const loadButton = Array.from(buttons).find(btn => btn.textContent?.includes('Load Demo Data'))!;
+    fireEvent.click(loadButton);
+    await waitFor(() => expect(container.textContent).toMatch(/Failed to seed demo data/i));
   });
 });

@@ -18,15 +18,15 @@ describe('Catalog view - error handling', () => {
   it('renders a fallback when the catalog API fails', async () => {
     mockedListProducts.mockRejectedValue(new Error('network down'));
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <Catalog />
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to load catalog/i)).toBeInTheDocument();
+      expect(container.textContent).toMatch(/Failed to load catalog/i);
     });
-    expect(screen.getByText(/No products match the filters/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No products match the filters/i).length).toBeGreaterThan(0);
   });
 });

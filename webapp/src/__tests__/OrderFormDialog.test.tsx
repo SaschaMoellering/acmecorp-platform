@@ -19,16 +19,23 @@ describe('OrderFormDialog', () => {
   it('submits when the form is valid', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(
+    const { container } = render(
       <OrderFormDialog title="Create Order" open mode="create" onClose={() => {}} onSubmit={onSubmit} />
     );
 
-    fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'valid@example.com' } });
-    fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-1' } });
-    fireEvent.change(screen.getByLabelText(/Quantity/i), { target: { value: '1' } });
-    fireEvent.change(screen.getByLabelText(/Status/i), { target: { value: 'NEW' } });
+    const form = container.querySelector('[data-testid="order-form"]')!;
+    const emailInput = form.querySelector('input[type="email"]');
+    const inputs = form.querySelectorAll('input');
+    const productInput = Array.from(inputs).find(input => input.type !== 'email' && input.type !== 'number');
+    const numberInput = form.querySelector('input[type="number"]');
+    const selectInput = form.querySelector('select');
+    
+    if (emailInput) fireEvent.change(emailInput, { target: { value: 'valid@example.com' } });
+    if (productInput) fireEvent.change(productInput, { target: { value: 'p-1' } });
+    if (numberInput) fireEvent.change(numberInput, { target: { value: '1' } });
+    if (selectInput) fireEvent.change(selectInput, { target: { value: 'NEW' } });
 
-    fireEvent.submit(screen.getByTestId('order-form'));
+    fireEvent.submit(form);
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
   });

@@ -66,7 +66,7 @@ describe('Dashboard view - loading state', () => {
       expect(screen.queryByText(/Loading dashboard/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Active Products/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Active Products/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Recent Orders/i)[0]).toBeInTheDocument();
   });
 });

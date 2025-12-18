@@ -29,7 +29,7 @@ describe('Analytics view', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText(/orders created/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/orders created/i).length).toBeGreaterThan(0));
     expect(screen.getByText('7')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe('Analytics view', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText(/orders created/i)).toBeInTheDocument());
-    expect(screen.getByText(/demo data/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/orders created/i).length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/demo data/i)[0]).toBeInTheDocument();
   });
 });

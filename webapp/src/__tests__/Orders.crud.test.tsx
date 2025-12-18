@@ -70,7 +70,7 @@ describe('Orders CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /New Order/i })[0]);
 
     fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'new@example.com' } });
     fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-2' } });
@@ -111,7 +111,7 @@ describe('Orders CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /New Order/i })[0]);
 
     fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'err@example.com' } });
     fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-x' } });

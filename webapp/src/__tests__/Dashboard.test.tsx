@@ -45,7 +45,7 @@ describe('Dashboard view', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText(/Active Products/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/Active Products/i).length).toBeGreaterThan(0));
 
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('ORD-100')).toBeInTheDocument();

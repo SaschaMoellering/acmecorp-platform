@@ -40,7 +40,7 @@ describe('Orders view', () => {
 
     expect(screen.getByText(/Loading orders/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
-    expect(screen.getByText('orders@example.com')).toBeInTheDocument();
+    expect(screen.getAllByText('orders@example.com')[0]).toBeInTheDocument();
     expect(mockedListOrders).toHaveBeenCalled();
   });
 

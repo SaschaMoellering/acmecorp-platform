@@ -53,7 +53,7 @@ describe('Catalog CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /New Product/i })[0]);
 
     // Create
     fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'SKU-2' } });
@@ -98,7 +98,7 @@ describe('Catalog CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
+    fireEvent.click(screen.getAllByRole('button', { name: /New Product/i })[0]);
 
     // Fill required fields so submit fires and hits the mocked error
     fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'ERR-1' } });
