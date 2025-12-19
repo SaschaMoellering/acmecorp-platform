@@ -28,12 +28,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: acmecorp-credentials
-                  key: RABBITMQ_USERNAME
+                  key: RABBITMQ_DEFAULT_USER
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom:
                 secretKeyRef:
                   name: acmecorp-credentials
-                  key: RABBITMQ_PASSWORD
+                  key: RABBITMQ_DEFAULT_PASS
           readinessProbe:
             tcpSocket:
               port: amqp

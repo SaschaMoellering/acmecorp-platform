@@ -16,7 +16,7 @@ Gateway Service ← REST API ← React Frontend
 
 **Orders Service** (`NotificationPublisher`)
 - Publishes order confirmation messages to RabbitMQ
-- Triggered automatically on order creation
+- Triggered automatically on order confirmation (not creation)
 - Exchange: `notifications-exchange`, Routing Key: `notifications.key`
 
 **Notification Service** (`NotificationListener`)
@@ -54,7 +54,7 @@ Gateway Service ← REST API ← React Frontend
 
 ## Notification Types
 
-- `ORDER_CONFIRMATION` - Sent when orders are created
+- `ORDER_CONFIRMATION` - Sent when orders are confirmed
 - `INVOICE_PAID` - Sent when invoices are paid
 - `GENERIC` - General purpose notifications
 
@@ -76,10 +76,13 @@ Gateway Service ← REST API ← React Frontend
 
 ### Create Test Notification
 ```bash
-# Create order to trigger notification
+# Create order
 curl -X POST http://localhost:8080/api/gateway/orders \
   -H "Content-Type: application/json" \
   -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'
+
+# Confirm order to trigger notification (replace {id} with actual order ID)
+curl -X POST http://localhost:8080/api/gateway/orders/{id}/confirm
 
 # View notifications via API
 curl http://localhost:8080/api/gateway/notifications
@@ -103,6 +106,7 @@ curl http://localhost:8083/api/notification
 - `RABBITMQ_HOST` - RabbitMQ server host
 - `RABBITMQ_PORT` - RabbitMQ server port (default: 5672)
 - `NOTIFICATION_BASE_URL` - Notification service URL for gateway
+- `SPRING_AMQP_DESERIALIZATION_TRUST_ALL` - Allow RabbitMQ message deserialization (set to `true`)
 
 ### RabbitMQ Setup
 - Exchange: `notifications-exchange` (Topic)
@@ -113,9 +117,10 @@ curl http://localhost:8083/api/notification
 
 ### No Notifications Appearing
 1. Check RabbitMQ connection in service logs
-2. Verify order creation triggers message publishing
+2. Verify order confirmation (not creation) triggers message publishing
 3. Check notification service message consumption
 4. Verify database storage
+5. Ensure `SPRING_AMQP_DESERIALIZATION_TRUST_ALL=true` is set for notification service
 
 ### UI Not Loading
 1. Check gateway service routing

@@ -1,0 +1,43 @@
+global:
+  imagePullSecrets: []
+  aws:
+    ordersServiceRoleArn: "arn:aws:iam::123456789012:role/test-orders-role"
+    catalogServiceRoleArn: "arn:aws:iam::123456789012:role/test-catalog-role"
+
+networkPolicy:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resourceQuota:
+  enabled: true
+  requests:
+    cpu: "4"
+    memory: "8Gi"
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+  pods: "20"
+
+postgres:
+  host: postgres
+  port: 5432
+  database: acmecorp
+  username: acmecorp
+  passwordSecret:
+    name: acmecorp-postgres
+    key: password
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  username: guest
+  passwordSecret:
+    name: acmecorp-rabbitmq
+    key: password
+
+redis:
+  host: redis
+  port: 6379

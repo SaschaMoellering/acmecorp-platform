@@ -71,6 +71,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SPRING_AMQP_DESERIALIZATION_TRUST_ALL: true
     ports:
       - "8083:8083"
 

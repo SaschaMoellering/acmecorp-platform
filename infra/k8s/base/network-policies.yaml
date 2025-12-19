@@ -35,3 +35,24 @@ spec:
     ports:
     - protocol: TCP
       port: 8085
+  - to:
+    - podSelector:
+        matchLabels:
+          app: billing-service
+    ports:
+    - protocol: TCP
+      port: 8082
+  - to:
+    - podSelector:
+        matchLabels:
+          app: notification-service
+    ports:
+    - protocol: TCP
+      port: 8083
+  - to:
+    - podSelector:
+        matchLabels:
+          app: analytics-service
+    ports:
+    - protocol: TCP
+      port: 8084

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: orders-service
-          image: ghcr.io/acmecorp/orders-service:latest
+          image: orders-service:latest
           ports:
             - containerPort: 8081
               name: http
@@ -49,12 +49,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: acmecorp-credentials
-                  key: RABBITMQ_USERNAME
+                  key: RABBITMQ_DEFAULT_USER
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: acmecorp-credentials
-                  key: RABBITMQ_PASSWORD
+                  key: RABBITMQ_DEFAULT_PASS
             - name: CATALOG_BASE_URL
               value: http://catalog-service:8085
             - name: BILLING_BASE_URL
@@ -63,6 +63,8 @@ spec:
               value: http://analytics-service:8084
             - name: NOTIFICATION_BASE_URL
               value: http://notification-service:8083
+            - name: SPRING_PROFILES_ACTIVE
+              value: kubernetes
           resources:
             requests:
               cpu: 150m

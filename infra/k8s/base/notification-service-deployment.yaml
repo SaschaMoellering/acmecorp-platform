@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: notification-service
-          image: ghcr.io/acmecorp/notification-service:latest
+          image: notification-service:latest
           ports:
             - containerPort: 8083
               name: http

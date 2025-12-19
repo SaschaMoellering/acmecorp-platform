@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: gateway-service
-          image: ghcr.io/acmecorp/gateway-service:latest
+          image: gateway-service:latest
           ports:
             - containerPort: 8080
               name: http
@@ -32,6 +32,16 @@ spec:
               value: http://notification-service:8083
             - name: ANALYTICS_BASE_URL
               value: http://analytics-service:8084
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: SPRING_PROFILES_ACTIVE
+              value: kubernetes
           resources:
             requests:
               cpu: 150m

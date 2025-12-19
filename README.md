@@ -15,8 +15,10 @@ AcmeCorp Platform is a cloud-native demo built as a learning ground for JVM + mo
 ```
 services/                   # Java + Quarkus service sources
 infra/local/docker-compose.yml  # local stack (Postgres, Redis, RabbitMQ, services)
+infra/k8s/base/             # Kubernetes manifests with security policies
 infra/terraform/            # AWS infrastructure (VPC, EKS, Aurora, S3/CloudFront)
 helm/acmecorp-platform/     # backend Helm umbrella chart (gateway, orders, catalog)
+scripts/                    # automation scripts (k3d setup, validation, deployment)
 bench/                      # benchmarking harness + scripts
 webapp/                     # React + Vite single-page app
 docs/                       # supplementary guides (AWS, benchmarking, etc.)
@@ -30,12 +32,15 @@ docker compose up -d --build
 ```
 
 - Check gateway health: `curl http://localhost:8080/api/gateway/status`
-- Seed deterministic data: `curl -X POST http://localhost:8080/api/gateway/seed`
+- View system status: `curl http://localhost:8080/api/gateway/system/status`
+- Check analytics: `curl http://localhost:8080/api/gateway/analytics/counters`
+- Browse catalog: `curl http://localhost:8085/api/catalog/products`
+- Create test order: `curl -X POST http://localhost:8080/api/gateway/orders -H "Content-Type: application/json" -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'`
 - Teardown: `docker compose down --volumes`
 
 The webapp defaults to `VITE_API_BASE_URL=http://localhost:8080`; run `npm install && npm run dev` inside `webapp/`.
 
-## Kubernetes deployment (Helm)
+## Kubernetes deployment
 
 See `helm/README.md` for install/upgrade guidance.
 
@@ -47,6 +52,7 @@ helm upgrade --install acmecorp helm/acmecorp-platform -n acmecorp -f helm/acmec
 - Helm deploys **only the backend** services; the React SPA stays on S3/CloudFront (Terraform-managed).
 - Ingress is handled via AWS Load Balancer Controller (ALB) when `ingress.enabled=true`.
 - ServiceMonitors are optional; enable `prometheus.serviceMonitor.enabled=true` per subchart when running kube-prometheus-stack.
+- **Security**: Network policies, resource quotas, and pod disruption budgets included for production readiness.
 
 ## Java versions & performance benchmarking
 
@@ -70,10 +76,13 @@ The harness expects Docker Compose v2 (or `docker-compose` as fallback) and reco
 
 **Test the system**:
 ```bash
-# Create order (triggers notification)
+# Create order
 curl -X POST http://localhost:8080/api/gateway/orders \
   -H "Content-Type: application/json" \
   -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'
+
+# Confirm order to trigger notification (replace {id} with order ID from response)
+curl -X POST http://localhost:8080/api/gateway/orders/{id}/confirm
 
 # View notifications in UI
 # Navigate to "Notifications" in webapp sidebar
@@ -106,6 +115,14 @@ See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 - Create IAMRoleBindings (`docs/aws/pod-identity/*.yaml`) to associate Pod service accounts with the IAM role that has `rds-db:connect`.
 - When IAM auth is active, set env vars `ACMECORP_PG_IAM_AUTH=true`, `ACMECORP_PG_HOST`, `ACMECORP_PG_PORT`, `ACMECORP_PG_DB`, `ACMECORP_PG_USER`, and `AWS_REGION`; the services generate short-lived tokens (orders: 9m max lifetime, catalog similar).
 
+## Scripts
+
+- `scripts/validate-k8s.sh` - Validate Kubernetes manifests
+- `scripts/push-images.sh` - Build container images
+- `scripts/smoke-local.sh` - Local smoke tests
+- `scripts/test-redis-local.sh` - Test Redis integration locally
+- `scripts/test-redis-units.sh` - Run Redis unit tests
+
 ## Docs index
 
 - [`infra/terraform/README.md`](infra/terraform/README.md) - AWS infrastructure deployment
@@ -113,6 +130,8 @@ See `docs/aws/aurora-iam-auth.md` for enablement. In short:
 - [`docs/notification-system.md`](docs/notification-system.md) - RabbitMQ messaging and UI integration
 - [`docs/redis-testing-guide.md`](docs/redis-testing-guide.md) - Redis integration testing
 - [`docs/getting-started.md`](docs/getting-started.md) - Platform setup guide
+- [`docs/kubernetes-deployment.md`](docs/kubernetes-deployment.md) - Production Kubernetes deployment guide
+- [`docs/testing-guide.md`](docs/testing-guide.md) - Comprehensive testing guide
 - [`docs/app-architecture-and-branches.md`](docs/app-architecture-and-branches.md) - Application architecture overview
 - [`services/spring-boot/orders-service/README.md`](services/spring-boot/orders-service/README.md) - Orders service IAM auth
 - [`helm/README.md`](helm/README.md) - Kubernetes deployment
