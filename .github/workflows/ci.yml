@@ -48,16 +48,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Optional but robust: provide a dist/worker.js at repo root
-      # so Tinypool is happy even if it resolves there.
-      - name: Ensure Vitest worker shim
-        run: |
-          cd ..
-          mkdir -p dist
-          # Remove existing symlink if it exists, then create new one
-          rm -f dist/worker.js
-          ln -s webapp/node_modules/vitest/dist/worker.js dist/worker.js
-
       - name: Run unit tests (Vitest)
         run: npx vitest run --no-coverage
 
