@@ -57,7 +57,7 @@ Code touchpoints:
 - `services/spring-boot/orders-service` (NotificationPublisher)
 - `services/spring-boot/billing-service` (NotificationPublisher)
 - `services/spring-boot/notification-service` (NotificationListener)
-- `webapp/src/components/Notifications.tsx`
+- `webapp/src/views/Notifications.tsx`
 - `webapp/src/components/Invoices.tsx`
 - `docs/notification-system.md`
 

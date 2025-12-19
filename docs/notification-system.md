@@ -37,8 +37,8 @@ Gateway Service ← REST API ← React Frontend
 ### Frontend Integration
 
 **React Components**
-- `Notifications.tsx` - Main notification list view
-- `Invoices.tsx` - Invoice management and payment interface
+- `webapp/src/views/Notifications.tsx` - Main notification list view
+- `webapp/src/components/Invoices.tsx` - Invoice management and payment interface
 - Navigation integration in sidebar menu
 - Real-time data fetching via API client
 
