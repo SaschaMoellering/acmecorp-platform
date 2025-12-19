@@ -125,6 +125,28 @@ public class GatewayController {
     }
 
     // -------------------------------------------------------------------------
+    // Billing
+    // -------------------------------------------------------------------------
+
+    @GetMapping("/billing/invoices")
+    public Mono<PageResponse<Map<String, Object>>> listInvoices(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size) {
+        return gatewayService.listInvoices(page, size);
+    }
+
+    @GetMapping("/billing/invoices/{id}")
+    public Mono<Map<String, Object>> getInvoice(@PathVariable("id") Long id) {
+        return gatewayService.getInvoice(id);
+    }
+
+    @PostMapping("/billing/invoices/{id}/pay")
+    public Mono<Map<String, Object>> payInvoice(@PathVariable("id") Long id,
+                                                @RequestBody Map<String, Object> payment) {
+        return gatewayService.payInvoice(id, payment);
+    }
+
+    // -------------------------------------------------------------------------
     // Notifications
     // -------------------------------------------------------------------------
 

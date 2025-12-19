@@ -253,6 +253,49 @@ public class GatewayService {
     }
 
     // -------------------------------------------------------------------------
+    // Billing
+    // -------------------------------------------------------------------------
+
+    public Mono<PageResponse<Map<String, Object>>> listInvoices(int page, int size) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(billingBaseUrl + "/api/billing/invoices")
+                .queryParam("page", page)
+                .queryParam("size", size)
+                .toUriString();
+
+        log.debug("Listing invoices via Billing Service: {}", url);
+
+        return webClient.get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<PageResponse<Map<String, Object>>>() {});
+    }
+
+    public Mono<Map<String, Object>> getInvoice(Long id) {
+        String url = billingBaseUrl + "/api/billing/invoices/{id}";
+
+        log.debug("Getting invoice {} via Billing Service: {}", id, url);
+
+        return webClient.get()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {});
+    }
+
+    public Mono<Map<String, Object>> payInvoice(Long id, Map<String, Object> payment) {
+        String url = billingBaseUrl + "/api/billing/invoices/{id}/pay";
+
+        log.debug("Paying invoice {} via Billing Service: {}", id, url);
+
+        return webClient.post()
+                .uri(url, id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(payment)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {});
+    }
+
+    // -------------------------------------------------------------------------
     // Notifications
     // -------------------------------------------------------------------------
 

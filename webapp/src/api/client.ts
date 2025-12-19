@@ -180,6 +180,24 @@ export async function deleteProduct(id: string): Promise<void> {
   });
 }
 
+export type Invoice = {
+  id: number;
+  invoiceNumber: string;
+  orderId: number;
+  orderNumber: string;
+  customerEmail: string;
+  amount: number;
+  currency: string;
+  status: 'OPEN' | 'PAID' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentRequest = {
+  amount?: number;
+  paymentMethod?: 'CREDIT_CARD' | 'DEBIT_CARD' | 'PAYPAL' | 'DEMO';
+};
+
 export type SeedResult = {
   ordersCreated: number;
   productsCreated: number;
@@ -193,12 +211,29 @@ export type Notification = {
   type: string;
   status: string;
   createdAt: string;
-  updatedAt: string;
+  sentAt?: string;
+  orderNumber?: string;
+  invoiceNumber?: string;
 };
 
 export async function seedDemoData(): Promise<SeedResult> {
   return handle<SeedResult>('/api/gateway/tools/seed', {
     method: 'POST'
+  });
+}
+
+export function listInvoices(page = 0, size = 20): Promise<PageResponse<Invoice>> {
+  return handle<PageResponse<Invoice>>(`/api/gateway/billing/invoices?page=${page}&size=${size}`);
+}
+
+export function getInvoice(id: string): Promise<Invoice> {
+  return handle<Invoice>(`/api/gateway/billing/invoices/${id}`);
+}
+
+export function payInvoice(id: string, payment: PaymentRequest): Promise<Invoice> {
+  return handle<Invoice>(`/api/gateway/billing/invoices/${id}/pay`, {
+    method: 'POST',
+    body: JSON.stringify(payment)
   });
 }
 

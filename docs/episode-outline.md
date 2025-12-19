@@ -55,12 +55,15 @@ Focus:
 
 Code touchpoints:
 - `services/spring-boot/orders-service` (NotificationPublisher)
+- `services/spring-boot/billing-service` (NotificationPublisher)
 - `services/spring-boot/notification-service` (NotificationListener)
 - `webapp/src/components/Notifications.tsx`
+- `webapp/src/components/Invoices.tsx`
 - `docs/notification-system.md`
 
 Demo flow:
 - Create order → Confirm order → View notification
+- Pay invoice → View payment notification
 - Show RabbitMQ management UI
 - Demonstrate React frontend integration
 
@@ -165,7 +168,7 @@ Demo flow:
 | Component           | Ep1 | Ep2 | Ep3 | Ep4 | Ep5 | Ep6 | Ep7 | Ep8 |
 |---------------------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | orders-service      |  X  |  X  |  X  |  X  |  X  |     |  X  |  X  |
-| billing-service     |  X  |  X  |     |     |  X  |     |  X  |  X  |
+| billing-service     |  X  |  X  |  X  |     |  X  |     |  X  |  X  |
 | notification-service|  X  |     |  X  |     |  X  |     |  X  |  X  |
 | analytics-service   |  X  |  X  |     |  X  |  X  |     |  X  |  X  |
 | catalog-service     |  X  |  X  |     |  X  |  X  |     |  X  |  X  |

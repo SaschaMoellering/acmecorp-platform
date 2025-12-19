@@ -6,6 +6,7 @@ The AcmeCorp Platform includes a complete notification system with RabbitMQ mess
 
 ```
 Orders Service → RabbitMQ → Notification Service → Database
+Billing Service → RabbitMQ → Notification Service → Database
                                      ↓
 Gateway Service ← REST API ← React Frontend
 ```
@@ -17,6 +18,11 @@ Gateway Service ← REST API ← React Frontend
 **Orders Service** (`NotificationPublisher`)
 - Publishes order confirmation messages to RabbitMQ
 - Triggered automatically on order confirmation (not creation)
+- Exchange: `notifications-exchange`, Routing Key: `notifications.key`
+
+**Billing Service** (`NotificationPublisher`)
+- Publishes invoice payment messages to RabbitMQ
+- Triggered automatically on invoice payment
 - Exchange: `notifications-exchange`, Routing Key: `notifications.key`
 
 **Notification Service** (`NotificationListener`)
@@ -32,12 +38,15 @@ Gateway Service ← REST API ← React Frontend
 
 **React Components**
 - `Notifications.tsx` - Main notification list view
+- `Invoices.tsx` - Invoice management and payment interface
 - Navigation integration in sidebar menu
 - Real-time data fetching via API client
 
 **API Integration**
 - `listNotifications()` - Fetch paginated notifications
 - `getNotification(id)` - Get individual notification details
+- `listInvoices()` - Fetch paginated invoices
+- `payInvoice(id, payment)` - Pay invoice and trigger notification
 - Automatic error handling and loading states
 
 ## Message Format
@@ -84,17 +93,26 @@ curl -X POST http://localhost:8080/api/gateway/orders \
 # Confirm order to trigger notification (replace {id} with actual order ID)
 curl -X POST http://localhost:8080/api/gateway/orders/{id}/confirm
 
+# Pay invoice to trigger payment notification (replace {invoice_id} with actual invoice ID)
+curl -X POST http://localhost:8080/api/gateway/billing/invoices/{invoice_id}/pay \
+  -H "Content-Type: application/json" \
+  -d '{"paymentMethod": "DEMO"}'
+
 # View notifications via API
 curl http://localhost:8080/api/gateway/notifications
 
 # View in UI
 # Navigate to http://localhost:5173/notifications
+# Navigate to http://localhost:5173/invoices
 ```
 
 ### Direct Service Testing
 ```bash
 # Test notification service directly
 curl http://localhost:8083/api/notification
+
+# Test billing service directly
+curl http://localhost:8082/api/billing/invoices
 
 # Check RabbitMQ management
 # http://localhost:15672 (guest/guest)

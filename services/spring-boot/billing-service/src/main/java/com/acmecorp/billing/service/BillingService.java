@@ -5,6 +5,7 @@ import com.acmecorp.billing.domain.Invoice;
 import com.acmecorp.billing.domain.InvoiceStatus;
 import com.acmecorp.billing.domain.Payment;
 import com.acmecorp.billing.domain.PaymentMethod;
+import com.acmecorp.billing.messaging.NotificationPublisher;
 import com.acmecorp.billing.repository.InvoiceRepository;
 import com.acmecorp.billing.repository.PaymentRepository;
 import com.acmecorp.billing.web.InvoiceRequest;
@@ -30,6 +31,7 @@ public class BillingService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
     private final AnalyticsClient analyticsClient;
+    private final NotificationPublisher notificationPublisher;
 
     private final AtomicInteger sequenceCounter = new AtomicInteger(0);
     private int counterYear = Year.now().getValue();
@@ -37,10 +39,12 @@ public class BillingService {
 
     public BillingService(InvoiceRepository invoiceRepository,
                           PaymentRepository paymentRepository,
-                          AnalyticsClient analyticsClient) {
+                          AnalyticsClient analyticsClient,
+                          NotificationPublisher notificationPublisher) {
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
         this.analyticsClient = analyticsClient;
+        this.notificationPublisher = notificationPublisher;
     }
 
     @Transactional
@@ -100,6 +104,7 @@ public class BillingService {
         Invoice saved = invoiceRepository.save(invoice);
         paymentRepository.save(payment);
         analyticsClient.track("billing.invoice.paid", request.asMetadata(saved.getId(), saved.getInvoiceNumber()));
+        notificationPublisher.sendInvoicePaid(saved.getCustomerEmail(), saved.getInvoiceNumber());
         return saved;
     }
 

@@ -70,9 +70,11 @@ The harness expects Docker Compose v2 (or `docker-compose` as fallback) and reco
 **RabbitMQ-based messaging** between Orders and Notification services:
 
 - **Message Flow**: Orders Service → RabbitMQ → Notification Service → Database
+- **Message Flow**: Billing Service → RabbitMQ → Notification Service → Database
 - **UI Integration**: React frontend displays notifications via Gateway API (`/api/gateway/notifications`)
-- **Message Types**: Order confirmations, invoice notifications, generic messages
-- **Frontend Features**: Real-time notification list with status badges and filtering
+- **Invoice Management**: React frontend manages invoices via Gateway API (`/api/gateway/billing/invoices`)
+- **Message Types**: Order confirmations, invoice payments, generic messages
+- **Frontend Features**: Real-time notification list with status badges and filtering, invoice payment interface
 
 **Test the system**:
 ```bash
@@ -84,8 +86,14 @@ curl -X POST http://localhost:8080/api/gateway/orders \
 # Confirm order to trigger notification (replace {id} with order ID from response)
 curl -X POST http://localhost:8080/api/gateway/orders/{id}/confirm
 
+# Pay invoice to trigger payment notification (replace {invoice_id} with invoice ID)
+curl -X POST http://localhost:8080/api/gateway/billing/invoices/{invoice_id}/pay \
+  -H "Content-Type: application/json" \
+  -d '{"paymentMethod": "DEMO"}'
+
 # View notifications in UI
 # Navigate to "Notifications" in webapp sidebar
+# Navigate to "Invoices" in webapp sidebar
 ```
 
 ## Performance demo: Hibernate N+1

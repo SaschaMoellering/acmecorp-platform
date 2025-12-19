@@ -1,11 +1,6 @@
 import { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import logo from '../../assets/logo-acmecorp.svg';
-import iconOrders from '../../assets/icon-orders.svg';
-import iconCatalog from '../../assets/icon-catalog.svg';
-import iconBilling from '../../assets/icon-billing.svg';
-import iconNotifications from '../../assets/icon-notifications.svg';
-import iconAnalytics from '../../assets/icon-analytics.svg';
+import { logos, icons } from '../../branding';
 import './layout.css';
 
 type Props = {
@@ -13,15 +8,16 @@ type Props = {
 };
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: iconAnalytics },
-  { to: '/orders', label: 'Orders', icon: iconOrders },
-  { to: '/orders/manage', label: 'Manage Orders', icon: iconOrders },
-  { to: '/catalog', label: 'Catalog', icon: iconCatalog },
-  { to: '/catalog/manage', label: 'Manage Catalog', icon: iconCatalog },
-  { to: '/notifications', label: 'Notifications', icon: iconNotifications },
-  { to: '/tools/seed', label: 'Seed Data', icon: iconAnalytics },
-  { to: '/analytics', label: 'Analytics', icon: iconAnalytics },
-  { to: '/system', label: 'System', icon: iconNotifications }
+  { to: '/', label: 'Dashboard', icon: icons.dashboard },
+  { to: '/orders', label: 'Orders', icon: icons.services },
+  { to: '/orders/manage', label: 'Manage Orders', icon: icons.workloads },
+  { to: '/catalog', label: 'Catalog', icon: icons.deployments },
+  { to: '/catalog/manage', label: 'Manage Catalog', icon: icons.networking },
+  { to: '/invoices', label: 'Invoices', icon: icons.security },
+  { to: '/notifications', label: 'Notifications', icon: icons.alerts },
+  { to: '/tools/seed', label: 'Seed Data', icon: icons.settings },
+  { to: '/analytics', label: 'Analytics', icon: icons.metrics },
+  { to: '/system', label: 'System', icon: icons.observability }
 ];
 
 function AppLayout({ children }: Props) {
@@ -29,7 +25,7 @@ function AppLayout({ children }: Props) {
     <div className="app-shell">
       <header className="app-header">
         <div className="logo-wrap">
-          <img src={logo} alt="AcmeCorp" className="logo" />
+          <img src={logos.white32} alt="AcmeCorp" className="logo" style={{ height: '28px' }} />
           <div className="brand-copy">
             <span className="brand-name">AcmeCorp Platform</span>
             <span className="brand-tagline">Java. Containers. Clarity.</span>
@@ -41,13 +37,17 @@ function AppLayout({ children }: Props) {
           <nav className="nav">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
-                <img src={item.icon} alt="" />
-                <span>{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <img src={item.icon} alt="" style={{ width: '18px', height: '18px', opacity: isActive ? 1 : 0.7 }} />
+                    <span>{item.label}</span>
+                  </>
+                )}
               </NavLink>
             ))}
           </nav>
           <div className="nav-foot">
-            <img src={iconBilling} alt="" />
+            <img src={icons.networking} alt="" style={{ width: '18px', height: '18px', opacity: 0.7 }} />
             <div>
               <div className="foot-title">Platform</div>
               <div className="foot-sub">Gateway via 8080</div>

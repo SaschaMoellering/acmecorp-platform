@@ -5,6 +5,7 @@ import com.acmecorp.billing.domain.Invoice;
 import com.acmecorp.billing.domain.InvoiceStatus;
 import com.acmecorp.billing.domain.Payment;
 import com.acmecorp.billing.domain.PaymentMethod;
+import com.acmecorp.billing.messaging.NotificationPublisher;
 import com.acmecorp.billing.repository.InvoiceRepository;
 import com.acmecorp.billing.repository.PaymentRepository;
 import com.acmecorp.billing.web.PaymentRequest;
@@ -35,6 +36,9 @@ class BillingServiceTest {
 
     @Mock
     private AnalyticsClient analyticsClient;
+
+    @Mock
+    private NotificationPublisher notificationPublisher;
 
     @InjectMocks
     private BillingService billingService;
@@ -67,6 +71,7 @@ class BillingServiceTest {
         assertThat(paid.getStatus()).isEqualTo(InvoiceStatus.PAID);
         verify(paymentRepository).save(any(Payment.class));
         verify(analyticsClient).track(eq("billing.invoice.paid"), anyMap());
+        verify(notificationPublisher).sendInvoicePaid(eq(invoice.getCustomerEmail()), eq("INV-100"));
     }
 
     @Test
@@ -85,5 +90,6 @@ class BillingServiceTest {
                 () -> billingService.pay(2L, new PaymentRequest(new BigDecimal("30.00"), PaymentMethod.DEMO)));
         verify(analyticsClient, never()).track(anyString(), anyMap());
         verify(paymentRepository, never()).save(any(Payment.class));
+        verify(notificationPublisher, never()).sendInvoicePaid(anyString(), anyString());
     }
 }
