@@ -1,0 +1,31 @@
+{{- if .Values.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "acmecorp-platform.fullname" . }}-quota
+  labels:
+    {{- include "acmecorp-platform.labels" . | nindent 4 }}
+spec:
+  hard:
+    requests.cpu: {{ .Values.resourceQuota.requests.cpu | quote }}
+    requests.memory: {{ .Values.resourceQuota.requests.memory | quote }}
+    limits.cpu: {{ .Values.resourceQuota.limits.cpu | quote }}
+    limits.memory: {{ .Values.resourceQuota.limits.memory | quote }}
+    pods: {{ .Values.resourceQuota.pods | quote }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "acmecorp-platform.fullname" . }}-limits
+  labels:
+    {{- include "acmecorp-platform.labels" . | nindent 4 }}
+spec:
+  limits:
+  - default:
+      cpu: {{ .Values.resourceQuota.defaultLimits.cpu }}
+      memory: {{ .Values.resourceQuota.defaultLimits.memory }}
+    defaultRequest:
+      cpu: {{ .Values.resourceQuota.defaultRequests.cpu }}
+      memory: {{ .Values.resourceQuota.defaultRequests.memory }}
+    type: Container
+{{- end }}

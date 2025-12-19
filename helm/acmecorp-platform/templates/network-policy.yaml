@@ -1,0 +1,36 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "acmecorp-platform.fullname" . }}-gateway
+  labels:
+    {{- include "acmecorp-platform.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orders-service
+    ports:
+    - protocol: TCP
+      port: 8081
+  - to:
+    - podSelector:
+        matchLabels:
+          app: catalog-service
+    ports:
+    - protocol: TCP
+      port: 8085
+{{- end }}

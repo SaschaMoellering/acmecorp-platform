@@ -1,0 +1,25 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "acmecorp-platform.fullname" . }}-gateway
+  labels:
+    {{- include "acmecorp-platform.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: gateway-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "acmecorp-platform.fullname" . }}-orders
+  labels:
+    {{- include "acmecorp-platform.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: orders-service
+{{- end }}

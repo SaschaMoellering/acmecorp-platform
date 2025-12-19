@@ -3,6 +3,30 @@ global:
 
 imagePullSecrets: []
 
+# Security and reliability settings
+networkPolicy:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resourceQuota:
+  enabled: true
+  requests:
+    cpu: "4"
+    memory: "8Gi"
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+  pods: "20"
+  defaultLimits:
+    cpu: "500m"
+    memory: "512Mi"
+  defaultRequests:
+    cpu: "100m"
+    memory: "128Mi"
+
 postgres:
   host: postgres
   port: 5432
