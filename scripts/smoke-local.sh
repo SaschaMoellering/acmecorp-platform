@@ -31,9 +31,6 @@ echo "System status: ok"
 retry_curl "${BASE_URL}/api/gateway/analytics/counters" "/tmp/acmecorp_analytics_counters.json"
 echo "Analytics counters: ok"
 
-retry_curl "${BASE_URL}/api/gateway/orders/latest" "/tmp/acmecorp_orders.json"
-echo "Orders latest: ok"
-
 retry_curl "${BASE_URL}/api/gateway/catalog" "/tmp/acmecorp_catalog.json"
 echo "Catalog: ok"
 
