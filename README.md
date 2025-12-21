@@ -24,6 +24,10 @@ webapp/                     # React + Vite single-page app
 docs/                       # supplementary guides (AWS, benchmarking, etc.)
 ```
 
+## Architecture Diagrams
+
+See [`docs/diagrams/README.md`](docs/diagrams/README.md) for the local development architecture diagram exports.
+
 ## Quick start (Local)
 
 ```bash

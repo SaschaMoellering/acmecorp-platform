@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">
+<polygon points="0 0, 10 3.5, 0 7" fill="#333333" />
+</marker>
+</defs>
+<rect x="40" y="40" width="1120" height="640" fill="none" stroke="#666666" stroke-width="2"/>
+<text x="48" y="60" font-family="Arial" font-size="14" fill="#111111">Docker Compose (Local Dev)</text>
+<rect x="80" y="140" width="180" height="70" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="170.0" y="170" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Webapp</text>
+<text x="170.0" y="188" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(React)</text>
+<rect x="460" y="140" width="240" height="70" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="580.0" y="170" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Gateway Service</text>
+<text x="580.0" y="188" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Spring Boot / WebFlux)</text>
+<rect x="840" y="100" width="220" height="60" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="950.0" y="128" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Orders Service</text>
+<text x="950.0" y="146" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Spring Boot)</text>
+<rect x="840" y="180" width="220" height="60" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="950.0" y="208" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Catalog Service</text>
+<text x="950.0" y="226" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Quarkus)</text>
+<rect x="840" y="260" width="220" height="60" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="950.0" y="288" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Billing Service</text>
+<text x="950.0" y="306" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Spring Boot)</text>
+<rect x="840" y="340" width="220" height="60" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="950.0" y="368" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Notification Service</text>
+<text x="950.0" y="386" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Spring Boot)</text>
+<rect x="840" y="420" width="220" height="60" fill="#ffffff" stroke="#444444" stroke-width="2"/>
+<text x="950.0" y="448" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Analytics Service</text>
+<text x="950.0" y="466" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">(Spring Boot)</text>
+<rect x="120" y="500" width="960" height="150" fill="#f5f5f5" stroke="#999999" stroke-width="2"/>
+<text x="128" y="520" font-family="Arial" font-size="12" fill="#111111">Backing Services</text>
+<rect x="180" y="540" width="180" height="60" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/>
+<text x="270.0" y="578" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">PostgreSQL</text>
+<rect x="510" y="540" width="180" height="60" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/>
+<text x="600.0" y="578" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">RabbitMQ</text>
+<rect x="840" y="540" width="180" height="60" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/>
+<text x="930.0" y="578" text-anchor="middle" font-family="Arial" font-size="12" fill="#111111">Redis</text>
+<path d="M 260 175.0 L 460 175.0 L 460 175.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="360.0" y="167.0" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 700 175.0 L 840 175.0 L 840 130.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="770.0" y="144.5" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 700 175.0 L 840 175.0 L 840 210.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="770.0" y="184.5" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 700 175.0 L 840 175.0 L 840 290.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="770.0" y="224.5" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 700 175.0 L 840 175.0 L 840 370.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="770.0" y="264.5" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 700 175.0 L 840 175.0 L 840 450.0" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="770.0" y="304.5" font-family="Arial" font-size="11" fill="#111111">HTTP</text>
+<path d="M 950.0 160 L 270.0 160 L 270.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="610.0" y="342.0" font-family="Arial" font-size="11" fill="#111111">SQL</text>
+<path d="M 950.0 240 L 270.0 240 L 270.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="610.0" y="382.0" font-family="Arial" font-size="11" fill="#111111">SQL</text>
+<path d="M 950.0 320 L 270.0 320 L 270.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="610.0" y="422.0" font-family="Arial" font-size="11" fill="#111111">SQL</text>
+<path d="M 950.0 400 L 270.0 400 L 270.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="610.0" y="462.0" font-family="Arial" font-size="11" fill="#111111">SQL</text>
+<path d="M 950.0 480 L 270.0 480 L 270.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="610.0" y="502.0" font-family="Arial" font-size="11" fill="#111111">SQL</text>
+<path d="M 950.0 160 L 600.0 160 L 600.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="775.0" y="342.0" font-family="Arial" font-size="11" fill="#111111">AMQP publish</text>
+<path d="M 950.0 320 L 600.0 320 L 600.0 540" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="775.0" y="422.0" font-family="Arial" font-size="11" fill="#111111">AMQP publish</text>
+<path d="M 600.0 600 L 950.0 600 L 950.0 340" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<text x="775.0" y="462.0" font-family="Arial" font-size="11" fill="#111111">AMQP consume</text>
+<path d="M 580.0 210 L 930.0 210 L 930.0 540" stroke="#333333" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="755.0" y="367.0" font-family="Arial" font-size="11" fill="#111111">cache</text>
+<path d="M 950.0 160 L 930.0 160 L 930.0 540" stroke="#333333" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="940.0" y="342.0" font-family="Arial" font-size="11" fill="#111111">cache</text>
+<path d="M 950.0 240 L 930.0 240 L 930.0 540" stroke="#333333" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="940.0" y="382.0" font-family="Arial" font-size="11" fill="#111111">cache</text>
+<path d="M 950.0 400 L 930.0 400 L 930.0 540" stroke="#333333" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="940.0" y="462.0" font-family="Arial" font-size="11" fill="#111111">cache</text>
+<path d="M 950.0 480 L 930.0 480 L 930.0 540" stroke="#333333" stroke-width="2" fill="none" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="940.0" y="502.0" font-family="Arial" font-size="11" fill="#111111">cache</text>
+</svg>
