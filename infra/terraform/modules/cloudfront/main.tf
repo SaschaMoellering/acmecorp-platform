@@ -43,6 +43,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     viewer_protocol_policy = "redirect-to-https"
     
     cache_policy_id = aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     
     min_ttl     = 0
     default_ttl = 86400   # 1 day for HTML
@@ -57,6 +58,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id       = "S3-${var.bucket_name}"
     compress               = true
     viewer_protocol_policy = "redirect-to-https"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
     
     forwarded_values {
       query_string = false
@@ -98,9 +100,6 @@ resource "aws_cloudfront_distribution" "frontend" {
     ssl_support_method            = var.domain_name != "" ? "sni-only" : null
     minimum_protocol_version      = "TLSv1.2_2021"
   }
-  
-  # Security headers
-  response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   
   tags = merge(var.tags, {
     Name = "${var.bucket_name}-distribution"

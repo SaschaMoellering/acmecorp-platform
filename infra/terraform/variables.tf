@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
-  default     = "us-west-2"
+  default     = "eu-west-1"
 }
 
 variable "environment" {
@@ -83,4 +83,22 @@ variable "budget_alert_emails" {
   description = "Email addresses for budget alerts"
   type        = list(string)
   default     = ["admin@acmecorp.example.com"]
+}
+
+variable "ecr_repository_name" {
+  description = "ECR repository name for application images"
+  type        = string
+  default     = "acmecorp-platform"
+}
+
+variable "ecr_kms_key_arn" {
+  description = "Optional KMS key ARN for ECR encryption"
+  type        = string
+  default     = null
+}
+
+variable "ecr_enable_lifecycle_policy" {
+  description = "Enable lifecycle policy to expire old images"
+  type        = bool
+  default     = true
 }

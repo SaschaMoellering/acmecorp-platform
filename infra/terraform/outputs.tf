@@ -67,3 +67,18 @@ output "redis_port" {
   description = "ElastiCache Redis port"
   value       = module.elasticache.redis_port
 }
+
+output "ecr_repository_url" {
+  description = "ECR repository URL"
+  value       = module.ecr.repository_url
+}
+
+output "ecr_repository_arn" {
+  description = "ECR repository ARN"
+  value       = module.ecr.repository_arn
+}
+
+output "ecr_registry_id" {
+  description = "ECR registry ID"
+  value       = module.ecr.registry_id
+}

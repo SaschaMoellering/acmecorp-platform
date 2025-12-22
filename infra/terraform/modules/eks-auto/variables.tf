@@ -18,6 +18,11 @@ variable "environment" {
   type        = string
 }
 
+variable "region" {
+  description = "AWS region for EKS operations"
+  type        = string
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

@@ -54,10 +54,9 @@ aws eks update-kubeconfig --region us-west-2 --name acmecorp-dev
    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO iam_user;
    ```
 
-2. **Enable EKS Auto Mode** (AWS CLI):
-   ```bash
-   aws eks put-cluster-config --name acmecorp-dev --compute-config enabled=true
-   ```
+2. **Enable EKS Auto Mode**:
+   - Terraform now enables Auto Mode via AWS CLI after cluster creation.
+   - Requirement: `aws` CLI must be available in PATH for the Terraform run.
 
 3. **Deploy Applications**:
    ```bash
@@ -185,10 +184,24 @@ aws eks update-cluster-config --name acmecorp-dev --logging '{"enable":["api","a
    ```
 
 3. **EKS Auto Mode Not Enabled**
+   Terraform enables Auto Mode automatically, but you can retry manually:
    ```bash
-   # Enable via CLI
    aws eks put-cluster-config --name acmecorp-dev --compute-config enabled=true
    ```
+
+### EKS Add-ons Enabled by Terraform
+
+The following EKS managed add-ons are created:
+- `eks-pod-identity-agent`
+- `coredns`
+- `kube-proxy`
+- `vpc-cni`
+- `aws-ebs-csi-driver`
+
+### S3 Frontend Bucket Naming
+
+The frontend bucket includes a short random suffix to avoid global S3 name collisions:
+`<cluster>-frontend-<suffix>`.
 
 ## Code Quality & Linting
 

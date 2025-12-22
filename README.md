@@ -118,6 +118,26 @@ mvn test -Dtest=OrderServiceQueryCountTest
 - **Database**: Aurora PostgreSQL with IAM authentication (shared via `infra/local/docker-compose` for local dev).
 - **Cache**: Redis for session management, rate limiting, and application caching (ElastiCache in production).
 
+Notes:
+- EKS Auto Mode is enabled automatically by Terraform (requires AWS CLI in PATH during apply).
+- The frontend S3 bucket includes a short random suffix to avoid global name collisions.
+
+## Build & Push to ECR
+
+Use the Terraform-managed ECR repository to publish container images with AWS SSO:
+
+```bash
+export AWS_PROFILE=tf
+export AWS_SDK_LOAD_CONFIG=1
+export AWS_REGION=eu-central-1
+
+./scripts/ecr-login.sh
+ECR_REPO_NAME=acmecorp-platform DOCKERFILE_DIR=services/spring-boot/gateway-service ./scripts/ecr-push.sh
+```
+
+- `ECR_REPO_NAME` defaults to `acmecorp-platform` (same as Terraform).
+- `DOCKERFILE_DIR` is required if multiple Dockerfiles exist.
+
 ### Aurora IAM auth + EKS Pod Identity
 
 See `docs/aws/aurora-iam-auth.md` for enablement. In short:

@@ -17,6 +17,15 @@ locals {
   }
 }
 
+resource "random_id" "frontend_bucket" {
+  byte_length = 3
+
+  keepers = {
+    cluster_name = local.cluster_name
+    environment  = var.environment
+  }
+}
+
 # VPC Module - Well-Architected: Security, Reliability
 module "vpc" {
   source = "./modules/vpc"
@@ -34,9 +43,9 @@ module "eks" {
   
   cluster_name       = local.cluster_name
   kubernetes_version = var.kubernetes_version
-  vpc_id             = module.vpc.vpc_id
   subnet_ids         = module.vpc.private_subnet_ids
   environment        = var.environment
+  region             = var.aws_region
   
   tags = local.common_tags
   
@@ -65,10 +74,8 @@ module "iam" {
   source = "./modules/iam"
   
   cluster_name          = local.cluster_name
-  cluster_oidc_issuer   = module.eks.cluster_oidc_issuer_url
   aurora_resource_id    = module.aurora.resource_id
   db_username           = var.db_username
-  environment           = var.environment
   
   tags = local.common_tags
   
@@ -91,9 +98,19 @@ module "pod_identity" {
 module "s3_frontend" {
   source = "./modules/s3-frontend"
   
-  bucket_name = "${local.cluster_name}-frontend"
-  environment = var.environment
+  bucket_name = "${local.cluster_name}-frontend-${random_id.frontend_bucket.hex}"
   
+  tags = local.common_tags
+}
+
+# ECR Repository Module - Container Images
+module "ecr" {
+  source = "./modules/ecr"
+
+  repository_name         = var.ecr_repository_name
+  kms_key_arn             = var.ecr_kms_key_arn
+  enable_lifecycle_policy = var.ecr_enable_lifecycle_policy
+
   tags = local.common_tags
 }
 
@@ -134,8 +151,6 @@ module "cost_monitoring" {
   monthly_budget_limit = var.monthly_budget_limit
   eks_budget_limit     = var.eks_budget_limit
   alert_emails         = var.budget_alert_emails
-  
-  tags = local.common_tags
 }
 
 # Update S3 bucket policy after CloudFront is created

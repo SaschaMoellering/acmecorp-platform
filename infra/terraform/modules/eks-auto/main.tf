@@ -108,6 +108,19 @@ resource "aws_cloudwatch_log_group" "cluster" {
 # Auto Mode provides serverless node management with mixed architecture support
 # This cluster is configured to support Auto Mode when enabled
 
+resource "null_resource" "enable_auto_mode" {
+  triggers = {
+    cluster_name = aws_eks_cluster.main.name
+    region       = var.region
+  }
+
+  provisioner "local-exec" {
+    command = "aws eks put-cluster-config --name ${aws_eks_cluster.main.name} --region ${var.region} --compute-config enabled=true"
+  }
+
+  depends_on = [aws_eks_cluster.main]
+}
+
 # OIDC Identity Provider for Pod Identity
 data "tls_certificate" "cluster" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
@@ -129,6 +142,8 @@ resource "aws_eks_addon" "pod_identity" {
   addon_name   = "eks-pod-identity-agent"
   
   tags = var.tags
+
+  depends_on = [null_resource.enable_auto_mode]
 }
 
 # CoreDNS addon
@@ -137,6 +152,8 @@ resource "aws_eks_addon" "coredns" {
   addon_name   = "coredns"
   
   tags = var.tags
+
+  depends_on = [null_resource.enable_auto_mode]
 }
 
 # kube-proxy addon
@@ -145,6 +162,8 @@ resource "aws_eks_addon" "kube_proxy" {
   addon_name   = "kube-proxy"
   
   tags = var.tags
+
+  depends_on = [null_resource.enable_auto_mode]
 }
 
 # VPC CNI addon
@@ -153,6 +172,8 @@ resource "aws_eks_addon" "vpc_cni" {
   addon_name   = "vpc-cni"
   
   tags = var.tags
+
+  depends_on = [null_resource.enable_auto_mode]
 }
 
 # EBS CSI Driver addon
@@ -161,4 +182,6 @@ resource "aws_eks_addon" "ebs_csi" {
   addon_name   = "aws-ebs-csi-driver"
   
   tags = var.tags
+
+  depends_on = [null_resource.enable_auto_mode]
 }

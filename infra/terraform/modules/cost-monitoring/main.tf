@@ -19,10 +19,9 @@ resource "aws_budgets_budget" "monthly" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
   
-  cost_filters = {
-    Tag = {
-      "Environment" = [var.environment]
-    }
+  cost_filter {
+    name   = "TagKeyValue"
+    values = ["Environment$${var.environment}"]
   }
   
   notification {
@@ -50,11 +49,14 @@ resource "aws_budgets_budget" "eks" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
   
-  cost_filters = {
-    Service = ["Amazon Elastic Kubernetes Service"]
-    Tag = {
-      "Environment" = [var.environment]
-    }
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon Elastic Kubernetes Service"]
+  }
+
+  cost_filter {
+    name   = "TagKeyValue"
+    values = ["Environment$${var.environment}"]
   }
   
   notification {

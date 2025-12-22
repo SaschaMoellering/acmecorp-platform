@@ -61,8 +61,8 @@ resource "aws_kms_alias" "aurora" {
   target_key_id = aws_kms_key.aurora.key_id
 }
 
-# DB Parameter Group for production tuning
-resource "aws_db_parameter_group" "aurora_postgres" {
+# Cluster Parameter Group for production tuning
+resource "aws_rds_cluster_parameter_group" "aurora_postgres" {
   family = "aurora-postgresql16"
   name   = "${var.cluster_name}-params"
   
@@ -116,7 +116,7 @@ resource "aws_rds_cluster" "main" {
   performance_insights_enabled = true
   
   # Parameter group
-  db_cluster_parameter_group_name = aws_db_parameter_group.aurora_postgres.name
+  db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.aurora_postgres.name
   
   # Deletion protection for production
   deletion_protection = var.environment == "prod"

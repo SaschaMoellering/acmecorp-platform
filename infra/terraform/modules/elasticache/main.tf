@@ -75,7 +75,6 @@ resource "aws_elasticache_replication_group" "redis" {
   # Security: Encryption and Authentication
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  auth_token                 = random_password.redis_auth.result
   
   # User group for RBAC (Redis 6.0+)
   user_group_ids = [aws_elasticache_user_group.redis.user_group_id]
