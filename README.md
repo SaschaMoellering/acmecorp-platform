@@ -76,6 +76,11 @@ docker compose logs -f
 
 Source: `docs/architecture/docker-compose.mmd`
 
+## Documentation
+
+Detailed documentation, architecture diagrams, and system explanations can be found in  
+[`docs/README.md`](docs/README.md).
+
 ## Infrastructure (Terraform)
 
 Use `scripts/tf.sh` as the entry point. It wraps Terraform in `infra/terraform/` and sets AWS defaults.

@@ -54,6 +54,31 @@ Gateway Service ← REST API ← React Frontend
 ```
 </details>
 
+## Sequence (Event → Notification UI)
+
+```mermaid
+sequenceDiagram
+  participant Orders as orders-service
+  participant Billing as billing-service
+  participant MQ as rabbitmq
+  participant Notify as notification-service
+  participant DB as postgres
+  participant Gateway as gateway-service
+  participant Web as webapp (React)
+
+  Orders->>MQ: publish event
+  Billing->>MQ: publish event
+  MQ-->>Notify: consume event
+  Notify->>DB: write notification
+
+  Web->>Gateway: GET /api/gateway/notifications
+  Gateway->>Notify: GET /api/notification
+  Notify->>DB: read notifications
+  DB-->>Notify: notifications
+  Notify-->>Gateway: notifications
+  Gateway-->>Web: notifications
+```
+
 ## Components
 
 ### Backend Services
