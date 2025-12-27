@@ -1,175 +1,131 @@
 # AcmeCorp Platform
 
-AcmeCorp Platform is a cloud-native demo built as a learning ground for JVM + modern infra projects: it ties together Spring Boot, Quarkus, React, Docker Compose, Helm/EKS, observing tools, and benchmarking around performance regressions (Hibernate N+1, Java 11/17/21/25). The repo exists to power deep-dive videos that cover architecture, observability, DevOps automation, and the performance implications of each stack layer.
+## Project overview
 
-## What’s inside
+AcmeCorp Platform is a local-first demo platform for JVM microservices plus a React SPA. The repository includes Spring Boot and Quarkus services, a Vite webapp, and Docker Compose wiring for local development. The Docker Compose configuration in `infra/local/docker-compose.yml` is the source of truth for local runtime behavior, while `webapp/` provides a UI that targets the gateway. Terraform and Helm assets exist for infrastructure and Kubernetes workflows but are separate from the local compose setup.
 
-- **Gateway** – Spring WebFlux entrypoint (`gateway-service`) that routes `/api/gateway/*` traffic to downstream services.
-- **Orders, Billing, Notification, Analytics** – Spring Boot microservices backed by Postgres, RabbitMQ, and Redis.
-- **Catalog** – Quarkus-based catalog service (optional) consumed by the webapp and gateway.
-- **Webapp** – React + Vite SPA (`webapp/`) wired to the gateway via `VITE_API_BASE_URL` with full notification UI integration.
-- **Observability & monitoring** – `infra/observability/` contains Grafana dashboards (`grafana/`) and Kubernetes ServiceMonitors (`k8s/`) for Prometheus integration.
+## Repo structure
 
-## Repository layout
+- `services/` — Spring Boot and Quarkus service sources
+- `webapp/` — React + Vite single-page app
+- `infra/` — local Docker Compose, Kubernetes manifests, and Terraform
+- `helm/` — Helm charts and deployment docs
+- `charts/` — packaged/umbrella chart assets
+- `scripts/` — automation scripts (smoke tests, Terraform wrapper)
+- `integration-tests/` — integration test suite
+- `docs/` — guides and reference documentation
+- `bench/` — benchmarking harness
 
-```
-services/                   # Java + Quarkus service sources
-infra/local/docker-compose.yml  # local stack (Postgres, Redis, RabbitMQ, services)
-infra/k8s/base/             # Kubernetes manifests with security policies
-infra/terraform/            # AWS infrastructure (VPC, EKS, Aurora, S3/CloudFront)
-helm/acmecorp-platform/     # backend Helm umbrella chart (gateway, orders, catalog)
-scripts/                    # automation scripts (k3d setup, validation, deployment)
-bench/                      # benchmarking harness + scripts
-webapp/                     # React + Vite single-page app
-docs/                       # supplementary guides (AWS, benchmarking, etc.)
-```
+## Local development (Docker Compose)
 
-## Architecture Diagrams
+### Prerequisites
 
-See [`docs/diagrams/README.md`](docs/diagrams/README.md) for the local development architecture diagram exports.
+- Docker and Docker Compose v2
+- Node.js >= 20 (for `webapp/`)
+- Java + Maven (for running JVM tests locally)
 
-## Quick start (Local)
+### Start/stop the stack
 
 ```bash
 cd infra/local
 docker compose up -d --build
 ```
 
-- Check gateway health: `curl http://localhost:8080/api/gateway/status`
-- View system status: `curl http://localhost:8080/api/gateway/system/status`
-- Check analytics: `curl http://localhost:8080/api/gateway/analytics/counters`
-- Browse catalog: `curl http://localhost:8085/api/catalog/products`
-- Create test order: `curl -X POST http://localhost:8080/api/gateway/orders -H "Content-Type: application/json" -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'`
-- Teardown: `docker compose down --volumes`
-
-The webapp defaults to `VITE_API_BASE_URL=http://localhost:8080`; run `npm install && npm run dev` inside `webapp/`.
-
-## Kubernetes deployment
-
-See `helm/README.md` for install/upgrade guidance.
-
 ```bash
-kubectl create namespace acmecorp
-helm upgrade --install acmecorp helm/acmecorp-platform -n acmecorp -f helm/acmecorp-platform/values-prod.yaml
+cd infra/local
+docker compose down --volumes
 ```
 
-- Helm deploys **only the backend** services; the React SPA stays on S3/CloudFront (Terraform-managed).
-- Ingress is handled via AWS Load Balancer Controller (ALB) when `ingress.enabled=true`.
-- ServiceMonitors are optional; enable `prometheus.serviceMonitor.enabled=true` per subchart when running kube-prometheus-stack.
-- **Security**: Network policies, resource quotas, and pod disruption budgets included for production readiness.
+### Access points
 
-## Java versions & performance benchmarking
+- Gateway API: `http://localhost:8080/api/gateway/status`
+- Orders: `http://localhost:8081`
+- Billing: `http://localhost:8082`
+- Notification: `http://localhost:8083`
+- Analytics: `http://localhost:8084`
+- Catalog: `http://localhost:8085`
+- Postgres: `localhost:5432`
+- Redis: `localhost:6379`
+- RabbitMQ: `localhost:5672` (UI: `http://localhost:15672`)
+- Webapp (dev server): `http://localhost:5173`
 
-Branches follow the Java matrix in `VERSION_MATRIX.md`: `main` is Java 21, while `java11`, `java17`, `java21`, `java25` are configuration-only variants that swap JDK/JRE images/toolchains (no Aurora or docs changes). Benchmarks run via the `bench/` scripts:
-
-```bash
-./bench/run-once.sh      # capture startup + median RSS for current branch
-./bench/run-matrix.sh    # iterate java11/java17/java21/main/java25
-```
-
-The harness expects Docker Compose v2 (or `docker-compose` as fallback) and records memory snapshots at T0/T+30s/T+60s to reduce sampling noise.
-
-## Notification System
-
-**RabbitMQ-based messaging** between Orders and Notification services:
-
-- **Message Flow**: Orders Service → RabbitMQ → Notification Service → Database
-- **Message Flow**: Billing Service → RabbitMQ → Notification Service → Database
-- **UI Integration**: React frontend displays notifications via Gateway API (`/api/gateway/notifications`)
-- **Invoice Management**: React frontend manages invoices via Gateway API (`/api/gateway/billing/invoices`)
-- **Message Types**: Order confirmations, invoice payments, generic messages
-- **Frontend Features**: Real-time notification list with status badges and filtering, invoice payment interface
-
-**Test the system**:
-```bash
-# Create order
-curl -X POST http://localhost:8080/api/gateway/orders \
-  -H "Content-Type: application/json" \
-  -d '{"customerId": 1, "customerEmail": "test@example.com", "items": [{"productId": 1, "quantity": 2}]}'
-
-# Confirm order to trigger notification (replace {id} with order ID from response)
-curl -X POST http://localhost:8080/api/gateway/orders/{id}/confirm
-
-# Pay invoice to trigger payment notification (replace {invoice_id} with invoice ID)
-curl -X POST http://localhost:8080/api/gateway/billing/invoices/{invoice_id}/pay \
-  -H "Content-Type: application/json" \
-  -d '{"paymentMethod": "DEMO"}'
-
-# View notifications in UI
-# Navigate to "Notifications" in webapp sidebar
-# Navigate to "Invoices" in webapp sidebar
-```
-
-## Performance demo: Hibernate N+1
-
-- Path vs fix: `GET /api/orders/demo/nplus1` exercises the naive per-row item fetch; `listOrders`/`latestOrders` call `preloadItems(...)` which batches with `OrderRepository.findAllWithItemsByIds(ids)` to avoid the 1+N queries.
-- Regression guard: `OrderServiceQueryCountTest` seeds 10 orders × 5 items, enables `hibernate.generate_statistics`, and asserts the optimized path issues ≤3 SQL statements. Run it via:
+To run the web UI:
 
 ```bash
-cd services/spring-boot/orders-service
-mvn test -Dtest=OrderServiceQueryCountTest
+cd webapp
+npm install
+npm run dev
 ```
 
-## AWS deployment overview
+The webapp defaults to `VITE_API_BASE_URL=http://localhost:8080`.
 
-- **Infrastructure**: Terraform modules in `infra/terraform/` for VPC, EKS Auto Mode, Aurora, S3/CloudFront
-- **Backend**: deployed to EKS via `helm/acmecorp-platform`.
-- **Frontend**: hosted on S3 (optionally fronted by CloudFront) with `VITE_API_BASE_URL` pointing to the gateway.
-- **Database**: Aurora PostgreSQL with IAM authentication (shared via `infra/local/docker-compose` for local dev).
-- **Cache**: Redis for session management, rate limiting, and application caching (ElastiCache in production).
+### Logs
 
-Notes:
-- EKS Auto Mode is enabled automatically by Terraform (requires AWS CLI in PATH during apply).
-- The frontend S3 bucket includes a short random suffix to avoid global name collisions.
+```bash
+cd infra/local
+docker compose logs -f
+```
 
-## Build & Push to ECR
+## Architecture
 
-Use the Terraform-managed ECR repository to publish container images with AWS SSO:
+![Docker Compose architecture](docs/architecture/docker-compose.svg)
+
+Source: `docs/architecture/docker-compose.mmd`
+
+## Infrastructure (Terraform)
+
+Use `scripts/tf.sh` as the entry point. It wraps Terraform in `infra/terraform/` and sets AWS defaults.
+
+```bash
+./scripts/tf.sh init
+./scripts/tf.sh plan
+./scripts/tf.sh apply
+```
+
+AWS SSO is required for the `tf` profile. The script runs `aws sso login` during `init`, but you can also run it explicitly:
+
+```bash
+aws sso login --profile tf
+```
+
+Recommended environment variables:
 
 ```bash
 export AWS_PROFILE=tf
 export AWS_SDK_LOAD_CONFIG=1
-export AWS_REGION=eu-central-1
-
-./scripts/ecr-login.sh
-ECR_REPO_NAME=acmecorp-platform DOCKERFILE_DIR=services/spring-boot/gateway-service ./scripts/ecr-push.sh
+export AWS_REGION=eu-west-1
 ```
 
-- `ECR_REPO_NAME` defaults to `acmecorp-platform` (same as Terraform).
-- `DOCKERFILE_DIR` is required if multiple Dockerfiles exist.
+If Terraform is missing, install it first (see `scripts/tf.sh` for guidance).
 
-### Aurora IAM auth + EKS Pod Identity
+## Testing
 
-See `docs/aws/aurora-iam-auth.md` for enablement. In short:
+Backend unit tests:
 
-- Enable IAM DB authentication and grant `rds_iam` to the target user.
-- Apply the IAM policy in `docs/aws/iam/policy-rds-db-connect.json` (fill in account/region/resource/user).
-- Create IAMRoleBindings (`docs/aws/pod-identity/*.yaml`) to associate Pod service accounts with the IAM role that has `rds-db:connect`.
-- When IAM auth is active, set env vars `ACMECORP_PG_IAM_AUTH=true`, `ACMECORP_PG_HOST`, `ACMECORP_PG_PORT`, `ACMECORP_PG_DB`, `ACMECORP_PG_USER`, and `AWS_REGION`; the services generate short-lived tokens (orders: 9m max lifetime, catalog similar).
+```bash
+make test-backend
+```
 
-## Scripts
+Frontend unit tests:
 
-- `scripts/validate-k8s.sh` - Validate Kubernetes manifests
-- `scripts/push-images.sh` - Build container images
-- `scripts/smoke-local.sh` - Local smoke tests
-- `scripts/test-redis-local.sh` - Test Redis integration locally
-- `scripts/test-redis-units.sh` - Run Redis unit tests
+```bash
+make test-frontend
+```
 
-## Docs index
+Integration tests (requires the local stack running):
 
-- [`infra/terraform/README.md`](infra/terraform/README.md) - AWS infrastructure deployment
-- [`docs/aws/aurora-iam-auth.md`](docs/aws/aurora-iam-auth.md) - Aurora PostgreSQL IAM authentication
-- [`docs/notification-system.md`](docs/notification-system.md) - RabbitMQ messaging and UI integration
-- [`docs/redis-testing-guide.md`](docs/redis-testing-guide.md) - Redis integration testing
-- [`docs/getting-started.md`](docs/getting-started.md) - Platform setup guide
-- [`docs/kubernetes-deployment.md`](docs/kubernetes-deployment.md) - Production Kubernetes deployment guide
-- [`docs/testing-guide.md`](docs/testing-guide.md) - Comprehensive testing guide
-- [`docs/app-architecture-and-branches.md`](docs/app-architecture-and-branches.md) - Application architecture overview
-- [`services/spring-boot/orders-service/README.md`](services/spring-boot/orders-service/README.md) - Orders service IAM auth
-- [`helm/README.md`](helm/README.md) - Kubernetes deployment
-- [`bench/README.md`](bench/README.md) - Performance benchmarking
-- [`VERSION_MATRIX.md`](VERSION_MATRIX.md) - Java version matrix
+```bash
+cd infra/local && docker compose up -d
+cd integration-tests && mvn test
+```
 
-## License / Contributing
+Run all tests:
 
-No formal `LICENSE`/`CONTRIBUTING.md` is included; coordinate with the AcmeCorp maintainers before extending or sharing this code.
+```bash
+make test-all
+```
+
+## Troubleshooting
+
+- `terraform: command not found` — install Terraform and rerun `./scripts/tf.sh` (see `scripts/tf.sh`).
+- AWS SSO expired token — run `aws sso login --profile tf` and retry.
