@@ -46,8 +46,16 @@ resource "random_password" "redis_auth" {
   special = true
 }
 
+resource "random_id" "redis_auth_suffix" {
+  byte_length = 2
+
+  keepers = {
+    cluster_name = var.cluster_name
+  }
+}
+
 resource "aws_secretsmanager_secret" "redis_auth" {
-  name = "${var.cluster_name}-redis-auth"
+  name = "${var.cluster_name}-redis-auth-${random_id.redis_auth_suffix.hex}"
   
   tags = var.tags
 }

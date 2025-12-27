@@ -1,7 +1,8 @@
 bucket         = "acme-corp-s3-tf"
 key            = "dev/terraform.tfstate"
 region         = "eu-central-1"
-dynamodb_table = "acme-corp-terraform-locks"
+use_lockfile   = true
+# dynamodb_table = "acme-corp-terraform-locks" # deprecated; use_lockfile
 
 # Optional (uncomment if needed):
 # encrypt      = true

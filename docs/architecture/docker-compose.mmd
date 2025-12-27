@@ -1,0 +1,58 @@
+graph TD
+  subgraph Developer
+    Browser[Browser]
+    Webapp[Webapp dev server :5173]
+    DevTools[Developer tools: curl, CLI]
+  end
+
+  subgraph "Docker Compose"
+    subgraph "Application Services"
+      Gateway[gateway-service :8080]
+      Orders[orders-service :8081]
+      Billing[billing-service :8082]
+      Notification[notification-service :8083]
+      Analytics[analytics-service :8084]
+      Catalog[catalog-service :8085]
+    end
+
+    subgraph "Infrastructure Services"
+      Postgres[postgres :5432]
+      Redis[redis :6379]
+      RabbitMQ[rabbitmq :5672, :15672]
+    end
+  end
+
+  Browser --> Webapp
+  Webapp --> Gateway
+  DevTools --> Gateway
+  DevTools --> Orders
+  DevTools --> Billing
+  DevTools --> Notification
+  DevTools --> Analytics
+  DevTools --> Catalog
+  DevTools --> Postgres
+  DevTools --> Redis
+  DevTools --> RabbitMQ
+
+  Gateway --> Orders
+  Gateway --> Catalog
+  Gateway --> Billing
+  Gateway --> Notification
+  Gateway --> Analytics
+  Gateway --> Redis
+
+  Orders --> Postgres
+  Orders --> Redis
+
+  Billing --> Postgres
+  Billing --> RabbitMQ
+
+  Notification --> Postgres
+  Notification --> RabbitMQ
+  Notification --> Redis
+
+  Analytics --> Postgres
+  Analytics --> Redis
+
+  Catalog --> Postgres
+  Catalog --> Redis

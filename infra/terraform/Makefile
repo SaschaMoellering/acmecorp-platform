@@ -69,7 +69,6 @@ post-deploy: kubeconfig ## Run post-deployment setup
 	@echo ""
 	@echo "2. Manual steps required:"
 	@echo "   - Create IAM database user (see README.md)"
-	@echo "   - Enable EKS Auto Mode via AWS CLI"
 	@echo "   - Deploy Helm charts"
 
 clean: ## Clean Terraform cache files

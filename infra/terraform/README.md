@@ -55,8 +55,7 @@ aws eks update-kubeconfig --region us-west-2 --name acmecorp-dev
    ```
 
 2. **Enable EKS Auto Mode**:
-   - Terraform now enables Auto Mode via AWS CLI after cluster creation.
-   - Requirement: `aws` CLI must be available in PATH for the Terraform run.
+   - Auto Mode is enabled in the EKS cluster configuration via `compute_config`.
 
 3. **Deploy Applications**:
    ```bash
@@ -184,10 +183,9 @@ aws eks update-cluster-config --name acmecorp-dev --logging '{"enable":["api","a
    ```
 
 3. **EKS Auto Mode Not Enabled**
-   Terraform enables Auto Mode automatically, but you can retry manually:
-   ```bash
-   aws eks put-cluster-config --name acmecorp-dev --compute-config enabled=true
-   ```
+   Auto Mode is configured on the cluster itself. If it isn't enabled, verify
+   the EKS cluster was created with `compute_config` set and the Auto Mode node
+   role has the required policies attached.
 
 ### EKS Add-ons Enabled by Terraform
 
