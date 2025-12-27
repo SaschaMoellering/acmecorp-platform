@@ -2,7 +2,7 @@
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 ![Terraform](https://img.shields.io/badge/terraform-7B42BC?logo=terraform&logoColor=white)
 ![AWS](https://img.shields.io/badge/aws-232F3E?logo=amazonaws&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/kubernetes-future-326CE5?logo=kubernetes&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/kubernetes-runtime-326CE5?logo=kubernetes&logoColor=white)
 
 ## Overview
 

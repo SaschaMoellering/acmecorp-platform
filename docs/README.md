@@ -32,6 +32,10 @@ This folder contains the main guides and references for local development, archi
 - [`redis-testing-guide.md`](redis-testing-guide.md) — Redis integration testing walkthrough.
 - [`troubleshooting.md`](troubleshooting.md) — Common local issues and fixes.
 
+## Labels
+
+- [`labels.md`](labels.md) — Label definitions for Season 1 vs Season 2 scope.
+
 ## Conventions
 
 - Diagrams live in `docs/diagrams/`.
