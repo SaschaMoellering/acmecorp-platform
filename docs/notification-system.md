@@ -35,12 +35,16 @@ flowchart TD
   Gateway --> Notification
 ```
 
-![Notification System Diagram](./diagrams/notification-system.svg)
-
-Source: [`docs/diagrams/notification-system.mmd`](./diagrams/notification-system.mmd)
+**Source:** [`docs/diagrams/notification-system.mmd`](./diagrams/notification-system.mmd)
 
 <details>
-<summary>Original diagram (ASCII)</summary>
+<summary>Rendered diagram (SVG)</summary>
+
+![Notification System Diagram](./diagrams/notification-system.svg)
+</details>
+
+<details>
+<summary>Original ASCII diagram (historical)</summary>
 
 ```
 Orders Service → RabbitMQ → Notification Service → Database
