@@ -1,10 +1,14 @@
 # AcmeCorp Platform
+![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
+![Terraform](https://img.shields.io/badge/terraform-7B42BC?logo=terraform&logoColor=white)
+![AWS](https://img.shields.io/badge/aws-232F3E?logo=amazonaws&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/kubernetes-future-326CE5?logo=kubernetes&logoColor=white)
 
-## Project overview
+## Overview
 
 AcmeCorp Platform is a local-first demo platform for JVM microservices plus a React SPA. The repository includes Spring Boot and Quarkus services, a Vite webapp, and Docker Compose wiring for local development. The Docker Compose configuration in `infra/local/docker-compose.yml` is the source of truth for local runtime behavior, while `webapp/` provides a UI that targets the gateway. Terraform and Helm assets exist for infrastructure and Kubernetes workflows but are separate from the local compose setup.
 
-## Repo structure
+## Repository Structure
 
 - `services/` — Spring Boot and Quarkus service sources
 - `webapp/` — React + Vite single-page app
@@ -16,7 +20,7 @@ AcmeCorp Platform is a local-first demo platform for JVM microservices plus a Re
 - `docs/` — guides and reference documentation
 - `bench/` — benchmarking harness
 
-## Local development (Docker Compose)
+## Local Development (Docker Compose)
 
 ### Prerequisites
 
@@ -115,8 +119,9 @@ make test-frontend
 Integration tests (requires the local stack running):
 
 ```bash
-cd infra/local && docker compose up -d
-cd integration-tests && mvn test
+make up
+make test-integration
+make down
 ```
 
 Run all tests:
@@ -124,6 +129,8 @@ Run all tests:
 ```bash
 make test-all
 ```
+
+More detail: [`docs/testing.md`](docs/testing.md)
 
 ## Troubleshooting
 
