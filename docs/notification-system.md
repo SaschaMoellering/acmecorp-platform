@@ -4,12 +4,51 @@ The AcmeCorp Platform includes a complete notification system with RabbitMQ mess
 
 ## Architecture
 
+```mermaid
+flowchart TD
+  subgraph Services
+    Orders[orders-service]
+    Billing[billing-service]
+    Notification[notification-service]
+    Gateway[gateway-service]
+  end
+
+  subgraph Messaging
+    RabbitMQ[rabbitmq]
+  end
+
+  subgraph Data
+    Postgres[(postgres)]
+  end
+
+  subgraph Frontend
+    Webapp[webapp: React]
+    GatewayAPI[Gateway API /api/gateway/notifications]
+  end
+
+  Orders --> RabbitMQ
+  Billing --> RabbitMQ
+  RabbitMQ --> Notification
+  Notification --> Postgres
+
+  Webapp --> GatewayAPI --> Gateway
+  Gateway --> Notification
+```
+
+![Notification System Diagram](./diagrams/notification-system.svg)
+
+Source: [`docs/diagrams/notification-system.mmd`](./diagrams/notification-system.mmd)
+
+<details>
+<summary>Original diagram (ASCII)</summary>
+
 ```
 Orders Service → RabbitMQ → Notification Service → Database
 Billing Service → RabbitMQ → Notification Service → Database
                                      ↓
 Gateway Service ← REST API ← React Frontend
 ```
+</details>
 
 ## Components
 
