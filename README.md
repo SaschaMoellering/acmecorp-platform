@@ -68,6 +68,15 @@ curl -X POST http://localhost:8080/api/gateway/seed
 
 The UI uses `VITE_API_BASE_URL` (default `http://localhost:8080`). Adjust that env var when running the SPA against a different gateway host.
 
+## Containerized Builds/Tests (Baseline JDK)
+
+Use Docker to run backend builds/tests against a specific Java baseline, independent of the host JDK.
+
+```bash
+./scripts/run-build-in-jdk.sh 17
+./scripts/run-tests-in-jdk.sh 17
+```
+
 ## API Overview
 
 - `GET /api/gateway/status` – lightweight service health.
