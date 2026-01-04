@@ -1,4 +1,4 @@
-/home/videouser/development/acme/acmecorp-platform/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/web/TrackEventRequest.java
-/home/videouser/development/acme/acmecorp-platform/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/AnalyticsServiceApplication.java
-/home/videouser/development/acme/acmecorp-platform/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/api/AnalyticsController.java
-/home/videouser/development/acme/acmecorp-platform/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/service/AnalyticsService.java
+/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/AnalyticsServiceApplication.java
+/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/service/AnalyticsService.java
+/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/web/TrackEventRequest.java
+/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/api/AnalyticsController.java

@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+
+import com.acmecorp.orders.util.ExecutorFactory;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -110,11 +112,14 @@ public class OrdersController {
                                                             @RequestParam(name = "status", required = false) OrderStatus status,
                                                             @RequestParam(name = "page", defaultValue = "0") int page,
                                                             @RequestParam(name = "size", defaultValue = "20") int size) throws ExecutionException, InterruptedException {
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        ExecutorService executor = ExecutorFactory.create();
+        try {
             var task = executor.submit(() -> orderService.listOrders(customerEmail, status, page, size));
             var ordersPage = task.get();
             var responses = ordersPage.getContent().stream().map(OrderResponse::from).toList();
             return new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements());
+        } finally {
+            ExecutorFactory.shutdown(executor);
         }
     }
 }

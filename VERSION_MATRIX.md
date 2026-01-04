@@ -8,7 +8,7 @@ This document defines the branch strategy and allowed deltas while keeping the *
 | --- | --- | --- | --- | --- | --- |
 | `main` | 21 (current baseline) | `maven:3.9.9-eclipse-temurin-21` (as in Dockerfiles) | `eclipse-temurin:21-jre` | `-server` (default Spring Boot) | Reference branch; all features validated here |
 | `java11` | 11 | `maven:3.9.9-eclipse-temurin-11` | `eclipse-temurin:11-jre` | same baseline, add compatibility flags only if compiler/jvm refuses to start | Allowed changes: Maven compiler release/toolchain, Docker `FROM`, JVM flags. No logic changes unless noted |
-| `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 |
+| `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 (compiler + Docker + CI pins updated) |
 | `java21` | 21 | `maven:3.9.9-eclipse-temurin-21` | `eclipse-temurin:21-jre` | baseline | Mirrors `main` but used for explicit comparison runs |
 | `java25` | 25 | `maven:3.9.9-eclipse-temurin-25`* | `eclipse-temurin:25-jre`* | baseline | If official Temurin 25 images are unavailable, document alternative in notes. |
 
