@@ -113,7 +113,12 @@ describe('Orders CRUD view', () => {
 
       await screen.findByText('ORD-10');
 
-      fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
+      // Scope to the Orders card to avoid duplicate "New Order" buttons from stale renders.
+      const ordersCard = screen.getByText('Orders').closest('.card');
+      if (!ordersCard) {
+        throw new Error('Orders card not found');
+      }
+      fireEvent.click(within(ordersCard).getByRole('button', { name: /New Order/i }));
 
       const dialog = await screen.findByRole('dialog');
       // Scope inputs to the create dialog to avoid leaking across forms.
