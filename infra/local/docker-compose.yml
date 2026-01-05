@@ -17,6 +17,12 @@ services:
     container_name: acmecorp-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -60,6 +66,9 @@ services:
       - redis
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
     ports:
       - "8084:8084"
 
