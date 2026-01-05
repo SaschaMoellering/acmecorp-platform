@@ -18,7 +18,7 @@ export function parsePrice(input: string): PriceParseResult {
     return { ok: false, error: PRICE_INVALID_FORMAT };
   }
 
-  if (!/^\d+(\.\d+)?$/.test(normalized)) {
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
     return { ok: false, error: PRICE_INVALID_FORMAT };
   }
 
