@@ -25,3 +25,6 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: db,redis
