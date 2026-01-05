@@ -81,6 +81,8 @@
         <version>3.2.5</version>
         <configuration>
           <argLine>-Djdk.attach.allowAttachSelf=true</argLine>
+          <configurationParameters>junit.jupiter.tags.exclude=integration</configurationParameters>
+          <excludedGroups>integration</excludedGroups>
         </configuration>
       </plugin>
     </plugins>
