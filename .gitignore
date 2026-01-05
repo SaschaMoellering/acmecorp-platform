@@ -5,7 +5,12 @@ dist/
 build/
 
 # Java / Maven
+# Build artifacts must never be committed.
 target/
+**/target/
+*.jar
+*.war
+*.ear
 *.log
 
 # IDEs

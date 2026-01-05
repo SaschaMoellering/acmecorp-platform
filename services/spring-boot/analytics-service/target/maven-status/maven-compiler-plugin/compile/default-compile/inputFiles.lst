@@ -1,4 +1,0 @@
-/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/AnalyticsServiceApplication.java
-/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/service/AnalyticsService.java
-/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/web/TrackEventRequest.java
-/workspace/services/spring-boot/analytics-service/src/main/java/com/acmecorp/analytics/api/AnalyticsController.java
