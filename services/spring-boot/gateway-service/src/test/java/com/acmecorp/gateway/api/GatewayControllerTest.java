@@ -1,6 +1,7 @@
 package com.acmecorp.gateway.api;
 
 import com.acmecorp.gateway.service.GatewayService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -313,6 +314,8 @@ class GatewayControllerTest {
     }
 
     @Test
+    @Tag("integration")
+    // Tagged as integration: requires downstream behavior that is not deterministic in unit runs.
     void analyticsCountersShouldPropagateErrors() {
         Mockito.when(gatewayService.analyticsCounters()).thenReturn(Mono.error(new RuntimeException("downstream failure")));
 
