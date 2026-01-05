@@ -17,7 +17,7 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
         List<Map<String, Object>> catalog = fetchCatalogItems();
         assertThat(catalog).isNotEmpty();
 
-        Map<String, Object> first = catalog.getFirst();
+        Map<String, Object> first = catalog.get(0);
         UUID productId = UUID.fromString(first.get("id").toString());
 
         var createResponse = createOrder("integration@example.com", productId, 1);
