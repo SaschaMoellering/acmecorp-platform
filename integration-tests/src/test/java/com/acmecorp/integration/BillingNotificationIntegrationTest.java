@@ -14,7 +14,9 @@ class BillingNotificationIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void confirmingOrderShouldProduceInvoice() {
-        var productId = UUID.fromString(fetchCatalogItems().getFirst().get("id").toString());
+        var catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+        var productId = UUID.fromString(catalog.get(0).get("id").toString());
         long orderId = createOrder("billing@example.com", productId, 1).getLong("id");
 
         confirmOrder(orderId);
@@ -25,6 +27,7 @@ class BillingNotificationIntegrationTest extends AbstractIntegrationTest {
                 .until(() -> findInvoicesForOrder(orderId),
                         list -> list != null && !list.isEmpty());
 
-        assertThat(((Number) invoices.getFirst().get("orderId")).longValue()).isEqualTo(orderId);
+        assertThat(invoices).isNotEmpty();
+        assertThat(((Number) invoices.get(0).get("orderId")).longValue()).isEqualTo(orderId);
     }
 }
