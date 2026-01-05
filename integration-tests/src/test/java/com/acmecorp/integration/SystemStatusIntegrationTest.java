@@ -12,6 +12,12 @@ class SystemStatusIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void gatewayShouldReportHealthyServicesAndCounters() {
+        Map<String, Object> gatewayHealth = fetchGatewayHealth();
+        assertThat(gatewayHealth)
+                .as("gateway health payload: %s", gatewayHealth)
+                .isNotEmpty();
+        assertThat(gatewayHealth.get("status")).isEqualTo("UP");
+
         var statuses = fetchSystemStatus();
 
         // Gateway aggregates downstream services; it should not list itself as a service.
@@ -23,7 +29,9 @@ class SystemStatusIntegrationTest extends AbstractIntegrationTest {
                 "catalog"
         );
 
-        assertThat(statuses).isNotEmpty();
+        assertThat(statuses)
+                .as("system status payload: %s", statuses)
+                .isNotEmpty();
 
         Map<String, Map<String, Object>> statusByService = statuses.stream()
                 .collect(Collectors.toMap(
@@ -39,7 +47,9 @@ class SystemStatusIntegrationTest extends AbstractIntegrationTest {
         assertThatHealthDetails(statusByService.get("analytics"));
 
         Map<String, Object> counters = fetchAnalyticsCounters();
-        assertThat(counters).isNotEmpty();
+        assertThat(counters)
+                .as("analytics counters payload: %s", counters)
+                .isNotEmpty();
         counters.values().forEach(value -> assertThat(value).isInstanceOf(Number.class));
     }
 

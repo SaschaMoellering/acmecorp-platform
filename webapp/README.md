@@ -19,3 +19,12 @@ The app expects the gateway-service at `http://localhost:8080` (configurable via
 - `src/api` — gateway API client
 - `src/components` — layout shell, UI primitives, feature widgets
 - `src/views` — routed pages: Dashboard, Orders, Catalog, Analytics, System
+
+## Testing
+
+```bash
+cd webapp
+npx vitest run --config vitest.config.ts --pool=threads --poolOptions.threads.singleThread
+```
+
+Vitest does not support Jest's `--runInBand`, so CI uses a single-thread pool for deterministic runs.

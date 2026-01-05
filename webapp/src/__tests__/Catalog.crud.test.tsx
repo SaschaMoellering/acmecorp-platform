@@ -53,9 +53,12 @@ describe('Catalog CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
 
-    const [newProductButton] = screen.getAllByRole('button', { name: /New Product/i });
-    // Use the toolbar action in case multiple "New Product" buttons are present.
-    fireEvent.click(newProductButton);
+    // Scope to the Products card to avoid duplicate "New Product" buttons from stale renders.
+    const productsCard = screen.getByText('Products').closest('.card');
+    if (!productsCard) {
+      throw new Error('Products card not found');
+    }
+    fireEvent.click(within(productsCard).getByRole('button', { name: /New Product/i }));
 
     // Create
     const createDialog = await screen.findByRole('dialog');
@@ -108,9 +111,12 @@ describe('Catalog CRUD view', () => {
 
       await screen.findByText('Base Product');
 
-      const [newProductButton] = screen.getAllByRole('button', { name: /New Product/i });
-      // Use the toolbar action in case multiple "New Product" buttons are present.
-      fireEvent.click(newProductButton);
+      // Scope to the Products card to avoid duplicate "New Product" buttons from stale renders.
+      const productsCard = screen.getByText('Products').closest('.card');
+      if (!productsCard) {
+        throw new Error('Products card not found');
+      }
+      fireEvent.click(within(productsCard).getByRole('button', { name: /New Product/i }));
 
       // Fill required fields so submit fires and hits the mocked error
       const dialog = await screen.findByRole('dialog');
