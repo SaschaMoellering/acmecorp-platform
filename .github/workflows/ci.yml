@@ -146,7 +146,7 @@ jobs:
       - name: Run smoke tests
         run: |
           chmod +x scripts/smoke-local.sh
-          BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh
+          BASE_URL=http://localhost:8080 bash -x ./scripts/smoke-local.sh
 
       - name: Stop Docker Compose
         if: always()
