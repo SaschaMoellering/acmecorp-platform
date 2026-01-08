@@ -14,23 +14,23 @@ class SystemStatusIntegrationTest extends AbstractIntegrationTest {
         var statuses = fetchSystemStatus();
 
         Set<String> expectedServices = Set.of(
-                "orders-service",
-                "billing-service",
-                "notification-service",
-                "analytics-service",
-                "catalog-service",
-                "gateway-service"
+                "orders",
+                "billing",
+                "notification",
+                "analytics",
+                "catalog"
         );
 
         assertThat(statuses)
                 .isNotEmpty()
-                .anySatisfy(status -> assertThat(status.get("service")).isEqualTo("gateway-service"));
+                .extracting(status -> status.get("service"))
+                .containsAll(expectedServices);
 
         for (String service : expectedServices) {
             assertThat(statuses)
                     .anySatisfy(entry -> {
                         if (service.equals(entry.get("service"))) {
-                            assertThat(entry.get("status")).isNotNull();
+                            assertThat(entry.get("status")).isEqualTo("UP");
                         }
                     });
         }
