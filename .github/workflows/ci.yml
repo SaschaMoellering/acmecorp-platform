@@ -23,7 +23,11 @@ jobs:
           for svc in services/spring-boot/* services/quarkus/*; do
             if [ -d "$svc" ] && [ -f "$svc/pom.xml" ]; then
               echo "Testing $svc"
-              (cd "$svc" && mvn -q test)
+              (cd "$svc" && mvn -q -ntp test) || ( \
+                echo "---- Maven failure in $svc (verbose) ----"; \
+                cd "$svc" && mvn -ntp -DtrimStackTrace=false -e test; \
+                exit 1 \
+              )
             fi
           done
 

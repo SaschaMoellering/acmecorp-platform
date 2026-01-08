@@ -1,5 +1,5 @@
-// src/setupTests.ts
-
-// Vitest + @testing-library/jest-dom integration
-// This automatically extends `expect` with jest-dom matchers.
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+
+afterEach(() => cleanup());

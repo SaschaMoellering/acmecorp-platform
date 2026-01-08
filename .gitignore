@@ -6,6 +6,7 @@ build/
 
 # Java / Maven
 target/
+**/target/
 *.log
 
 # IDEs
