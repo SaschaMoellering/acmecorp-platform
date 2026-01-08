@@ -48,7 +48,7 @@ public class GatewayService {
 
     public Mono<PageResponse<OrderSummary>> listOrders(int page, int size) {
         String url = UriComponentsBuilder
-                .fromHttpUrl(ordersBaseUrl + "/api/orders")
+                .fromUriString(ordersBaseUrl + "/api/orders")
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .toUriString();
@@ -175,7 +175,7 @@ public class GatewayService {
 
     public Mono<List<ProductSummary>> catalog(String category, String search) {
         UriComponentsBuilder builder = UriComponentsBuilder
-                .fromHttpUrl(catalogBaseUrl + "/api/catalog");
+                .fromUriString(catalogBaseUrl + "/api/catalog");
 
         if (category != null && !category.isBlank()) {
             builder.queryParam("category", category);
@@ -289,9 +289,9 @@ public class GatewayService {
     }
 
     private Mono<SystemStatus> fetchSystemStatus(ServiceDescriptor descriptor) {
-        String url = descriptor.baseUrl + descriptor.healthPath;
+        String url = descriptor.baseUrl() + descriptor.healthPath();
 
-        log.debug("Fetching system status for {}: {}", descriptor.name, url);
+        log.debug("Fetching system status for {}: {}", descriptor.name(), url);
 
         return webClient.get()
                 .uri(url)
@@ -299,19 +299,15 @@ public class GatewayService {
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .map(health -> {
                     Object status = health.getOrDefault("status", "UNKNOWN");
-                    SystemStatus s = new SystemStatus();
-                    s.service = descriptor.name;
-                    s.status = String.valueOf(status);
-                    s.details = health;
-                    return s;
+                    return new SystemStatus(descriptor.name(), String.valueOf(status), health);
                 })
                 .onErrorResume(ex -> {
-                    log.warn("Failed to fetch health for {}: {}", descriptor.name, ex.getMessage());
-                    SystemStatus s = new SystemStatus();
-                    s.service = descriptor.name;
-                    s.status = "DOWN";
-                    s.details = Map.of("error", ex.getMessage());
-                    return Mono.just(s);
+                    log.warn("Failed to fetch health for {}: {}", descriptor.name(), ex.getMessage());
+                    return Mono.just(new SystemStatus(
+                            descriptor.name(),
+                            "DOWN",
+                            Map.of("error", ex.getMessage())
+                    ));
                 });
     }
 
@@ -330,7 +326,7 @@ public class GatewayService {
                 .uri(ordersSeedUrl)
                 .retrieve()
                 .bodyToMono(OrdersSeedResponse.class)
-                .map(resp -> resp != null ? resp.count : 0)
+                .map(resp -> resp != null ? resp.count() : 0)
                 .onErrorResume(ex -> {
                     log.warn("Failed to seed orders: {}", ex.getMessage());
                     return Mono.just(0);
@@ -347,15 +343,7 @@ public class GatewayService {
                 });
 
         return Mono.zip(ordersSeed, catalogSeed)
-                .map(tuple -> {
-                    int ordersCreated = tuple.getT1();
-                    int productsCreated = tuple.getT2();
-                    SeedResult result = new SeedResult();
-                    result.ordersCreated = ordersCreated;
-                    result.productsCreated = productsCreated;
-                    result.message = "Seed completed";
-                    return result;
-                });
+                .map(tuple -> new SeedResult(tuple.getT1(), tuple.getT2(), "Seed completed"));
     }
 
     // -------------------------------------------------------------------------
@@ -363,13 +351,14 @@ public class GatewayService {
     // -------------------------------------------------------------------------
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class PageResponse<T> {
-        public List<T> content;
-        public int page;
-        public int size;
-        public long totalElements;
-        public int totalPages;
-        public boolean last;
+    public record PageResponse<T>(
+            List<T> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean last
+    ) {
     }
 
     /**
@@ -389,17 +378,7 @@ public class GatewayService {
     public static class InvoiceSummary extends java.util.HashMap<String, Object> {
     }
 
-    public static class OrderWithInvoice {
-        public OrderSummary order;
-        public List<InvoiceSummary> invoices;
-
-        public OrderWithInvoice() {
-        }
-
-        public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
-            this.order = order;
-            this.invoices = invoices;
-        }
+    public record OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -410,33 +389,16 @@ public class GatewayService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class OrdersSeedResponse {
-        public int count;
-        public boolean seeded;
+    public record OrdersSeedResponse(int count, boolean seeded) {
     }
 
-    public static class SystemStatus {
-        public String service;
-        public String status;
-        public Map<String, Object> details;
+    public record SystemStatus(String service, String status, Map<String, Object> details) {
     }
 
-    public static class SeedResult {
-        public int ordersCreated;
-        public int productsCreated;
-        public String message;
+    public record SeedResult(int ordersCreated, int productsCreated, String message) {
     }
 
-    private static class ServiceDescriptor {
-        final String name;
-        final String baseUrl;
-        final String healthPath;
-
-        ServiceDescriptor(String name, String baseUrl, String healthPath) {
-            this.name = name;
-            this.baseUrl = baseUrl;
-            this.healthPath = healthPath;
-        }
+    private record ServiceDescriptor(String name, String baseUrl, String healthPath) {
     }
 
     private Map<String, Object> normalizeOrderUpdatePayload(OrderRequest request) {
