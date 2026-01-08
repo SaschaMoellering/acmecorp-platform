@@ -4,8 +4,8 @@ import com.acmecorp.gateway.service.GatewayService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -23,7 +23,7 @@ class GatewayControllerTest {
     @Autowired
     private WebTestClient webClient;
 
-    @MockBean
+    @MockitoBean
     private GatewayService gatewayService;
 
     @Test
@@ -50,10 +50,11 @@ class GatewayControllerTest {
 
     @Test
     void systemStatusShouldAggregate() {
-        var status = new GatewayService.SystemStatus();
-        status.service = "orders-service";
-        status.status = "OK";
-        status.details = Map.of("dummy", "value");
+        var status = new GatewayService.SystemStatus(
+                "orders-service",
+                "OK",
+                Map.of("dummy", "value")
+        );
 
         Mockito.when(gatewayService.systemStatus())
                 .thenReturn(Mono.just(List.of(status)));
@@ -186,13 +187,14 @@ class GatewayControllerTest {
         order.put("totalAmount", BigDecimal.TEN);
         order.put("currency", "USD");
 
-        var page = new GatewayService.PageResponse<GatewayService.OrderSummary>();
-        page.content = List.of(order);
-        page.page = 0;
-        page.size = 20;
-        page.totalElements = 1;
-        page.totalPages = 1;
-        page.last = true;
+        var page = new GatewayService.PageResponse<>(
+                List.of(order),
+                0,
+                20,
+                1,
+                1,
+                true
+        );
 
         Mockito.when(gatewayService.listOrders(0, 20)).thenReturn(Mono.just(page));
 
@@ -206,10 +208,7 @@ class GatewayControllerTest {
 
     @Test
     void seedEndpointShouldTriggerServices() {
-        var seed = new GatewayService.SeedResult();
-        seed.ordersCreated = 10;
-        seed.productsCreated = 5;
-        seed.message = "Seed completed";
+        var seed = new GatewayService.SeedResult(10, 5, "Seed completed");
 
         Mockito.when(gatewayService.seedData()).thenReturn(Mono.just(seed));
 

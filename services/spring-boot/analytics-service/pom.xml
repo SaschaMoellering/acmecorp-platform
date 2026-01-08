@@ -9,10 +9,9 @@
   <name>AcmeCorp Analytics Service</name>
 
   <properties>
-    <java.version>21</java.version>
-    <spring.boot.version>3.3.4</spring.boot.version>
-    <maven.compiler.source>${java.version}</maven.compiler.source>
-    <maven.compiler.target>${java.version}</maven.compiler.target>
+    <java.version>25</java.version>
+    <spring.boot.version>4.0.1</spring.boot.version>
+    <maven.compiler.release>${java.version}</maven.compiler.release>
   </properties>
 
   <dependencyManagement>
@@ -57,6 +56,11 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -67,8 +71,7 @@
         <version>3.11.0</version>
         <configuration>
           <parameters>true</parameters>
-          <source>${java.version}</source>
-          <target>${java.version}</target>
+          <release>${maven.compiler.release}</release>
         </configuration>
       </plugin>
       <plugin>
