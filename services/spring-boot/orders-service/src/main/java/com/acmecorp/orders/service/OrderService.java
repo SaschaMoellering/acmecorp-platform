@@ -81,7 +81,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<Order> listOrders(String customerEmail, OrderStatus status, int page, int size) {
-        Specification<Order> spec = Specification.where(null);
+        Specification<Order> spec = (root, query, cb) -> cb.conjunction();
         if (customerEmail != null && !customerEmail.isBlank()) {
             spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("customerEmail")), "%" + customerEmail.toLowerCase(Locale.ROOT) + "%"));
         }
