@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
 
       - name: Run backend tests
         run: |
@@ -54,11 +54,17 @@ jobs:
         run: |
           cd ..
           mkdir -p dist
-          # symlink root dist/worker.js -> webapp's Vitest worker
-          ln -sf webapp/node_modules/vitest/dist/worker.js dist/worker.js
+          SRC="webapp/node_modules/vitest/dist/worker.js"
+          DST="dist/worker.js"
+          if [ -e "$DST" ] && [ "$(readlink -f "$SRC")" = "$(readlink -f "$DST")" ]; then
+            echo "Vitest worker shim already OK"
+          else
+            ln -sf "$SRC" "$DST" || cp -f "$SRC" "$DST"
+          fi
 
       - name: Run unit tests (Vitest)
-        run: npx vitest run --runInBand
+        # Vitest does not support Jest's --runInBand; use a single-thread pool.
+        run: npx vitest run --pool=threads --poolOptions.threads.singleThread
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
@@ -100,7 +106,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
 
       - name: Start Docker Compose stack
         run: |
@@ -140,7 +146,7 @@ jobs:
       - name: Run smoke tests
         run: |
           chmod +x scripts/smoke-local.sh
-          BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh
+          BASE_URL=http://localhost:8080 bash -x ./scripts/smoke-local.sh
 
       - name: Stop Docker Compose
         if: always()
