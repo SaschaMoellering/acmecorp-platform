@@ -279,8 +279,8 @@ public class GatewayService {
                 new ServiceDescriptor("notification", notificationBaseUrl, "/actuator/health"),
                 new ServiceDescriptor("analytics",    analyticsBaseUrl,    "/actuator/health"),
 
-                // Quarkus catalog service: /q/health
-                new ServiceDescriptor("catalog",      catalogBaseUrl,      "/q/health")
+                // Quarkus catalog service: /actuator/health (root path configured in catalog)
+                new ServiceDescriptor("catalog",      catalogBaseUrl,      "/actuator/health")
         );
 
         return Flux.fromIterable(services)
