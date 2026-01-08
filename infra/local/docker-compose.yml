@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: postgres:16
@@ -26,7 +25,10 @@ services:
       - "15672:15672"
 
   orders-service:
-    build: ../../services/spring-boot/orders-service
+    build:
+      context: ../../services/spring-boot/orders-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - postgres
     environment:
@@ -35,7 +37,10 @@ services:
       - "8081:8081"
 
   billing-service:
-    build: ../../services/spring-boot/billing-service
+    build:
+      context: ../../services/spring-boot/billing-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - postgres
     environment:
@@ -44,7 +49,10 @@ services:
       - "8082:8082"
 
   notification-service:
-    build: ../../services/spring-boot/notification-service
+    build:
+      context: ../../services/spring-boot/notification-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - postgres
       - rabbitmq
@@ -54,7 +62,10 @@ services:
       - "8083:8083"
 
   analytics-service:
-    build: ../../services/spring-boot/analytics-service
+    build:
+      context: ../../services/spring-boot/analytics-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - postgres
       - redis
@@ -64,14 +75,20 @@ services:
       - "8084:8084"
 
   catalog-service:
-    build: ../../services/quarkus/catalog-service
+    build:
+      context: ../../services/quarkus/catalog-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - postgres
     ports:
       - "8085:8085"
 
   gateway-service:
-    build: ../../services/spring-boot/gateway-service
+    build:
+      context: ../../services/spring-boot/gateway-service
+      args:
+        JAVA_VERSION: "25"
     depends_on:
       - orders-service
       - catalog-service
