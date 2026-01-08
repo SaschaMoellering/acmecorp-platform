@@ -75,7 +75,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Page<Notification> list(String recipient, NotificationStatus status, NotificationType type, int page, int size) {
-        Specification<Notification> spec = Specification.where(null);
+        Specification<Notification> spec = (root, query, cb) -> cb.conjunction();
         if (StringUtils.hasText(recipient)) {
             spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("recipient")), "%" + recipient.toLowerCase(Locale.ROOT) + "%"));
         }
