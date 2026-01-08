@@ -116,8 +116,10 @@ jobs:
         run: |
           cd infra/local
           docker compose up -d --build
-          # Give services time to start
-          sleep 40
+
+      - name: Wait for services to become healthy
+        run: |
+          bash scripts/wait-for-compose-health.sh
 
       - name: Run integration tests
         env:
@@ -125,6 +127,13 @@ jobs:
         run: |
           cd integration-tests
           mvn -q test
+
+      - name: Docker Compose status on failure
+        if: failure()
+        run: |
+          cd infra/local
+          docker compose ps
+          docker compose logs --tail 200
 
       - name: Stop Docker Compose
         if: always()
