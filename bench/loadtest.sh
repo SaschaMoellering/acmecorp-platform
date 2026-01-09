@@ -44,7 +44,9 @@ tmpfile="$(mktemp)"
 tmpdir="$(mktemp -d)"
 trap 'rm -f "$tmpfile"; rm -rf "$tmpdir"' EXIT
 
-echo "Running ${tool} load test against ${url} (warmup=${warmup}s, duration=${duration}s, concurrency=${concurrency})..." >&2
+if [[ -n "${LOADTEST_VERBOSE:-}" ]]; then
+  echo "Running ${tool} load test against ${url} (warmup=${warmup}s, duration=${duration}s, concurrency=${concurrency})..." >&2
+fi
 
 if [[ "$tool" == "wrk" ]]; then
   if [[ "$warmup" -gt 0 ]]; then
