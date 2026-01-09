@@ -47,11 +47,11 @@ public class BillingService {
     public Invoice createInvoice(InvoiceRequest request) {
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(generateInvoiceNumber());
-        invoice.setOrderId(request.orderId());
-        invoice.setOrderNumber(request.orderNumber());
-        invoice.setCustomerEmail(request.customerEmail());
-        invoice.setAmount(request.amount());
-        invoice.setCurrency(request.currency());
+        invoice.setOrderId(request.getOrderId());
+        invoice.setOrderNumber(request.getOrderNumber());
+        invoice.setCustomerEmail(request.getCustomerEmail());
+        invoice.setAmount(request.getAmount());
+        invoice.setCurrency(request.getCurrency());
         invoice.setStatus(InvoiceStatus.OPEN);
         invoice.setCreatedAt(Instant.now());
         invoice.setUpdatedAt(invoice.getCreatedAt());
@@ -91,8 +91,8 @@ public class BillingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only OPEN invoices can be paid");
         }
         Payment payment = new Payment();
-        payment.setPaymentMethod(request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.DEMO);
-        payment.setAmount(request.amount() != null ? request.amount() : invoice.getAmount());
+        payment.setPaymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : PaymentMethod.DEMO);
+        payment.setAmount(request.getAmount() != null ? request.getAmount() : invoice.getAmount());
         payment.setTimestamp(Instant.now());
         invoice.addPayment(payment);
         invoice.setStatus(InvoiceStatus.PAID);

@@ -1,6 +1,6 @@
 package com.acmecorp.billing.domain;
 
-import jakarta.persistence.*;
+import javax.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 

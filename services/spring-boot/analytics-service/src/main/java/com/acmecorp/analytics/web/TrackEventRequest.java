@@ -1,8 +1,37 @@
 package com.acmecorp.analytics.web;
 
-import jakarta.validation.constraints.NotBlank;
+import javax.validation.constraints.NotBlank;
 
 import java.util.Map;
 
-public record TrackEventRequest(@NotBlank String event, Map<String, Object> metadata) {
+public class TrackEventRequest {
+
+    @NotBlank
+    private String event;
+
+    private Map<String, Object> metadata;
+
+    public TrackEventRequest() {
+    }
+
+    public TrackEventRequest(String event, Map<String, Object> metadata) {
+        this.event = event;
+        this.metadata = metadata;
+    }
+
+    public String getEvent() {
+        return event;
+    }
+
+    public void setEvent(String event) {
+        this.event = event;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
 }
