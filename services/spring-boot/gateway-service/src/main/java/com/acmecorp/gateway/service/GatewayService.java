@@ -13,6 +13,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -264,7 +265,22 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {});
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
+                .onErrorResume(ex -> {
+                    log.warn("Analytics counters unavailable, returning fallback: {}", ex.getMessage());
+                    return Mono.just(defaultAnalyticsCounters());
+                });
+    }
+
+    private Map<String, Long> defaultAnalyticsCounters() {
+        Map<String, Long> counters = new LinkedHashMap<>();
+        counters.put("orders.created", 0L);
+        counters.put("orders.confirmed", 0L);
+        counters.put("orders.cancelled", 0L);
+        counters.put("billing.invoice.created", 0L);
+        counters.put("billing.invoice.paid", 0L);
+        counters.put("notification.sent", 0L);
+        return counters;
     }
 
     // -------------------------------------------------------------------------

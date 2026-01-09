@@ -4,8 +4,10 @@ import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeAll;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,6 +30,12 @@ public abstract class AbstractIntegrationTest {
         billingBase = gatewayBase.replace("8080", "8082");
         analyticsBase = gatewayBase.replace("8080", "8084");
         RestAssured.baseURI = gatewayBase;
+
+        waitForHealth("gateway", gatewayBase + "/actuator/health", Duration.ofSeconds(30));
+        waitForHealth("orders", ordersBase + "/actuator/health", Duration.ofSeconds(120));
+        waitForHealth("billing", billingBase + "/actuator/health", Duration.ofSeconds(120));
+        waitForHealth("notification", gatewayBase.replace("8080", "8083") + "/actuator/health", Duration.ofSeconds(120));
+        waitForHealth("catalog", catalogBase + "/q/health", Duration.ofSeconds(120));
     }
 
     protected List<Map<String, Object>> fetchCatalogItems() {
@@ -86,6 +94,14 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected Map<String, Object> fetchAnalyticsCounters() {
+        return Awaitility.await()
+                .atMost(Duration.ofSeconds(30))
+                .pollInterval(Duration.ofSeconds(1))
+                .ignoreExceptions()
+                .until(this::fetchAnalyticsCountersOnce, counters -> counters != null);
+    }
+
+    private Map<String, Object> fetchAnalyticsCountersOnce() {
         return given()
                 .when()
                 .get(gatewayBase + "/api/gateway/analytics/counters")
@@ -93,6 +109,64 @@ public abstract class AbstractIntegrationTest {
                 .statusCode(200)
                 .extract()
                 .as(new TypeRef<Map<String, Object>>() {});
+    }
+
+    private static void waitForHealth(String service, String healthUrl, Duration timeout) {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        String lastBody = null;
+        int lastStatus = -1;
+        Exception lastError = null;
+
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                var response = given()
+                        .when()
+                        .get(healthUrl);
+                lastStatus = response.statusCode();
+                lastBody = response.getBody().asString();
+                if (lastStatus == 200) {
+                    return;
+                }
+            } catch (Exception ex) {
+                lastError = ex;
+            }
+            sleep(Duration.ofSeconds(2));
+        }
+
+        StringBuilder message = new StringBuilder()
+                .append("Timed out waiting for ")
+                .append(service)
+                .append(" health at ")
+                .append(healthUrl)
+                .append(".");
+
+        if (lastError != null) {
+            message.append(" Last error: ").append(lastError.getMessage()).append(".");
+        } else {
+            message.append(" Last status=").append(lastStatus).append(" body=");
+            if (lastBody == null) {
+                message.append("<empty>.");
+            } else {
+                message.append("\"").append(trimBody(lastBody)).append("\".");
+            }
+        }
+
+        message.append(" Ensure the Docker Compose stack is running (infra/local).");
+        throw new IllegalStateException(message.toString());
+    }
+
+    private static String trimBody(String body) {
+        String trimmed = body.replaceAll("\\s+", " ").trim();
+        return trimmed.length() > 200 ? trimmed.substring(0, 200) + "..." : trimmed;
+    }
+
+    private static void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for service health.", ex);
+        }
     }
 
     protected List<Map<String, Object>> fetchSystemStatus() {
