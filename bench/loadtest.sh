@@ -14,13 +14,13 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 fi
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "python (or python3) is required to run the load test" >&2
-  exit 1
+  echo '{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"python missing"}'
+  exit 0
 fi
 
 if [[ "$duration" -lt 5 ]]; then
-  echo "measurement duration must be at least 5 seconds" >&2
-  exit 1
+  echo '{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"duration too short"}'
+  exit 0
 fi
 
 tool=""
@@ -51,8 +51,8 @@ elif [[ "$tool" == "hey" ]]; then
   fi
   hey -c "$concurrency" -z "${duration}s" "$url" > "$tmpfile"
 elif [[ "$tool" == "k6" ]]; then
-  echo "k6 is not yet supported by this script" >&2
-  exit 1
+  echo '{"tool":"k6","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"k6 not supported"}'
+  exit 0
 else
   for idx in $(seq 1 "$concurrency"); do
     (
@@ -70,6 +70,8 @@ else
         if elapsed=$(curl -s -o /dev/null -w "%{time_total}" "$url" 2>/dev/null); then
           echo "$elapsed" >> "$lat_file"
           count=$((count + 1))
+        else
+          echo "1" >> "$tmpdir/error.$idx"
         fi
       done
       echo "$count" > "$tmpdir/count.$idx"
@@ -81,9 +83,14 @@ fi
 if [[ "$tool" == "curl" ]]; then
   cat "$tmpdir"/latency.* 2>/dev/null > "$tmpfile" || true
   total=0
+  errors=0
   for count_file in "$tmpdir"/count.*; do
     [[ -f "$count_file" ]] || continue
     total=$((total + $(cat "$count_file")))
+  done
+  for error_file in "$tmpdir"/error.*; do
+    [[ -f "$error_file" ]] || continue
+    errors=$((errors + $(wc -l < "$error_file")))
   done
 
   "$PYTHON_BIN" - <<PY
@@ -93,6 +100,7 @@ import os
 
 duration = int("${duration}")
 total = int("${total}")
+errors = int("${errors}")
 latencies = []
 if os.path.exists("${tmpfile}"):
     with open("${tmpfile}") as fh:
@@ -124,13 +132,20 @@ def fmt_ms(value):
         return "na"
     return f"{value * 1000:.2f}ms"
 
+error_msg = None
+if total == 0:
+    error_msg = "all requests failed"
+
 result = {
     "tool": "curl",
     "requests_per_sec": round(total / duration, 2) if duration > 0 else 0,
     "p50": fmt_ms(p50),
     "p95": fmt_ms(p95),
     "p99": fmt_ms(p99),
+    "errors": errors,
 }
+if error_msg:
+    result["error"] = error_msg
 print(json.dumps(result))
 PY
   exit 0
@@ -159,9 +174,21 @@ def to_ms(value: str) -> float:
 def fmt_ms(value: float) -> str:
     return f"{value:.2f}ms"
 
+def fail(error):
+    result = {
+        "tool": tool,
+        "requests_per_sec": 0,
+        "p50": "na",
+        "p95": "na",
+        "p99": "na",
+        "error": error,
+    }
+    print(json.dumps(result))
+    sys.exit(0)
+
 requests_match = re.search(r"Requests/sec:\s*([0-9.]+)", text)
 if not requests_match:
-    raise SystemExit("failed to parse requests/sec")
+    fail("failed to parse requests/sec")
 requests_per_sec = float(requests_match.group(1))
 
 latencies = {}
@@ -173,7 +200,7 @@ if tool == "wrk":
     p90_ms = available.get(90)
     p99_ms = available.get(99)
     if p50_ms is None or p90_ms is None or p99_ms is None:
-        raise SystemExit("missing latency distribution data from wrk output")
+        fail("missing latency distribution data from wrk output")
     if 95 in available:
         p95_ms = available[95]
     else:
@@ -187,9 +214,9 @@ elif tool == "hey":
     p95_ms = latencies.get(95)
     p99_ms = latencies.get(99)
     if p50_ms is None or p95_ms is None or p99_ms is None:
-        raise SystemExit("missing latency distribution data from hey output")
+        fail("missing latency distribution data from hey output")
 else:
-    raise SystemExit("unsupported tool")
+    fail("unsupported tool")
 
 result = {
     "tool": tool,

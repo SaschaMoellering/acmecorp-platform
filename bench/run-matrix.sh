@@ -127,6 +127,14 @@ for branch in "${branches[@]}"; do
 
   startup_seconds=$((ready_ts - start_ts))
   load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY")"
+  if ! "$PYTHON_BIN" - <<PY >/dev/null 2>&1
+import json, sys
+text = ${load_result@Q}
+json.loads(text)
+PY
+  then
+    load_result='{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"invalid loadtest output"}'
+  fi
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
   sleep 5
   containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")"
@@ -135,17 +143,17 @@ for branch in "${branches[@]}"; do
   mapfile -t metrics < <("$PYTHON_BIN" - <<PY
 import json, sys
 data=json.loads(sys.stdin.read())
-print(data["requests_per_sec"])
-print(data["p50"])
-print(data["p95"])
-print(data["p99"])
+print(data.get("requests_per_sec", 0))
+print(data.get("p50", "na"))
+print(data.get("p95", "na"))
+print(data.get("p99", "na"))
 PY
 <<< "$load_result")
 
-  requests_per_sec="${metrics[0]}"
-  p50="${metrics[1]}"
-  p95="${metrics[2]}"
-  p99="${metrics[3]}"
+  requests_per_sec="${metrics[0]:-0}"
+  p50="${metrics[1]:-na}"
+  p95="${metrics[2]:-na}"
+  p99="${metrics[3]:-na}"
 
   mem_summary="$("$PYTHON_BIN" - <<PY
 import json
