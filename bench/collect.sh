@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Resolve python executable early (set -u safe)
+PYTHON_BIN="${PYTHON_BIN:-python}"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "required command 'python' (or 'python3') is missing" >&2
+  exit 1
+fi
+export PYTHON_BIN
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
 
