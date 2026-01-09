@@ -183,16 +183,29 @@ for branch in "${branches[@]}"; do
   fi
 
   startup_seconds=$((ready_ts - start_ts))
-  load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" 2>&1 || true)"
-  printf '%s\n' "$load_result" > "$branch_dir/load.raw.txt"
-  if ! "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
-import json, sys
-text = sys.stdin.read().strip()
-json.loads(text)
+  load_out="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" 2>&1 || true)"
+  printf '%s\n' "$load_out" > "$branch_dir/load.raw.txt"
+  load_result="$("$PYTHON_BIN" - <<'PY' <<< "$load_out" 2>/dev/null || true
+import json
+import sys
+
+text = sys.stdin.read()
+start = None
+for idx, ch in enumerate(text):
+    if ch == "{" or ch == "[":
+        start = idx
+        break
+if start is None:
+    raise SystemExit(1)
+
+decoder = json.JSONDecoder()
+obj, _ = decoder.raw_decode(text[start:])
+print(json.dumps(obj))
 PY
-<<< "$load_result"; then
+)"
+  if [[ -z "$load_result" ]]; then
     echo "loadtest output is not valid JSON for $branch" >&2
-    printf '%s\n' "$load_result" >&2
+    printf '%s\n' "$load_out" >&2
     ensure_compose_down
     exit 1
   fi
@@ -208,6 +221,7 @@ print(data.get("requests_per_sec", 0))
 print(data.get("p50", "na"))
 print(data.get("p95", "na"))
 print(data.get("p99", "na"))
+print(data.get("errors", "na"))
 PY
 <<< "$load_result")
 
@@ -215,6 +229,7 @@ PY
   p50="${metrics[1]:-na}"
   p95="${metrics[2]:-na}"
   p99="${metrics[3]:-na}"
+  errors="${metrics[4]:-na}"
 
   mem_summary="$("$PYTHON_BIN" - <<PY
 import json
@@ -234,26 +249,26 @@ PY
 # Benchmark results for $branch
 
 - Startup: ${startup_seconds}s
-- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99})
+- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
 - Memory snapshot: ${mem_summary}
 - Load metrics: [load.json](load.json)
 - Containers: [containers.json](containers.json)
 EOF
 
-  summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$mem_summary")
+  summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 done
 
 matrix_file="$matrix_dir/matrix-summary.md"
 {
   echo "# Java benchmark matrix (${timestamp})"
   echo
-  echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Memory | Details |"
-  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Errors | Memory | Details |"
+  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   for row in "${summary_rows[@]}"; do
-    IFS='|' read -r branch startup requests p50 p95 p99 memory <<< "$row"
+    IFS='|' read -r branch startup requests p50 p95 p99 errors memory <<< "$row"
     version="$(branch_java_version "$branch")"
     details="[link](../${branch}/${timestamp}/summary.md)"
-    echo "| ${branch} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${memory} | ${details} |"
+    echo "| ${branch} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${errors} | ${memory} | ${details} |"
   done
 } > "$matrix_file"
 
