@@ -14,12 +14,18 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 fi
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo '{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"python missing"}'
+  echo '{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","errors":1,"error":"python missing"}'
   exit 0
 fi
 
+function emit_error_json() {
+  local tool="${1:-unknown}"
+  local message="${2:-unknown error}"
+  echo "{\"tool\":\"${tool}\",\"requests_per_sec\":0,\"p50\":\"na\",\"p95\":\"na\",\"p99\":\"na\",\"errors\":1,\"error\":\"${message}\"}"
+}
+
 if [[ "$duration" -lt 5 ]]; then
-  echo '{"tool":"unknown","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"duration too short"}'
+  emit_error_json "unknown" "duration too short"
   exit 0
 fi
 
@@ -42,16 +48,28 @@ echo "Running ${tool} load test against ${url} (warmup=${warmup}s, duration=${du
 
 if [[ "$tool" == "wrk" ]]; then
   if [[ "$warmup" -gt 0 ]]; then
-    wrk -t"$threads" -c"$concurrency" -d"${warmup}s" "$url" >/dev/null
+    if ! wrk -t"$threads" -c"$concurrency" -d"${warmup}s" "$url" >/dev/null; then
+      emit_error_json "wrk" "warmup failed"
+      exit 0
+    fi
   fi
-  wrk -t"$threads" -c"$concurrency" -d"${duration}s" --latency "$url" > "$tmpfile"
+  if ! wrk -t"$threads" -c"$concurrency" -d"${duration}s" --latency "$url" > "$tmpfile"; then
+    emit_error_json "wrk" "load test failed"
+    exit 0
+  fi
 elif [[ "$tool" == "hey" ]]; then
   if [[ "$warmup" -gt 0 ]]; then
-    hey -c "$concurrency" -z "${warmup}s" "$url" >/dev/null 2>&1
+    if ! hey -c "$concurrency" -z "${warmup}s" "$url" >/dev/null 2>&1; then
+      emit_error_json "hey" "warmup failed"
+      exit 0
+    fi
   fi
-  hey -c "$concurrency" -z "${duration}s" "$url" > "$tmpfile"
+  if ! hey -c "$concurrency" -z "${duration}s" "$url" > "$tmpfile"; then
+    emit_error_json "hey" "load test failed"
+    exit 0
+  fi
 elif [[ "$tool" == "k6" ]]; then
-  echo '{"tool":"k6","requests_per_sec":0,"p50":"na","p95":"na","p99":"na","error":"k6 not supported"}'
+  emit_error_json "k6" "k6 not supported"
   exit 0
 else
   for idx in $(seq 1 "$concurrency"); do
@@ -65,16 +83,18 @@ else
 
       end_ts=$((SECONDS + duration))
       count=0
+      errors=0
       lat_file="$tmpdir/latency.$idx"
       while ((SECONDS < end_ts)); do
         if elapsed=$(curl -s -o /dev/null -w "%{time_total}" "$url" 2>/dev/null); then
           echo "$elapsed" >> "$lat_file"
           count=$((count + 1))
         else
-          echo "1" >> "$tmpdir/error.$idx"
+          errors=$((errors + 1))
         fi
       done
       echo "$count" > "$tmpdir/count.$idx"
+      echo "$errors" > "$tmpdir/error.$idx"
     ) &
   done
   wait
@@ -90,7 +110,7 @@ if [[ "$tool" == "curl" ]]; then
   done
   for error_file in "$tmpdir"/error.*; do
     [[ -f "$error_file" ]] || continue
-    errors=$((errors + $(wc -l < "$error_file")))
+    errors=$((errors + $(cat "$error_file")))
   done
 
   "$PYTHON_BIN" - <<PY
@@ -153,7 +173,6 @@ fi
 
 "$PYTHON_BIN" - <<PY
 import json
-import os
 import re
 import sys
 
@@ -181,6 +200,7 @@ def fail(error):
         "p50": "na",
         "p95": "na",
         "p99": "na",
+        "errors": 1,
         "error": error,
     }
     print(json.dumps(result))
