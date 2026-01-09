@@ -210,6 +210,32 @@ PY
   printf '%s' "$candidate"
 }
 
+function http_status() {
+  local url="$1"
+  curl -sS -o /dev/null -w '%{http_code}' --max-time 2 "$url" 2>/dev/null || echo "000"
+}
+
+function wait_for_url_ok() {
+  local url="$1"
+  local timeout_seconds="$2"
+  local start_ts
+  local status
+
+  start_ts="$(date +%s)"
+  status="000"
+  until [[ "$(date +%s)" -ge $((start_ts + timeout_seconds)) ]]; do
+    status="$(http_status "$url")"
+    if [[ "$status" =~ ^[23][0-9][0-9]$ ]]; then
+      echo "$status"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "$status"
+  return 1
+}
+
 function write_branch_summary() {
   local branch="$1"
   local startup_seconds="$2"
@@ -328,6 +354,27 @@ for branch in "${branches[@]}"; do
   fi
 
   startup_seconds=$((ready_ts - start_ts))
+  load_status="000"
+  if ! load_status="$(wait_for_url_ok "$LOAD_URL" 180)"; then
+    echo "LOAD_URL not ready (HTTP $load_status) for $branch" >&2
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
+    containers_file=""
+    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
+      :
+    else
+      containers_file="$branch_dir/containers.json"
+      printf '[]\n' > "$containers_file"
+      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+    fi
+    ensure_compose_down
+    mark_branch_failure "$branch" "$startup_seconds" "load_url_not_ready" "$branch_dir" "$containers_file"
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    fi
+    continue
+  fi
 
   load_stderr_file="$branch_dir/load.stderr.txt"
   load_stdout_file="$branch_dir/load.raw.stdout.txt"
@@ -356,7 +403,7 @@ for branch in "${branches[@]}"; do
       echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
     fi
     ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "loadtest_failed" "$branch_dir" "$containers_file"
+    mark_branch_failure "$branch" "$startup_seconds" "loadtest_no_json" "$branch_dir" "$containers_file"
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
       exit 1
     fi
