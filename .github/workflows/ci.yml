@@ -55,7 +55,13 @@ jobs:
           cd ..
           mkdir -p dist
           # symlink root dist/worker.js -> webapp's Vitest worker
-          ln -sf webapp/node_modules/vitest/dist/worker.js dist/worker.js
+          SRC="webapp/node_modules/vitest/dist/worker.js"
+          DST="dist/worker.js"
+          if [ -e "$DST" ] && [ "$(readlink -f "$SRC")" = "$(readlink -f "$DST")" ]; then
+            echo "Vitest worker shim already OK"
+          else
+            ln -sf "$SRC" "$DST" || cp -f "$SRC" "$DST"
+          fi
 
       - name: Run unit tests (Vitest)
         run: npx vitest run --runInBand
