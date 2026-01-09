@@ -9,6 +9,15 @@ warmup="${3:-60}"
 concurrency="${4:-25}"
 threads="${5:-4}"
 
+PYTHON_BIN="python"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "python (or python3) is required to run the load test" >&2
+  exit 1
+fi
+
 if [[ "$duration" -lt 5 ]]; then
   echo "measurement duration must be at least 5 seconds" >&2
   exit 1
@@ -22,12 +31,12 @@ elif command -v hey >/dev/null 2>&1; then
 elif command -v k6 >/dev/null 2>&1; then
   tool="k6"
 else
-  echo "Install wrk, hey, or k6 before running loadtest" >&2
-  exit 1
+  tool="curl"
 fi
 
 tmpfile="$(mktemp)"
-trap 'rm -f "$tmpfile"' EXIT
+tmpdir="$(mktemp -d)"
+trap 'rm -f "$tmpfile"; rm -rf "$tmpdir"' EXIT
 
 echo "Running ${tool} load test against ${url} (warmup=${warmup}s, duration=${duration}s, concurrency=${concurrency})..." >&2
 
@@ -41,12 +50,93 @@ elif [[ "$tool" == "hey" ]]; then
     hey -c "$concurrency" -z "${warmup}s" "$url" >/dev/null 2>&1
   fi
   hey -c "$concurrency" -z "${duration}s" "$url" > "$tmpfile"
-else
+elif [[ "$tool" == "k6" ]]; then
   echo "k6 is not yet supported by this script" >&2
   exit 1
+else
+  for idx in $(seq 1 "$concurrency"); do
+    (
+      if [[ "$warmup" -gt 0 ]]; then
+        warmup_end=$((SECONDS + warmup))
+        while ((SECONDS < warmup_end)); do
+          curl -s -o /dev/null "$url" 2>/dev/null || true
+        done
+      fi
+
+      end_ts=$((SECONDS + duration))
+      count=0
+      lat_file="$tmpdir/latency.$idx"
+      while ((SECONDS < end_ts)); do
+        if elapsed=$(curl -s -o /dev/null -w "%{time_total}" "$url" 2>/dev/null); then
+          echo "$elapsed" >> "$lat_file"
+          count=$((count + 1))
+        fi
+      done
+      echo "$count" > "$tmpdir/count.$idx"
+    ) &
+  done
+  wait
 fi
 
-python - <<PY
+if [[ "$tool" == "curl" ]]; then
+  cat "$tmpdir"/latency.* 2>/dev/null > "$tmpfile" || true
+  total=0
+  for count_file in "$tmpdir"/count.*; do
+    [[ -f "$count_file" ]] || continue
+    total=$((total + $(cat "$count_file")))
+  done
+
+  "$PYTHON_BIN" - <<PY
+import json
+import math
+import os
+
+duration = int("${duration}")
+total = int("${total}")
+latencies = []
+if os.path.exists("${tmpfile}"):
+    with open("${tmpfile}") as fh:
+        for line in fh:
+            try:
+                latencies.append(float(line.strip()))
+            except ValueError:
+                pass
+
+def percentile(sorted_values, pct):
+    if not sorted_values:
+        return None
+    k = (len(sorted_values) - 1) * (pct / 100.0)
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return sorted_values[int(k)]
+    d0 = sorted_values[int(f)] * (c - k)
+    d1 = sorted_values[int(c)] * (k - f)
+    return d0 + d1
+
+latencies.sort()
+p50 = percentile(latencies, 50)
+p95 = percentile(latencies, 95)
+p99 = percentile(latencies, 99)
+
+def fmt_ms(value):
+    if value is None:
+        return "na"
+    return f"{value * 1000:.2f}ms"
+
+result = {
+    "tool": "curl",
+    "requests_per_sec": round(total / duration, 2) if duration > 0 else 0,
+    "p50": fmt_ms(p50),
+    "p95": fmt_ms(p95),
+    "p99": fmt_ms(p99),
+}
+print(json.dumps(result))
+PY
+  exit 0
+fi
+
+"$PYTHON_BIN" - <<PY
 import json
 import os
 import re

@@ -17,6 +17,15 @@ for cmd in docker curl git mvn; do
   fi
 done
 
+PYTHON_BIN="python"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "required command 'python' (or 'python3') is missing" >&2
+  exit 1
+fi
+
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "docker compose file missing: $COMPOSE_FILE" >&2
   exit 1
@@ -101,7 +110,7 @@ for branch in "${branches[@]}"; do
   ready_ts=""
   echo "Waiting for health endpoint ($HEALTH_URL)..."
   until [[ "$(date +%s)" -ge $((start_ts + 120)) ]]; do
-    if curl -fsS "$HEALTH_URL" >/dev/null; then
+    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null; then
       ready_ts="$(date +%s)"
       break
     fi
@@ -110,6 +119,8 @@ for branch in "${branches[@]}"; do
 
   if [[ -z "$ready_ts" ]]; then
     echo "health endpoint did not become ready for $branch" >&2
+    docker compose -f "$COMPOSE_FILE" ps || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
     ensure_compose_down
     exit 1
   fi
@@ -121,7 +132,7 @@ for branch in "${branches[@]}"; do
   containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
-  mapfile -t metrics < <(python - <<PY
+  mapfile -t metrics < <("$PYTHON_BIN" - <<PY
 import json, sys
 data=json.loads(sys.stdin.read())
 print(data["requests_per_sec"])
@@ -136,7 +147,7 @@ PY
   p95="${metrics[2]}"
   p99="${metrics[3]}"
 
-  mem_summary="$(python - <<PY
+  mem_summary="$("$PYTHON_BIN" - <<PY
 import json
 data=json.load(open("$containers_file"))
 groups={}
