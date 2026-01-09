@@ -1,0 +1,1 @@
+{"tool": "curl", "requests_per_sec": 461.71, "p50": "9.67ms", "p95": "25.18ms", "p99": "34.64ms", "errors": 11129}
