@@ -64,7 +64,7 @@ jobs:
           fi
 
       - name: Run unit tests (Vitest)
-        run: npx vitest run --pool=forks --maxWorkers=1
+        run: npx vitest run --pool=forks
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
