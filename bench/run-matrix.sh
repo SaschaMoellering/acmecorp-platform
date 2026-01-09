@@ -4,11 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_ROOT="$ROOT_DIR/bench/results"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
+
 HEALTH_URL="http://localhost:8080/api/gateway/status"
 LOAD_URL="http://localhost:8080/api/gateway/orders"
+
 WARMUP=60
 DURATION=120
 CONCURRENCY=25
+
+STARTUP_TIMEOUT_SECONDS=180
+CURL_TIMEOUT_SECONDS=2
 
 for cmd in docker curl git mvn; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -23,6 +28,11 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
 fi
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "required command 'python' (or 'python3') is missing" >&2
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "required command 'jq' is missing" >&2
   exit 1
 fi
 
@@ -42,7 +52,7 @@ fi
 branches+=("main" "java25")
 
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
-trap 'git checkout "$initial_branch" >/dev/null 2>&1' EXIT
+trap 'git checkout "$initial_branch" >/dev/null 2>&1 || true' EXIT
 
 function ensure_compose_down() {
   docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
@@ -70,7 +80,11 @@ function pick_java_home_sdkman() {
   local matches=()
   while IFS= read -r -d '' path; do
     [[ -x "$path/bin/java" ]] && matches+=("$path")
-  done < <(find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \( -name "${version}.*" -o -name "${version}-*" \) -print0 2>/dev/null || true)
+  done < <(
+    find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \
+      \( -name "${version}.*" -o -name "${version}-*" \) \
+      -print0 2>/dev/null || true
+  )
 
   [[ ${#matches[@]} -gt 0 ]] || return 1
   printf '%s\n' "${matches[@]}" | sort -V | tail -n 1
@@ -115,12 +129,13 @@ function use_branch_java() {
   java -version
   mvn -v
 }
+
 function package_modules() {
   local branch="$1"
 
   echo "Packaging $branch (module builds)..."
 
-  # Spring Boot services (always)
+  # Spring Boot services
   for svc in "$ROOT_DIR"/services/spring-boot/*-service; do
     [[ -f "$svc/pom.xml" ]] || continue
     echo "  - $(basename "$svc")"
@@ -133,8 +148,7 @@ function package_modules() {
     mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
   fi
 
-  # Quarkus (only for Java >= 17 branches and if module exists)
-  # java11 baseline excludes Quarkus 3.x (requires Java 17+)
+  # Quarkus (Java 17+ branches)
   if [[ -d "$ROOT_DIR/services/quarkus" ]] && [[ "$branch" != "java11" ]]; then
     for qsvc in "$ROOT_DIR"/services/quarkus/*; do
       [[ -f "$qsvc/pom.xml" ]] || continue
@@ -144,6 +158,43 @@ function package_modules() {
   fi
 }
 
+function wait_for_http_200() {
+  local url="$1"
+  local deadline_ts="$2"
+
+  while [[ "$(date +%s)" -lt "$deadline_ts" ]]; do
+    # -f: fail non-2xx, --max-time: don't hang
+    if curl -fsS --max-time "$CURL_TIMEOUT_SECONDS" "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+function wait_for_gateway_ready() {
+  local start_ts="$1"
+  local deadline_ts="$2"
+
+  echo "Waiting for health endpoint ($HEALTH_URL)..."
+  if ! wait_for_http_200 "$HEALTH_URL" "$deadline_ts"; then
+    echo "health endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
+    return 1
+  fi
+
+  # Extra guard: orders endpoint should answer at least once to avoid
+  # measuring while gateway is still flapping / resetting connections.
+  echo "Waiting for orders endpoint to answer once ($LOAD_URL)..."
+  if ! wait_for_http_200 "$LOAD_URL" "$deadline_ts"; then
+    echo "orders endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
+    return 1
+  fi
+
+  local ready_ts
+  ready_ts="$(date +%s)"
+  echo "$((ready_ts - start_ts))"
+}
+
 for branch in "${branches[@]}"; do
   if ! git show-ref --verify --quiet "refs/heads/$branch"; then
     echo "branch '$branch' missing, skipping" >&2
@@ -151,11 +202,13 @@ for branch in "${branches[@]}"; do
   fi
 
   echo "---------- Benchmarking branch: $branch ----------"
-  git checkout "$branch"
+  git checkout "$branch" >/dev/null
+
   java_ver="$(branch_java_version "$branch")"
   if [[ "$java_ver" != "unknown" ]]; then
     use_branch_java "$java_ver"
   fi
+
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
@@ -163,81 +216,66 @@ for branch in "${branches[@]}"; do
 
   ensure_compose_down
   docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
-  start_ts="$(date +%s)"
-  ready_ts=""
-  echo "Waiting for health endpoint ($HEALTH_URL)..."
-  until [[ "$(date +%s)" -ge $((start_ts + 120)) ]]; do
-    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
-      ready_ts="$(date +%s)"
-      break
-    fi
-    sleep 2
-  done
 
-  if [[ -z "$ready_ts" ]]; then
-    echo "health endpoint did not become ready for $branch" >&2
+  start_ts="$(date +%s)"
+  deadline_ts="$((start_ts + STARTUP_TIMEOUT_SECONDS))"
+
+  startup_seconds=""
+  if ! startup_seconds="$(wait_for_gateway_ready "$start_ts" "$deadline_ts")"; then
     docker compose -f "$COMPOSE_FILE" ps || true
     docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
     ensure_compose_down
     exit 1
   fi
 
-  startup_seconds=$((ready_ts - start_ts))
-  load_out="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" 2>&1 || true)"
-  printf '%s\n' "$load_out" > "$branch_dir/load.raw.txt"
-  load_result="$("$PYTHON_BIN" - <<'PY' <<< "$load_out" 2>/dev/null || true
-import json
-import sys
+  # Run loadtest:
+  # - DO NOT redirect stderr into stdout, otherwise JSON is broken.
+  # - Capture stderr separately for debugging.
+  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}"
+  load_stderr="$branch_dir/load.stderr.txt"
+  load_json="$branch_dir/load.json"
+  load_raw_stdout="$branch_dir/load.stdout.txt"
 
-text = sys.stdin.read()
-start = None
-for idx, ch in enumerate(text):
-    if ch == "{" or ch == "[":
-        start = idx
-        break
-if start is None:
-    raise SystemExit(1)
+  # stdout should be JSON; still store it as raw for inspection
+  if ! bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_raw_stdout" 2>"$load_stderr"; then
+    # loadtest.sh is designed to often exit 0; but if it exits non-zero,
+    # we still want to try parsing stdout.
+    true
+  fi
 
-decoder = json.JSONDecoder()
-obj, _ = decoder.raw_decode(text[start:])
-print(json.dumps(obj))
-PY
-)"
-  if [[ -z "$load_result" ]]; then
+  # Validate JSON strictly
+  if ! jq -e . "$load_raw_stdout" >"$load_json" 2>/dev/null; then
     echo "loadtest output is not valid JSON for $branch" >&2
-    printf '%s\n' "$load_out" >&2
+    echo "----- stdout -----" >&2
+    sed -n '1,200p' "$load_raw_stdout" >&2 || true
+    echo "----- stderr -----" >&2
+    sed -n '1,200p' "$load_stderr" >&2 || true
     ensure_compose_down
     exit 1
   fi
-  printf '%s\n' "$load_result" > "$branch_dir/load.json"
+
+  # Optional cool-down before snapshot
   sleep 5
+
+  # collect.sh may not be executable -> run with bash
   containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
+
   ensure_compose_down
 
-  mapfile -t metrics < <("$PYTHON_BIN" - <<'PY'
-import json, sys
-data=json.loads(sys.stdin.read())
-print(data.get("requests_per_sec", 0))
-print(data.get("p50", "na"))
-print(data.get("p95", "na"))
-print(data.get("p99", "na"))
-print(data.get("errors", "na"))
-PY
-<<< "$load_result")
-
-  requests_per_sec="${metrics[0]:-0}"
-  p50="${metrics[1]:-na}"
-  p95="${metrics[2]:-na}"
-  p99="${metrics[3]:-na}"
-  errors="${metrics[4]:-na}"
+  # Extract metrics
+  requests_per_sec="$(jq -r '.requests_per_sec // 0' "$load_json")"
+  p50="$(jq -r '.p50 // "na"' "$load_json")"
+  p95="$(jq -r '.p95 // "na"' "$load_json")"
+  p99="$(jq -r '.p99 // "na"' "$load_json")"
+  errors="$(jq -r '.errors // "na"' "$load_json")"
 
   mem_summary="$("$PYTHON_BIN" - <<PY
 import json
 data=json.load(open("$containers_file"))
 groups={}
 for item in data:
-    svc=item["service"]
-    groups.setdefault(svc, []).append(item["mem"])
+    svc=item.get("service","unknown")
+    groups.setdefault(svc, []).append(item.get("mem","na"))
 parts=[]
 for svc in sorted(groups):
     parts.append(f"{svc}:{'/'.join(groups[svc])}")
@@ -252,6 +290,8 @@ PY
 - Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
 - Memory snapshot: ${mem_summary}
 - Load metrics: [load.json](load.json)
+- Load stdout: [load.stdout.txt](load.stdout.txt)
+- Load stderr: [load.stderr.txt](load.stderr.txt)
 - Containers: [containers.json](containers.json)
 EOF
 
