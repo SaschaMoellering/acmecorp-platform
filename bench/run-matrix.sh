@@ -75,6 +75,7 @@ function cleanup() {
 trap cleanup EXIT
 
 declare -a summary_rows=()
+MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-0}"
 
 function branch_java_version() {
   case "$1" in
@@ -169,18 +170,17 @@ function package_modules() {
 function extract_json_from_stdout() {
   local stdout="$1"
 
-  if [[ -n "$JQ_BIN" ]]; then
-    if printf '%s' "$stdout" | "$JQ_BIN" -e . >/dev/null 2>&1; then
-      printf '%s' "$stdout" | "$JQ_BIN" -c .
-      return 0
-    fi
-  fi
+  [[ -n "${stdout//[[:space:]]/}" ]] || return 1
 
-  printf '%s' "$stdout" | "$PYTHON_BIN" - <<'PY'
+  local candidate=""
+  if ! candidate="$(
+    printf '%s' "$stdout" | "$PYTHON_BIN" - <<'PY'
 import json
 import sys
 
 text = sys.stdin.read()
+if not text.strip():
+    raise SystemExit(1)
 last = None
 
 for idx, ch in enumerate(text):
@@ -197,6 +197,93 @@ if last is None:
 
 print(json.dumps(last))
 PY
+  )"; then
+    return 1
+  fi
+
+  if [[ -n "$JQ_BIN" ]]; then
+    if ! printf '%s' "$candidate" | "$JQ_BIN" -e . >/dev/null 2>&1; then
+      return 1
+    fi
+  fi
+
+  printf '%s' "$candidate"
+}
+
+function write_branch_summary() {
+  local branch="$1"
+  local startup_seconds="$2"
+  local requests_per_sec="$3"
+  local p50="$4"
+  local p95="$5"
+  local p99="$6"
+  local errors="$7"
+  local mem_summary="$8"
+  local branch_dir="$9"
+
+  cat <<EOF > "$branch_dir/summary.md"
+# Benchmark results for $branch
+
+- Startup: ${startup_seconds}s
+- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
+- Memory snapshot: ${mem_summary}
+- Load metrics: [load.json](load.json)
+- Load stderr: [load.stderr.txt](load.stderr.txt)
+- Containers: [containers.json](containers.json)
+EOF
+}
+
+function mark_branch_failure() {
+  local branch="$1"
+  local startup_seconds="$2"
+  local reason="$3"
+  local branch_dir="$4"
+  local containers_file="$5"
+
+  local requests_per_sec="0"
+  local p50="na"
+  local p95="na"
+  local p99="na"
+  local errors="$reason"
+  local mem_summary="na"
+
+  if [[ -n "$containers_file" ]] && [[ -s "$containers_file" ]]; then
+    if mem_summary="$("$PYTHON_BIN" - <<PY
+import json
+import sys
+
+path = "$containers_file"
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    if not text.strip():
+        raise ValueError("containers.json is empty")
+    data = json.loads(text)
+except Exception as exc:
+    print(f"containers.json invalid: {path} ({exc})", file=sys.stderr)
+    print("na")
+    raise SystemExit(0)
+
+groups = {}
+for item in data:
+    svc = item.get("service", "unknown")
+    groups.setdefault(svc, []).append(item.get("mem", "na"))
+parts = []
+for svc in sorted(groups):
+    parts.append(f"{svc}:{'/'.join(groups[svc])}")
+print(', '.join(parts) if parts else "na")
+PY
+    )"; then
+      :
+    else
+      mem_summary="na"
+    fi
+  fi
+
+  printf '{"error":"%s"}\n' "$reason" > "$branch_dir/load.json"
+
+  write_branch_summary "$branch" "$startup_seconds" "$requests_per_sec" "$p50" "$p95" "$p99" "$errors" "$mem_summary" "$branch_dir"
+  summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 }
 
 for branch in "${branches[@]}"; do
@@ -243,21 +330,59 @@ for branch in "${branches[@]}"; do
   startup_seconds=$((ready_ts - start_ts))
 
   load_stderr_file="$branch_dir/load.stderr.txt"
-  load_stdout="$(
-    bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" \
-      2> "$load_stderr_file" || true
-  )"
+  load_stdout_file="$branch_dir/load.raw.stdout.txt"
+  load_exit=0
+  if bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" \
+      > "$load_stdout_file" 2> "$load_stderr_file"; then
+    load_exit=0
+  else
+    load_exit=$?
+  fi
 
-  printf '%s\n' "$load_stdout" > "$branch_dir/load.raw.stdout.txt"
+  load_stdout="$(cat "$load_stdout_file")"
 
   if ! load_result="$(extract_json_from_stdout "$load_stdout")"; then
-    echo "loadtest output is not valid JSON for $branch" >&2
-    echo "----- stdout -----" >&2
-    printf '%s\n' "$load_stdout" >&2
-    echo "----- stderr -----" >&2
+    echo "loadtest output did not contain valid JSON for $branch (exit=$load_exit, stdout file: $load_stdout_file)" >&2
+    echo "----- loadtest stderr (first 200 lines) -----" >&2
     sed -n '1,200p' "$load_stderr_file" >&2 || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    containers_file=""
+    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
+      :
+    else
+      containers_file="$branch_dir/containers.json"
+      printf '[]\n' > "$containers_file"
+      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+    fi
     ensure_compose_down
-    exit 1
+    mark_branch_failure "$branch" "$startup_seconds" "loadtest_failed" "$branch_dir" "$containers_file"
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    fi
+    continue
+  fi
+
+  if [[ -z "${load_result//[[:space:]]/}" ]]; then
+    echo "loadtest JSON was empty for $branch (stdout file: $load_stdout_file)" >&2
+    echo "----- loadtest stderr (first 200 lines) -----" >&2
+    sed -n '1,200p' "$load_stderr_file" >&2 || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    containers_file=""
+    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
+      :
+    else
+      containers_file="$branch_dir/containers.json"
+      printf '[]\n' > "$containers_file"
+      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+    fi
+    ensure_compose_down
+    mark_branch_failure "$branch" "$startup_seconds" "loadtest_empty_json" "$branch_dir" "$containers_file"
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    fi
+    continue
   fi
 
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
@@ -267,19 +392,40 @@ for branch in "${branches[@]}"; do
   containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
-  mapfile -t metrics < <(
+  metrics_output=""
+  if ! metrics_output="$(
     printf '%s' "$load_result" | "$PYTHON_BIN" - <<'PY'
 import json
 import sys
 
-data = json.loads(sys.stdin.read())
+raw = sys.stdin.read()
+if not raw.strip():
+    print("load.json empty while computing metrics", file=sys.stderr)
+    raise SystemExit(1)
+try:
+    data = json.loads(raw)
+except Exception as exc:
+    print(f"load.json invalid while computing metrics ({exc})", file=sys.stderr)
+    raise SystemExit(1)
+
 print(data.get("requests_per_sec", 0))
 print(data.get("p50", "na"))
 print(data.get("p95", "na"))
 print(data.get("p99", "na"))
 print(data.get("errors", "na"))
 PY
-  )
+  )"; then
+    echo "failed to compute metrics from load.json for $branch (file: $branch_dir/load.json)" >&2
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
+    ensure_compose_down
+    mark_branch_failure "$branch" "$startup_seconds" "loadtest_metrics_invalid" "$branch_dir" "$containers_file"
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    fi
+    continue
+  fi
+
+  mapfile -t metrics <<< "$metrics_output"
 
   requests_per_sec="${metrics[0]:-0}"
   p50="${metrics[1]:-na}"
@@ -287,32 +433,43 @@ PY
   p99="${metrics[3]:-na}"
   errors="${metrics[4]:-na}"
 
-  mem_summary="$("$PYTHON_BIN" - <<PY
+  mem_summary="na"
+  if [[ -n "$containers_file" ]] && [[ -s "$containers_file" ]]; then
+    mem_summary="$("$PYTHON_BIN" - <<PY
 import json
+import sys
 
-data=json.load(open("$containers_file"))
-groups={}
+path = "$containers_file"
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    if not text.strip():
+        raise ValueError("containers.json is empty")
+    data = json.loads(text)
+except Exception as exc:
+    print(f"containers.json invalid: {path} ({exc})", file=sys.stderr)
+    print("na")
+    raise SystemExit(0)
+
+groups = {}
 for item in data:
-    svc=item["service"]
-    groups.setdefault(svc, []).append(item["mem"])
-parts=[]
+    svc = item.get("service", "unknown")
+    groups.setdefault(svc, []).append(item.get("mem", "na"))
+parts = []
 for svc in sorted(groups):
     parts.append(f"{svc}:{'/'.join(groups[svc])}")
-print(', '.join(parts))
+print(', '.join(parts) if parts else "na")
 PY
-)"
+    )"
+  else
+    if [[ -n "$containers_file" ]]; then
+      echo "containers.json empty or missing: $containers_file" >&2
+    else
+      echo "containers.json path missing from collect.sh output for $branch" >&2
+    fi
+  fi
 
-  cat <<EOF > "$branch_dir/summary.md"
-# Benchmark results for $branch
-
-- Startup: ${startup_seconds}s
-- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
-- Memory snapshot: ${mem_summary}
-- Load metrics: [load.json](load.json)
-- Load stderr: [load.stderr.txt](load.stderr.txt)
-- Containers: [containers.json](containers.json)
-EOF
-
+  write_branch_summary "$branch" "$startup_seconds" "$requests_per_sec" "$p50" "$p95" "$p99" "$errors" "$mem_summary" "$branch_dir"
   summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 done
 
