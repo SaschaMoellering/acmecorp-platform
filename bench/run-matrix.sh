@@ -63,12 +63,16 @@ if [[ -n "${ONLY_BRANCH:-}" ]]; then
 fi
 
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
-trap 'git checkout "$initial_branch" >/dev/null 2>&1 || true' EXIT
 
 function ensure_compose_down() {
   "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
-trap 'ensure_compose_down' EXIT
+
+function cleanup() {
+  ensure_compose_down
+  git checkout "$initial_branch" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 declare -a summary_rows=()
 
@@ -165,26 +169,34 @@ function package_modules() {
 function extract_json_from_stdout() {
   local stdout="$1"
 
-  # Prefer jq if present: validate JSON strictly
   if [[ -n "$JQ_BIN" ]]; then
-    if printf '%s' "$stdout" | jq -e . >/dev/null 2>&1; then
-      printf '%s' "$stdout"
+    if printf '%s' "$stdout" | "$JQ_BIN" -e . >/dev/null 2>&1; then
+      printf '%s' "$stdout" | "$JQ_BIN" -c .
       return 0
     fi
   fi
 
-  # Fallback: last line that looks like JSON object/array
-  local line
-  line="$(printf '%s\n' "$stdout" | awk '$0 ~ /^[[:space:]]*[{[]/ {json=$0} END{print json}')"
-  if [[ -z "$line" ]]; then
-    return 1
-  fi
-  # Validate via python
-  "$PYTHON_BIN" - <<PY >/dev/null 2>&1
-import json, sys
-json.loads(sys.argv[1])
-PY "$line" || return 1
-  printf '%s' "$line"
+  printf '%s' "$stdout" | "$PYTHON_BIN" - <<'PY'
+import json
+import sys
+
+text = sys.stdin.read()
+last = None
+
+for idx, ch in enumerate(text):
+    if ch not in "[{":
+        continue
+    try:
+        obj, _ = json.JSONDecoder().raw_decode(text[idx:])
+    except Exception:
+        continue
+    last = obj
+
+if last is None:
+    raise SystemExit(1)
+
+print(json.dumps(last))
+PY
 }
 
 for branch in "${branches[@]}"; do
@@ -230,7 +242,6 @@ for branch in "${branches[@]}"; do
 
   startup_seconds=$((ready_ts - start_ts))
 
-  # ---- IMPORTANT FIX: keep stdout (JSON) clean; store stderr separately ----
   load_stderr_file="$branch_dir/load.stderr.txt"
   load_stdout="$(
     bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" \
@@ -238,7 +249,6 @@ for branch in "${branches[@]}"; do
   )"
 
   printf '%s\n' "$load_stdout" > "$branch_dir/load.raw.stdout.txt"
-  # stderr already stored in $load_stderr_file
 
   if ! load_result="$(extract_json_from_stdout "$load_stdout")"; then
     echo "loadtest output is not valid JSON for $branch" >&2
@@ -254,20 +264,22 @@ for branch in "${branches[@]}"; do
 
   sleep 5
 
-  # collect.sh expects PYTHON_BIN in env
   containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
-  mapfile -t metrics < <("$PYTHON_BIN" - <<'PY'
-import json, sys
-data=json.loads(sys.stdin.read())
+  mapfile -t metrics < <(
+    printf '%s' "$load_result" | "$PYTHON_BIN" - <<'PY'
+import json
+import sys
+
+data = json.loads(sys.stdin.read())
 print(data.get("requests_per_sec", 0))
 print(data.get("p50", "na"))
 print(data.get("p95", "na"))
 print(data.get("p99", "na"))
 print(data.get("errors", "na"))
 PY
-<<< "$load_result")
+  )
 
   requests_per_sec="${metrics[0]:-0}"
   p50="${metrics[1]:-na}"
@@ -277,6 +289,7 @@ PY
 
   mem_summary="$("$PYTHON_BIN" - <<PY
 import json
+
 data=json.load(open("$containers_file"))
 groups={}
 for item in data:
