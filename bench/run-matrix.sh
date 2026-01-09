@@ -65,6 +65,9 @@ fi
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
 
 function ensure_compose_down() {
+  if [[ "${KEEP_COMPOSE_UP:-0}" == "1" ]]; then
+    return 0
+  fi
   "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
 
@@ -76,6 +79,7 @@ trap cleanup EXIT
 
 declare -a summary_rows=()
 MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-0}"
+KEEP_COMPOSE_UP="${KEEP_COMPOSE_UP:-0}"
 
 function branch_java_version() {
   case "$1" in
@@ -245,6 +249,15 @@ function write_branch_summary() {
 - Load stderr: [load.stderr.txt](load.stderr.txt)
 - Containers: [containers.json](containers.json)
 EOF
+
+  if [[ -f "$branch_dir/load.parse-error.json" ]]; then
+    cat <<EOF >> "$branch_dir/summary.md"
+
+## Load parsing error
+
+- Parse error file: [load.parse-error.json](load.parse-error.json)
+EOF
+  fi
 }
 
 function mark_branch_failure() {
@@ -294,7 +307,8 @@ PY
     fi
   fi
 
-  printf '{"error":"%s"}\n' "$reason" > "$branch_dir/load.json"
+  # IMPORTANT: do NOT overwrite load.json (it should contain the real loadtest output if available)
+  printf '{"error":"%s"}\n' "$reason" > "$branch_dir/load.parse-error.json"
 
   write_branch_summary "$branch" "$startup_seconds" "$requests_per_sec" "$p50" "$p95" "$p99" "$errors" "$mem_summary" "$branch_dir"
   summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
@@ -316,6 +330,9 @@ for branch in "${branches[@]}"; do
 
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
+
+  # clean previous parse error marker for this run/branch_dir (defensive)
+  rm -f "$branch_dir/load.parse-error.json" >/dev/null 2>&1 || true
 
   package_modules "$branch"
 
@@ -376,12 +393,15 @@ for branch in "${branches[@]}"; do
 
   load_stdout="$(cat "$load_stdout_file")"
 
-  if ! load_result="$(extract_json_from_stdout "$load_stdout")"; then
+  if ! load_result="$(extract_json_from_stdout "$(cat "$load_stdout_file")")"; then
     echo "loadtest output did not contain valid JSON for $branch (exit=$load_exit, stdout file: $load_stdout_file)" >&2
-    echo "----- loadtest stderr (first 200 lines) -----" >&2
-    sed -n '1,200p' "$load_stderr_file" >&2 || true
+    echo "----- loadtest sizes (bytes) -----" >&2
+    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
+    echo "----- loadtest stderr (first 50 lines) -----" >&2
+    sed -n '1,50p' "$load_stderr_file" >&2 || true
     "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
     "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
     containers_file=""
     if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
       :
@@ -400,10 +420,13 @@ for branch in "${branches[@]}"; do
 
   if [[ -z "${load_result//[[:space:]]/}" ]]; then
     echo "loadtest JSON was empty for $branch (stdout file: $load_stdout_file)" >&2
-    echo "----- loadtest stderr (first 200 lines) -----" >&2
-    sed -n '1,200p' "$load_stderr_file" >&2 || true
+    echo "----- loadtest sizes (bytes) -----" >&2
+    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
+    echo "----- loadtest stderr (first 50 lines) -----" >&2
+    sed -n '1,50p' "$load_stderr_file" >&2 || true
     "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
     "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
     containers_file=""
     if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
       :
@@ -421,22 +444,56 @@ for branch in "${branches[@]}"; do
   fi
 
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
+  if [[ ! -s "$branch_dir/load.json" ]]; then
+    echo "load.json empty after write for $branch (file: $branch_dir/load.json)" >&2
+    echo "----- loadtest sizes (bytes) -----" >&2
+    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
+    echo "----- loadtest stderr (first 50 lines) -----" >&2
+    sed -n '1,50p' "$load_stderr_file" >&2 || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
+    containers_file=""
+    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
+      :
+    else
+      containers_file="$branch_dir/containers.json"
+      printf '[]\n' > "$containers_file"
+      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+    fi
+    ensure_compose_down
+    mark_branch_failure "$branch" "$startup_seconds" "load_json_empty" "$branch_dir" "$containers_file"
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    fi
+    continue
+  fi
 
   sleep 5
 
   containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
+  # IMPORTANT FIX:
+  # Do NOT do `printf ... | python - <<PY` because python reads the program from stdin.
+  # Read metrics from the written load.json file instead.
   metrics_output=""
-  if ! metrics_output="$(
-    printf '%s' "$load_result" | "$PYTHON_BIN" - <<'PY'
+  if ! metrics_output="$("$PYTHON_BIN" - "$branch_dir/load.json" <<'PY'
 import json
 import sys
 
-raw = sys.stdin.read()
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read()
+except Exception as exc:
+    print(f"cannot read load.json while computing metrics ({exc})", file=sys.stderr)
+    raise SystemExit(1)
+
 if not raw.strip():
     print("load.json empty while computing metrics", file=sys.stderr)
     raise SystemExit(1)
+
 try:
     data = json.loads(raw)
 except Exception as exc:
