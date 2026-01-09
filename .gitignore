@@ -67,3 +67,8 @@ bench/**/*.raw.txt
 .DS_Store
 Thumbs.db
 *~
+
+# build outputs
+**/target/
+webapp/node_modules/
+webapp/dist/
