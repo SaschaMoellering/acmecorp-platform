@@ -5,7 +5,7 @@ import com.acmecorp.orders.service.OrderService;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
 import com.acmecorp.orders.web.PageResponse;
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -59,7 +62,9 @@ public class OrdersController {
                                                   @RequestParam(name = "page", defaultValue = "0") int page,
                                                   @RequestParam(name = "size", defaultValue = "20") int size) {
         var ordersPage = orderService.listOrders(customerEmail, status, page, size);
-        var responses = ordersPage.getContent().stream().map(OrderResponse::from).toList();
+        var responses = ordersPage.getContent().stream()
+                .map(OrderResponse::from)
+                .collect(Collectors.toList());
         return PageResponse.from(new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements()));
     }
 
@@ -110,11 +115,17 @@ public class OrdersController {
                                                             @RequestParam(name = "status", required = false) OrderStatus status,
                                                             @RequestParam(name = "page", defaultValue = "0") int page,
                                                             @RequestParam(name = "size", defaultValue = "20") int size) throws ExecutionException, InterruptedException {
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var task = executor.submit(() -> orderService.listOrders(customerEmail, status, page, size));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<Page<com.acmecorp.orders.domain.Order>> task =
+                    executor.submit(() -> orderService.listOrders(customerEmail, status, page, size));
             var ordersPage = task.get();
-            var responses = ordersPage.getContent().stream().map(OrderResponse::from).toList();
+            var responses = ordersPage.getContent().stream()
+                    .map(OrderResponse::from)
+                    .collect(Collectors.toList());
             return new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements());
+        } finally {
+            executor.shutdown();
         }
     }
 }

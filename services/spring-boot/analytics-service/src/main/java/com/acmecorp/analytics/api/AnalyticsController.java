@@ -2,7 +2,7 @@ package com.acmecorp.analytics.api;
 
 import com.acmecorp.analytics.service.AnalyticsService;
 import com.acmecorp.analytics.web.TrackEventRequest;
-import jakarta.validation.Valid;
+import javax.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +28,7 @@ public class AnalyticsController {
 
     @PostMapping("/track")
     public ResponseEntity<Void> track(@Valid @RequestBody TrackEventRequest request) {
-        analyticsService.track(request.event());
+        analyticsService.track(request.getEvent());
         return ResponseEntity.accepted().build();
     }
 

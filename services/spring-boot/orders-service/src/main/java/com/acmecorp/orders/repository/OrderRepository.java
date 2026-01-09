@@ -17,12 +17,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findTopByOrderNumberStartingWithOrderByOrderNumberDesc(String prefix);
 
-    @Query("""
-        select distinct o
-        from Order o
-        left join fetch o.items
-        where o.id in :ids
-        order by o.createdAt desc
-    """)
+    @Query("select distinct o "
+            + "from Order o "
+            + "left join fetch o.items "
+            + "where o.id in :ids "
+            + "order by o.createdAt desc")
     List<Order> findAllWithItemsByIds(@Param("ids") Set<Long> ids);
 }

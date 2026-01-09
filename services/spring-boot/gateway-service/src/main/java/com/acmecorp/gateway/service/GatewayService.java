@@ -455,8 +455,11 @@ public class GatewayService {
             body.put("status", status);
         }
 
-        if (items instanceof List<?> itemList && !itemList.isEmpty()) {
-            body.put("items", itemList);
+        if (items instanceof List<?>) {
+            List<?> itemList = (List<?>) items;
+            if (!itemList.isEmpty()) {
+                body.put("items", itemList);
+            }
         } else if (productId != null && quantity != null) {
             Map<String, Object> item = new java.util.HashMap<>();
             item.put("productId", productId);

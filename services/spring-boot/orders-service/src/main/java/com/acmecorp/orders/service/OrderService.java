@@ -55,18 +55,18 @@ public class OrderService {
 
     @Transactional
     public Order createOrder(OrderRequest request) {
-        if (request.items() == null || request.items().isEmpty()) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Order must contain at least one item");
         }
 
         Order order = new Order();
         order.setOrderNumber(generateOrderNumber());
-        order.setCustomerEmail(request.customerEmail());
+        order.setCustomerEmail(request.getCustomerEmail());
         order.setStatus(OrderStatus.NEW);
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
 
-        applyItems(order, request.items());
+        applyItems(order, request.getItems());
 
         Order saved = orderRepository.save(order);
         analyticsClient.track("orders.created", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
@@ -107,7 +107,7 @@ public class OrderService {
                 .getContent()
                 .stream()
                 .map(OrderResponse::from)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -147,7 +147,7 @@ public class OrderService {
         return orders.stream()
                 .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
                 .map(OrderResponse::from)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -159,15 +159,15 @@ public class OrderService {
     public Order updateOrder(Long id, OrderRequest request) {
         Order order = getOrder(id);
 
-        if (request.customerEmail() != null) {
-            order.setCustomerEmail(request.customerEmail());
+        if (request.getCustomerEmail() != null) {
+            order.setCustomerEmail(request.getCustomerEmail());
         }
-        if (request.status() != null) {
-            order.setStatus(request.status());
+        if (request.getStatus() != null) {
+            order.setStatus(request.getStatus());
         }
 
-        if (request.items() != null && !request.items().isEmpty()) {
-            applyItems(order, request.items());
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            applyItems(order, request.getItems());
         }
 
         order.setUpdatedAt(Instant.now());
@@ -195,7 +195,7 @@ public class OrderService {
         return seeds.stream()
                 .map(this::createSeedOrder)
                 .map(OrderResponse::from)
-                .toList();
+                .collect(Collectors.toList());
     }
 
     private void applyItems(Order order, List<OrderRequest.Item> items) {
@@ -208,41 +208,41 @@ public class OrderService {
         String currency = order.getCurrency();
 
         for (OrderRequest.Item itemRequest : items) {
-            if (itemRequest.quantity() <= 0) {
+            if (itemRequest.getQuantity() <= 0) {
                 throw new ResponseStatusException(BAD_REQUEST, "Quantity must be greater than zero");
             }
 
-            OrderItem resolved = existingByProduct.get(itemRequest.productId());
+            OrderItem resolved = existingByProduct.get(itemRequest.getProductId());
             String resolvedCurrency = currency;
             if (resolved == null) {
                 BigDecimal unitPrice = BigDecimal.TEN;
-                String productName = itemRequest.productId();
+                String productName = itemRequest.getProductId();
                 String productCurrency = resolvedCurrency != null ? resolvedCurrency : "USD";
                 try {
-                    var product = catalogClient.fetchProduct(itemRequest.productId());
-                    if (!product.active()) {
-                        throw new ResponseStatusException(BAD_REQUEST, "Product is not active: " + product.sku());
+                    var product = catalogClient.fetchProduct(itemRequest.getProductId());
+                    if (!product.isActive()) {
+                        throw new ResponseStatusException(BAD_REQUEST, "Product is not active: " + product.getSku());
                     }
-                    unitPrice = product.price();
-                    productName = product.name();
-                    productCurrency = product.currency();
+                    unitPrice = product.getPrice();
+                    productName = product.getName();
+                    productCurrency = product.getCurrency();
                 } catch (Exception ignored) {
                 }
 
                 resolvedCurrency = resolvedCurrency != null ? resolvedCurrency : productCurrency;
-                if (resolvedCurrency != null && !resolvedCurrency.equalsIgnoreCase(productCurrency)) {
-                    throw new ResponseStatusException(BAD_REQUEST, "Mixed currencies not supported");
-                }
-                resolved = new OrderItem();
-                resolved.setProductId(itemRequest.productId());
-                resolved.setProductName(productName);
-                resolved.setUnitPrice(unitPrice);
+            if (resolvedCurrency != null && !resolvedCurrency.equalsIgnoreCase(productCurrency)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Mixed currencies not supported");
+            }
+            resolved = new OrderItem();
+            resolved.setProductId(itemRequest.getProductId());
+            resolved.setProductName(productName);
+            resolved.setUnitPrice(unitPrice);
             } else {
                 resolvedCurrency = resolvedCurrency != null ? resolvedCurrency : order.getCurrency();
             }
 
-            resolved.setQuantity(itemRequest.quantity());
-            resolved.setLineTotal(resolved.getUnitPrice().multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            resolved.setQuantity(itemRequest.getQuantity());
+            resolved.setLineTotal(resolved.getUnitPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
             order.addItem(resolved);
             total = total.add(resolved.getLineTotal());
             currency = resolvedCurrency;
@@ -256,19 +256,19 @@ public class OrderService {
     private Order createSeedOrder(OrderRequest request) {
         Order order = new Order();
         order.setOrderNumber(generateOrderNumber());
-        order.setCustomerEmail(request.customerEmail());
-        order.setStatus(Optional.ofNullable(request.status()).orElse(OrderStatus.NEW));
+        order.setCustomerEmail(request.getCustomerEmail());
+        order.setStatus(Optional.ofNullable(request.getStatus()).orElse(OrderStatus.NEW));
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
 
         BigDecimal total = BigDecimal.ZERO;
-        for (OrderRequest.Item itemRequest : request.items()) {
+        for (OrderRequest.Item itemRequest : request.getItems()) {
             OrderItem item = new OrderItem();
-            item.setProductId(itemRequest.productId());
-            item.setProductName(itemRequest.productId());
+            item.setProductId(itemRequest.getProductId());
+            item.setProductName(itemRequest.getProductId());
             item.setUnitPrice(BigDecimal.TEN);
-            item.setQuantity(itemRequest.quantity());
-            item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            item.setQuantity(itemRequest.getQuantity());
+            item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(itemRequest.getQuantity())));
             order.addItem(item);
             total = total.add(item.getLineTotal());
         }
