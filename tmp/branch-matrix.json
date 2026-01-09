@@ -1,0 +1,291 @@
+{
+  "branches": [
+    "java11",
+    "java17",
+    "java21",
+    "java25",
+    "main"
+  ],
+  "data": {
+    "java11": [
+      {
+        "service": "services/spring-boot/orders-service",
+        "framework": "Spring Boot",
+        "framework_version": "2.7.18",
+        "java_target": "11",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=maven:3.9.9-eclipse-temurin-11; runtime=eclipse-temurin:11-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/billing-service",
+        "framework": "Spring Boot",
+        "framework_version": "2.7.18",
+        "java_target": "11",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=maven:3.9.9-eclipse-temurin-11; runtime=eclipse-temurin:11-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/notification-service",
+        "framework": "Spring Boot",
+        "framework_version": "2.7.18",
+        "java_target": "11",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=maven:3.9.9-eclipse-temurin-11; runtime=eclipse-temurin:11-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/analytics-service",
+        "framework": "Spring Boot",
+        "framework_version": "2.7.18",
+        "java_target": "11",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=maven:3.9.9-eclipse-temurin-11; runtime=eclipse-temurin:11-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/gateway-service",
+        "framework": "Spring Boot",
+        "framework_version": "2.7.18",
+        "java_target": "11",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=maven:3.9.9-eclipse-temurin-11; runtime=eclipse-temurin:11-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/quarkus/catalog-service",
+        "framework": "Quarkus",
+        "framework_version": "3.15.0",
+        "java_target": "build=21; runtime=21",
+        "java_source": "unknown",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": "excluded from Makefile targets; Quarkus 3.x requires Java 17+; not compatible with Java 11 baseline; java target derived from Dockerfile"
+      }
+    ],
+    "java17": [
+      {
+        "service": "services/spring-boot/orders-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "17",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/billing-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "17",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/notification-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "17",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/analytics-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "17",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/gateway-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "17",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/quarkus/catalog-service",
+        "framework": "Quarkus",
+        "framework_version": "3.15.0",
+        "java_target": "build=17; runtime=17",
+        "java_source": "unknown",
+        "docker": "build=maven:3.9.9-eclipse-temurin-17; runtime=eclipse-temurin:17-jre",
+        "notes": "java target derived from Dockerfile"
+      }
+    ],
+    "java21": [
+      {
+        "service": "services/spring-boot/orders-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/billing-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/notification-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/analytics-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/gateway-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/quarkus/catalog-service",
+        "framework": "Quarkus",
+        "framework_version": "3.15.0",
+        "java_target": "build=21; runtime=21",
+        "java_source": "unknown",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": "java target derived from Dockerfile"
+      }
+    ],
+    "java25": [
+      {
+        "service": "services/spring-boot/orders-service",
+        "framework": "Spring Boot",
+        "framework_version": "4.0.1",
+        "java_target": "25",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/billing-service",
+        "framework": "Spring Boot",
+        "framework_version": "4.0.1",
+        "java_target": "25",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/notification-service",
+        "framework": "Spring Boot",
+        "framework_version": "4.0.1",
+        "java_target": "25",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/analytics-service",
+        "framework": "Spring Boot",
+        "framework_version": "4.0.1",
+        "java_target": "25",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/gateway-service",
+        "framework": "Spring Boot",
+        "framework_version": "4.0.1",
+        "java_target": "25",
+        "java_source": "properties:maven.compiler.release",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/quarkus/catalog-service",
+        "framework": "Quarkus",
+        "framework_version": "3.15.0",
+        "java_target": "unknown",
+        "java_source": "unknown",
+        "docker": "build=eclipse-temurin:${JAVA_VERSION}-jdk; runtime=eclipse-temurin:${JAVA_VERSION}-jre",
+        "notes": "java target unknown"
+      }
+    ],
+    "main": [
+      {
+        "service": "services/spring-boot/orders-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/billing-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/notification-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/analytics-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/spring-boot/gateway-service",
+        "framework": "Spring Boot",
+        "framework_version": "3.3.4",
+        "java_target": "21",
+        "java_source": "properties:java.version",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": ""
+      },
+      {
+        "service": "services/quarkus/catalog-service",
+        "framework": "Quarkus",
+        "framework_version": "3.15.0",
+        "java_target": "build=21; runtime=21",
+        "java_source": "unknown",
+        "docker": "build=maven:3.9.9-eclipse-temurin-21; runtime=eclipse-temurin:21-jre",
+        "notes": "java target derived from Dockerfile"
+      }
+    ]
+  }
+}
