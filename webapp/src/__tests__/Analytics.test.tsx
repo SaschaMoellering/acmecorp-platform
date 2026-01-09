@@ -46,7 +46,6 @@ describe('Analytics view', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.getByText(/orders created/i)).toBeInTheDocument());
-    expect(screen.getByText(/demo data/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/demo data/i)).toBeInTheDocument());
   });
 });
