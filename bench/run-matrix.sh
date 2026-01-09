@@ -173,36 +173,24 @@ function extract_json_from_stdout() {
   [[ -n "${stdout//[[:space:]]/}" ]] || return 1
 
   local candidate=""
-  if ! candidate="$(
-    printf '%s' "$stdout" | "$PYTHON_BIN" - <<'PY'
-import json
-import sys
-
-text = sys.stdin.read()
-if not text.strip():
-    raise SystemExit(1)
-last = None
-
-for idx, ch in enumerate(text):
-    if ch not in "[{":
-        continue
-    try:
-        obj, _ = json.JSONDecoder().raw_decode(text[idx:])
-    except Exception:
-        continue
-    last = obj
-
-if last is None:
-    raise SystemExit(1)
-
-print(json.dumps(last))
-PY
-  )"; then
-    return 1
-  fi
+  candidate="$(printf '%s\n' "$stdout" | awk '/^[[:space:]]*[{[]/ {line=$0} END {print line}')"
+  [[ -n "${candidate//[[:space:]]/}" ]] || return 1
 
   if [[ -n "$JQ_BIN" ]]; then
     if ! printf '%s' "$candidate" | "$JQ_BIN" -e . >/dev/null 2>&1; then
+      return 1
+    fi
+  else
+    if ! printf '%s' "$candidate" | "$PYTHON_BIN" - <<'PY'
+import json
+import sys
+
+data = sys.stdin.read()
+if not data.strip():
+    raise SystemExit(1)
+json.loads(data)
+PY
+    then
       return 1
     fi
   fi
