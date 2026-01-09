@@ -167,7 +167,7 @@ for branch in "${branches[@]}"; do
   ready_ts=""
   echo "Waiting for health endpoint ($HEALTH_URL)..."
   until [[ "$(date +%s)" -ge $((start_ts + 120)) ]]; do
-    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null; then
+    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
       ready_ts="$(date +%s)"
       break
     fi
@@ -183,7 +183,7 @@ for branch in "${branches[@]}"; do
   fi
 
   startup_seconds=$((ready_ts - start_ts))
-  load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" || true)"
+  load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" 2>&1 || true)"
   printf '%s\n' "$load_result" > "$branch_dir/load.raw.txt"
   if ! "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
 import json, sys
@@ -191,11 +191,14 @@ text = sys.stdin.read().strip()
 json.loads(text)
 PY
 <<< "$load_result"; then
-    load_result='{"requests_per_sec":0,"p50":"na","p95":"na","p99":"na","errors":1,"error":"invalid loadtest output"}'
+    echo "loadtest output is not valid JSON for $branch" >&2
+    printf '%s\n' "$load_result" >&2
+    ensure_compose_down
+    exit 1
   fi
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
   sleep 5
-  containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")"
+  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
   mapfile -t metrics < <("$PYTHON_BIN" - <<'PY'
