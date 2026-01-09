@@ -62,7 +62,21 @@ function branch_java_version() {
   esac
 }
 
-function pick_java_home() {
+function pick_java_home_sdkman() {
+  local version="$1"
+  local sdkdir="${HOME}/.sdkman/candidates/java"
+  [[ -d "$sdkdir" ]] || return 1
+
+  local matches=()
+  while IFS= read -r -d '' path; do
+    [[ -x "$path/bin/java" ]] && matches+=("$path")
+  done < <(find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \( -name "${version}.*" -o -name "${version}-*" \) -print0 2>/dev/null || true)
+
+  [[ ${#matches[@]} -gt 0 ]] || return 1
+  printf '%s\n' "${matches[@]}" | sort -V | tail -n 1
+}
+
+function pick_java_home_system() {
   local version="$1"
   local candidates=(
     "/usr/lib/jvm/java-${version}-openjdk-amd64"
@@ -80,6 +94,26 @@ function pick_java_home() {
   done
 
   return 1
+}
+
+function use_branch_java() {
+  local version="$1"
+  local java_home=""
+
+  if java_home="$(pick_java_home_sdkman "$version")"; then
+    :
+  elif java_home="$(pick_java_home_system "$version")"; then
+    :
+  else
+    echo "No JDK found for Java ${version}. Install a JDK under ~/.sdkman/candidates/java or /usr/lib/jvm and retry." >&2
+    exit 1
+  fi
+
+  export JAVA_HOME="$java_home"
+  export PATH="$JAVA_HOME/bin:$PATH"
+  echo "Using JAVA_HOME=$JAVA_HOME"
+  java -version
+  mvn -v
 }
 function package_modules() {
   local branch="$1"
@@ -120,15 +154,7 @@ for branch in "${branches[@]}"; do
   git checkout "$branch"
   java_ver="$(branch_java_version "$branch")"
   if [[ "$java_ver" != "unknown" ]]; then
-    if java_home="$(pick_java_home "$java_ver")"; then
-      export JAVA_HOME="$java_home"
-      export PATH="$JAVA_HOME/bin:$PATH"
-      echo "Using JAVA_HOME=$JAVA_HOME"
-      java -version
-    else
-      echo "No JDK found for Java ${java_ver}. Install a JDK at /usr/lib/jvm and retry." >&2
-      exit 1
-    fi
+    use_branch_java "$java_ver"
   fi
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
@@ -157,14 +183,14 @@ for branch in "${branches[@]}"; do
   fi
 
   startup_seconds=$((ready_ts - start_ts))
-  load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY")"
+  load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" || true)"
   printf '%s\n' "$load_result" > "$branch_dir/load.raw.txt"
-  if ! "$PYTHON_BIN" - <<PY >/dev/null 2>&1
+  if ! "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
 import json, sys
-text = ${load_result@Q}
+text = sys.stdin.read().strip()
 json.loads(text)
 PY
-  then
+<<< "$load_result"; then
     load_result='{"requests_per_sec":0,"p50":"na","p95":"na","p99":"na","errors":1,"error":"invalid loadtest output"}'
   fi
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
@@ -172,7 +198,7 @@ PY
   containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
-  mapfile -t metrics < <("$PYTHON_BIN" - <<PY
+  mapfile -t metrics < <("$PYTHON_BIN" - <<'PY'
 import json, sys
 data=json.loads(sys.stdin.read())
 print(data.get("requests_per_sec", 0))
