@@ -1,14 +1,69 @@
-# Node / frontend
-node_modules/
-webapp/node_modules/
-dist/
-build/
+# =========================
+# Maven / Java build output
+# =========================
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+hs_err_pid*
+replay_pid*
 
-# Java / Maven
-target/
+# =========================
+# Quarkus
+# =========================
+**/quarkus.log
+**/.quarkus/
+**/target/quarkus-app/
+
+# =========================
+# Integration tests
+# =========================
+integration-tests/target/
+
+# =========================
+# Docker / Compose
+# =========================
+**/.env
+**/.env.*
+**/docker-compose.override.yml
+**/docker-compose.local.yml
+
+# =========================
+# Benchmarks
+# =========================
+bench/results/
+bench/**/*.json
+bench/**/*.raw.txt
+
+# =========================
+# Logs & dumps
+# =========================
 *.log
+*.out
+*.err
+*.dump
+*.dumpstream
 
+# =========================
+# SDKMAN
+# =========================
+.sdkmanrc
+
+# =========================
 # IDEs
+# =========================
 .idea/
-.vscode/
 *.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+*~
