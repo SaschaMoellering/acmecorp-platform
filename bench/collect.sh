@@ -53,7 +53,7 @@ for sample in 0 30 60; do
   done
 done
 
-python - <<PY
+"$PYTHON_BIN" - <<PY
 import json
 import math
 import os
