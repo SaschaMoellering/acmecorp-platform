@@ -1,1 +1,0 @@
-Install wrk, hey, or k6 before running loadtest
