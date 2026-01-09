@@ -53,6 +53,35 @@ function branch_java_version() {
   esac
 }
 
+function package_modules() {
+  local branch="$1"
+
+  echo "Packaging $branch (module builds)..."
+
+  # Spring Boot services (always)
+  for svc in "$ROOT_DIR"/services/spring-boot/*-service; do
+    [[ -f "$svc/pom.xml" ]] || continue
+    echo "  - $(basename "$svc")"
+    mvn -q -f "$svc/pom.xml" -DskipTests package
+  done
+
+  # Integration tests module (optional)
+  if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
+    echo "  - integration-tests"
+    mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
+  fi
+
+  # Quarkus (only for Java >= 17 branches and if module exists)
+  # java11 baseline excludes Quarkus 3.x (requires Java 17+)
+  if [[ -d "$ROOT_DIR/services/quarkus" ]] && [[ "$branch" != "java11" ]]; then
+    for qsvc in "$ROOT_DIR"/services/quarkus/*; do
+      [[ -f "$qsvc/pom.xml" ]] || continue
+      echo "  - $(basename "$qsvc") (quarkus)"
+      mvn -q -f "$qsvc/pom.xml" -DskipTests package
+    done
+  fi
+}
+
 for branch in "${branches[@]}"; do
   if ! git show-ref --verify --quiet "refs/heads/$branch"; then
     echo "branch '$branch' missing, skipping" >&2
@@ -64,8 +93,7 @@ for branch in "${branches[@]}"; do
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
-  echo "Packaging $branch..."
-  mvn -q -DskipTests package
+  package_modules "$branch"
 
   ensure_compose_down
   docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
@@ -140,7 +168,7 @@ matrix_file="$matrix_dir/matrix-summary.md"
   echo "# Java benchmark matrix (${timestamp})"
   echo
   echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Memory | Details |"
-  echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   for row in "${summary_rows[@]}"; do
     IFS='|' read -r branch startup requests p50 p95 p99 memory <<< "$row"
     version="$(branch_java_version "$branch")"
