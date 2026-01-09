@@ -17,6 +17,15 @@ for cmd in docker curl git mvn; do
   fi
 done
 
+PYTHON_BIN="python"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "required command 'python' (or 'python3') is missing" >&2
+  exit 1
+fi
+
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "docker compose file missing: $COMPOSE_FILE" >&2
   exit 1
@@ -53,6 +62,55 @@ function branch_java_version() {
   esac
 }
 
+function pick_java_home() {
+  local version="$1"
+  local candidates=(
+    "/usr/lib/jvm/java-${version}-openjdk-amd64"
+    "/usr/lib/jvm/java-${version}-openjdk"
+    "/usr/lib/jvm/temurin-${version}-jdk-amd64"
+    "/usr/lib/jvm/temurin-${version}-jdk"
+    "/usr/lib/jvm/java-${version}-temurin"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+function package_modules() {
+  local branch="$1"
+
+  echo "Packaging $branch (module builds)..."
+
+  # Spring Boot services (always)
+  for svc in "$ROOT_DIR"/services/spring-boot/*-service; do
+    [[ -f "$svc/pom.xml" ]] || continue
+    echo "  - $(basename "$svc")"
+    mvn -q -f "$svc/pom.xml" -DskipTests package
+  done
+
+  # Integration tests module (optional)
+  if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
+    echo "  - integration-tests"
+    mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
+  fi
+
+  # Quarkus (only for Java >= 17 branches and if module exists)
+  # java11 baseline excludes Quarkus 3.x (requires Java 17+)
+  if [[ -d "$ROOT_DIR/services/quarkus" ]] && [[ "$branch" != "java11" ]]; then
+    for qsvc in "$ROOT_DIR"/services/quarkus/*; do
+      [[ -f "$qsvc/pom.xml" ]] || continue
+      echo "  - $(basename "$qsvc") (quarkus)"
+      mvn -q -f "$qsvc/pom.xml" -DskipTests package
+    done
+  fi
+}
+
 for branch in "${branches[@]}"; do
   if ! git show-ref --verify --quiet "refs/heads/$branch"; then
     echo "branch '$branch' missing, skipping" >&2
@@ -61,11 +119,22 @@ for branch in "${branches[@]}"; do
 
   echo "---------- Benchmarking branch: $branch ----------"
   git checkout "$branch"
+  java_ver="$(branch_java_version "$branch")"
+  if [[ "$java_ver" != "unknown" ]]; then
+    if java_home="$(pick_java_home "$java_ver")"; then
+      export JAVA_HOME="$java_home"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      echo "Using JAVA_HOME=$JAVA_HOME"
+      java -version
+    else
+      echo "No JDK found for Java ${java_ver}. Install a JDK at /usr/lib/jvm and retry." >&2
+      exit 1
+    fi
+  fi
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
-  echo "Packaging $branch..."
-  mvn -q -DskipTests package
+  package_modules "$branch"
 
   ensure_compose_down
   docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
@@ -73,7 +142,7 @@ for branch in "${branches[@]}"; do
   ready_ts=""
   echo "Waiting for health endpoint ($HEALTH_URL)..."
   until [[ "$(date +%s)" -ge $((start_ts + 120)) ]]; do
-    if curl -fsS "$HEALTH_URL" >/dev/null; then
+    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null; then
       ready_ts="$(date +%s)"
       break
     fi
@@ -82,33 +151,44 @@ for branch in "${branches[@]}"; do
 
   if [[ -z "$ready_ts" ]]; then
     echo "health endpoint did not become ready for $branch" >&2
+    docker compose -f "$COMPOSE_FILE" ps || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
     ensure_compose_down
     exit 1
   fi
 
   startup_seconds=$((ready_ts - start_ts))
   load_result="$(bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY")"
+  printf '%s\n' "$load_result" > "$branch_dir/load.raw.txt"
+  if ! "$PYTHON_BIN" - <<PY >/dev/null 2>&1
+import json, sys
+text = ${load_result@Q}
+json.loads(text)
+PY
+  then
+    load_result='{"requests_per_sec":0,"p50":"na","p95":"na","p99":"na","errors":1,"error":"invalid loadtest output"}'
+  fi
   printf '%s\n' "$load_result" > "$branch_dir/load.json"
   sleep 5
   containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")"
   ensure_compose_down
 
-  mapfile -t metrics < <(python - <<PY
+  mapfile -t metrics < <("$PYTHON_BIN" - <<PY
 import json, sys
 data=json.loads(sys.stdin.read())
-print(data["requests_per_sec"])
-print(data["p50"])
-print(data["p95"])
-print(data["p99"])
+print(data.get("requests_per_sec", 0))
+print(data.get("p50", "na"))
+print(data.get("p95", "na"))
+print(data.get("p99", "na"))
 PY
 <<< "$load_result")
 
-  requests_per_sec="${metrics[0]}"
-  p50="${metrics[1]}"
-  p95="${metrics[2]}"
-  p99="${metrics[3]}"
+  requests_per_sec="${metrics[0]:-0}"
+  p50="${metrics[1]:-na}"
+  p95="${metrics[2]:-na}"
+  p99="${metrics[3]:-na}"
 
-  mem_summary="$(python - <<PY
+  mem_summary="$("$PYTHON_BIN" - <<PY
 import json
 data=json.load(open("$containers_file"))
 groups={}
@@ -140,7 +220,7 @@ matrix_file="$matrix_dir/matrix-summary.md"
   echo "# Java benchmark matrix (${timestamp})"
   echo
   echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Memory | Details |"
-  echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
+  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   for row in "${summary_rows[@]}"; do
     IFS='|' read -r branch startup requests p50 p95 p99 memory <<< "$row"
     version="$(branch_java_version "$branch")"
