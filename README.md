@@ -40,8 +40,27 @@ The gateway forwards HTTP traffic to the Spring Boot services (orders, billing, 
 
 1. **Prerequisites**
    - Docker Desktop / Docker Engine + Compose plugin
-   - Java 21 / Maven (build Java services)
+   - Java 25 / Maven (build Spring Boot services)
+   - Java 21 toolchain for `services/quarkus/catalog-service` (pinned intentionally)
    - Node.js (React UI via Vite)
+
+If your shell `JAVA_HOME` points to Java 25, Maven will still build the Quarkus catalog service with Java 21 via toolchains. Example `~/.m2/toolchains.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<toolchains>
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>21</version>
+      <vendor>any</vendor>
+    </provides>
+    <configuration>
+      <jdkHome>/path/to/jdk-21</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
+```
 
 2. **Start the stack**
 

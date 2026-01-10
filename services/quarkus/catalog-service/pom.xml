@@ -1,37 +1,26 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <groupId>com.acmecorp</groupId>
   <artifactId>catalog-service</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <name>AcmeCorp Catalog Service</name>
 
   <properties>
-    <!-- Quarkus platform / BOM -->
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
-    <quarkus.platform.version>3.19.3</quarkus.platform.version>
-
-    <!-- Java / build -->
-    <maven.compiler.release>21</maven.compiler.release>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-    <!-- Packaging -->
-    <quarkus.package.jar.type>uber-jar</quarkus.package.jar.type>
-
-    <!-- Test tooling -->
+    <quarkus.platform.version>3.15.0</quarkus.platform.version>
     <maven.surefire.plugin.version>3.1.2</maven.surefire.plugin.version>
-
-    <!-- Alternative A: Byte Buddy override for Java 25 support -->
-    <bytebuddy.version>1.15.10</bytebuddy.version>
+    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <quarkus.package.jar.type>uber-jar</quarkus.package.jar.type>
   </properties>
 
   <dependencyManagement>
     <dependencies>
-      <!-- Import Quarkus BOM: manages versions for io.quarkus:* artifacts -->
       <dependency>
         <groupId>${quarkus.platform.group-id}</groupId>
         <artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -39,32 +28,18 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
-
-      <!-- Alternative A: override Byte Buddy (Hibernate / proxy generation at build time) -->
-      <dependency>
-        <groupId>net.bytebuddy</groupId>
-        <artifactId>byte-buddy</artifactId>
-        <version>${bytebuddy.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.bytebuddy</groupId>
-        <artifactId>byte-buddy-agent</artifactId>
-        <version>${bytebuddy.version}</version>
-      </dependency>
     </dependencies>
   </dependencyManagement>
 
   <dependencies>
-    <!-- Quarkus REST (replaces quarkus-resteasy-reactive*) -->
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest</artifactId>
+      <artifactId>quarkus-resteasy-reactive</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest-jackson</artifactId>
+      <artifactId>quarkus-resteasy-reactive-jackson</artifactId>
     </dependency>
-
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-arc</artifactId>
@@ -73,7 +48,6 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-smallrye-health</artifactId>
     </dependency>
-
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-hibernate-orm-panache</artifactId>
@@ -82,7 +56,6 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-jdbc-postgresql</artifactId>
     </dependency>
-
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
@@ -91,8 +64,6 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-hibernate-validator</artifactId>
     </dependency>
-
-    <!-- Tests -->
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-junit5</artifactId>
@@ -113,6 +84,26 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-toolchains-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>toolchain</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <toolchains>
+            <jdk>
+              <version>21</version>
+              <vendor>any</vendor>
+            </jdk>
+          </toolchains>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>io.quarkus</groupId>
         <artifactId>quarkus-maven-plugin</artifactId>
         <version>${quarkus.platform.version}</version>
@@ -125,13 +116,14 @@
           </execution>
         </executions>
       </plugin>
-
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven.surefire.plugin.version}</version>
         <configuration>
-          <argLine>-Dcom.arjuna.ats.internal.arjuna.utils.processImplementation=com.arjuna.ats.internal.arjuna.utils.UuidProcessId</argLine>
+          <systemPropertyVariables>
+            <com.arjuna.ats.arjuna.common.CoreEnvironmentBean.processImplementationClassName>com.arjuna.ats.internal.arjuna.utils.UuidProcessId</com.arjuna.ats.arjuna.common.CoreEnvironmentBean.processImplementationClassName>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
     </plugins>

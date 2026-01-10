@@ -6,7 +6,8 @@ and how to deploy it to Kubernetes (and later to EKS with Helm).
 ## 1. Prerequisites
 
 - Docker / Docker Compose
-- Java 21 (for local builds)
+- Java 25 (for Spring Boot services)
+- Java 21 toolchain (for Quarkus `catalog-service`, pinned intentionally)
 - Maven 3.9+
 - Node.js (if you add or run the React UI)
 - kubectl + a local Kubernetes cluster (kind, k3d, or Minikube) for K8s
@@ -77,6 +78,24 @@ UI quick tour (replace with real screenshots):
 These tests exercise real flows such as catalog → orders → analytics and verify system status via the gateway.
 
 Note: catalog-service now always builds as a Quarkus uber-jar (`*-runner.jar`) for Docker compatibility.
+
+If your shell `JAVA_HOME` points to Java 25, Maven will still build the Quarkus catalog service with Java 21 via toolchains. Example `~/.m2/toolchains.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<toolchains>
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>21</version>
+      <vendor>any</vendor>
+    </provides>
+    <configuration>
+      <jdkHome>/path/to/jdk-21</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
+```
 
 ## 3. Kubernetes Deployment (Base Manifests)
 
