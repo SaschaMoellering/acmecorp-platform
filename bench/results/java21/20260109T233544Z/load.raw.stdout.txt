@@ -1,1 +1,0 @@
-{"tool": "wrk", "requests_per_sec": 7050.45, "p50": "3.27ms", "p95": "5.29ms", "p99": "6.04ms", "errors": 0}
