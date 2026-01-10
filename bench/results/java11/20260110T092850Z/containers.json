@@ -1,5 +1,0 @@
-[
-  {"service":"gateway-service","container":"local-gateway-service-1","mem":"469MiB"},
-  {"service":"orders-service","container":"local-orders-service-1","mem":"478.4MiB"},
-  {"service":"catalog-service","container":"local-catalog-service-1","mem":"217.1MiB"}
-]
