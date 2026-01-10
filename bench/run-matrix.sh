@@ -8,12 +8,21 @@ COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
 HEALTH_URL="http://localhost:8080/api/gateway/status"
 LOAD_URL="http://localhost:8080/api/gateway/orders"
 
-WARMUP=60
-DURATION=120
-CONCURRENCY=25
+# Defaults (override via env)
+WARMUP="${WARMUP:-60}"
+DURATION="${DURATION:-120}"
+CONCURRENCY="${CONCURRENCY:-25}"
 
-STARTUP_TIMEOUT_SECONDS=180
-CURL_TIMEOUT_SECONDS=2
+STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-180}"
+CURL_TIMEOUT_SECONDS="${CURL_TIMEOUT_SECONDS:-2}"
+
+# Optional env vars:
+#   ONLY_BRANCH=java25 bash bench/run-matrix.sh
+#   MATRIX_FAIL_FAST=1 bash bench/run-matrix.sh
+#   MAVEN_MODULES_CSV="services/spring-boot/gateway-service,services/spring-boot/orders-service" bash bench/run-matrix.sh
+#   COMPOSE_QUIET=1 bash bench/run-matrix.sh
+MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-1}"
+COMPOSE_QUIET="${COMPOSE_QUIET:-1}"
 
 for cmd in docker curl git mvn; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -22,12 +31,13 @@ for cmd in docker curl git mvn; do
   fi
 done
 
-PYTHON_BIN="python"
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
+# Python detection (prefer python3)
+PYTHON_BIN="$(command -v python3 || true)"
+if [[ -z "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$(command -v python || true)"
 fi
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "required command 'python' (or 'python3') is missing" >&2
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  echo "required command 'python3' (or 'python') is missing" >&2
   exit 1
 fi
 
@@ -51,13 +61,21 @@ if git show-ref --verify --quiet refs/heads/java21; then
 fi
 branches+=("main" "java25")
 
+if [[ -n "${ONLY_BRANCH:-}" ]]; then
+  branches=("${ONLY_BRANCH}")
+fi
+
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
-trap 'git checkout "$initial_branch" >/dev/null 2>&1 || true' EXIT
 
 function ensure_compose_down() {
   docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
-trap 'ensure_compose_down' EXIT
+
+function cleanup() {
+  ensure_compose_down
+  git checkout "$initial_branch" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 declare -a summary_rows=()
 
@@ -106,7 +124,6 @@ function pick_java_home_system() {
       return 0
     fi
   done
-
   return 1
 }
 
@@ -130,31 +147,45 @@ function use_branch_java() {
   mvn -v
 }
 
+# Override module list via MAVEN_MODULES_CSV (comma-separated).
+declare -a MAVEN_MODULES=(
+  "services/spring-boot/gateway-service"
+  "services/spring-boot/orders-service"
+  "services/spring-boot/billing-service"
+  "services/spring-boot/notification-service"
+  "services/spring-boot/analytics-service"
+  "services/quarkus/catalog-service"
+)
+
+if [[ -n "${MAVEN_MODULES_CSV:-}" ]]; then
+  IFS=',' read -r -a MAVEN_MODULES <<< "${MAVEN_MODULES_CSV}"
+fi
+
 function package_modules() {
   local branch="$1"
-
   echo "Packaging $branch (module builds)..."
 
-  # Spring Boot services
-  for svc in "$ROOT_DIR"/services/spring-boot/*-service; do
-    [[ -f "$svc/pom.xml" ]] || continue
-    echo "  - $(basename "$svc")"
-    mvn -q -f "$svc/pom.xml" -DskipTests package
+  for m in "${MAVEN_MODULES[@]}"; do
+    # Skip Quarkus on java11
+    if [[ "$branch" == "java11" ]] && [[ "$m" == services/quarkus/* ]]; then
+      continue
+    fi
+
+    local pom="$ROOT_DIR/$m/pom.xml"
+    if [[ ! -f "$pom" ]]; then
+      echo "ERROR: Missing pom.xml: $pom" >&2
+      echo "Hint: adjust MAVEN_MODULES or set MAVEN_MODULES_CSV." >&2
+      return 1
+    fi
+
+    echo "  - $m"
+    mvn -q -f "$pom" -DskipTests package
   done
 
-  # Integration tests module (optional)
+  # Optional integration tests module
   if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
     echo "  - integration-tests"
     mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
-  fi
-
-  # Quarkus (Java 17+ branches)
-  if [[ -d "$ROOT_DIR/services/quarkus" ]] && [[ "$branch" != "java11" ]]; then
-    for qsvc in "$ROOT_DIR"/services/quarkus/*; do
-      [[ -f "$qsvc/pom.xml" ]] || continue
-      echo "  - $(basename "$qsvc") (quarkus)"
-      mvn -q -f "$qsvc/pom.xml" -DskipTests package
-    done
   fi
 }
 
@@ -163,7 +194,6 @@ function wait_for_http_200() {
   local deadline_ts="$2"
 
   while [[ "$(date +%s)" -lt "$deadline_ts" ]]; do
-    # -f: fail non-2xx, --max-time: don't hang
     if curl -fsS --max-time "$CURL_TIMEOUT_SECONDS" "$url" >/dev/null 2>&1; then
       return 0
     fi
@@ -182,8 +212,6 @@ function wait_for_gateway_ready() {
     return 1
   fi
 
-  # Extra guard: orders endpoint should answer at least once to avoid
-  # measuring while gateway is still flapping / resetting connections.
   echo "Waiting for orders endpoint to answer once ($LOAD_URL)..."
   if ! wait_for_http_200 "$LOAD_URL" "$deadline_ts"; then
     echo "orders endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
@@ -193,6 +221,14 @@ function wait_for_gateway_ready() {
   local ready_ts
   ready_ts="$(date +%s)"
   echo "$((ready_ts - start_ts))"
+}
+
+function compose_up() {
+  if [[ "$COMPOSE_QUIET" == "1" ]]; then
+    docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
+  else
+    docker compose -f "$COMPOSE_FILE" up --build -d
+  fi
 }
 
 for branch in "${branches[@]}"; do
@@ -212,10 +248,17 @@ for branch in "${branches[@]}"; do
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
-  package_modules "$branch"
+  if ! package_modules "$branch"; then
+    echo "packaging failed for $branch" >&2
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    else
+      continue
+    fi
+  fi
 
   ensure_compose_down
-  docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
+  compose_up
 
   start_ts="$(date +%s)"
   deadline_ts="$((start_ts + STARTUP_TIMEOUT_SECONDS))"
@@ -225,25 +268,22 @@ for branch in "${branches[@]}"; do
     docker compose -f "$COMPOSE_FILE" ps || true
     docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
     ensure_compose_down
-    exit 1
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    else
+      continue
+    fi
   fi
 
-  # Run loadtest:
-  # - DO NOT redirect stderr into stdout, otherwise JSON is broken.
-  # - Capture stderr separately for debugging.
   echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}"
   load_stderr="$branch_dir/load.stderr.txt"
   load_json="$branch_dir/load.json"
   load_raw_stdout="$branch_dir/load.stdout.txt"
 
-  # stdout should be JSON; still store it as raw for inspection
   if ! bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_raw_stdout" 2>"$load_stderr"; then
-    # loadtest.sh is designed to often exit 0; but if it exits non-zero,
-    # we still want to try parsing stdout.
     true
   fi
 
-  # Validate JSON strictly
   if ! jq -e . "$load_raw_stdout" >"$load_json" 2>/dev/null; then
     echo "loadtest output is not valid JSON for $branch" >&2
     echo "----- stdout -----" >&2
@@ -251,25 +291,27 @@ for branch in "${branches[@]}"; do
     echo "----- stderr -----" >&2
     sed -n '1,200p' "$load_stderr" >&2 || true
     ensure_compose_down
-    exit 1
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    else
+      continue
+    fi
   fi
 
-  # Optional cool-down before snapshot
   sleep 5
 
-  # collect.sh may not be executable -> run with bash
-  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
-
+  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")" || true
   ensure_compose_down
 
-  # Extract metrics
   requests_per_sec="$(jq -r '.requests_per_sec // 0' "$load_json")"
   p50="$(jq -r '.p50 // "na"' "$load_json")"
   p95="$(jq -r '.p95 // "na"' "$load_json")"
   p99="$(jq -r '.p99 // "na"' "$load_json")"
   errors="$(jq -r '.errors // "na"' "$load_json")"
 
-  mem_summary="$("$PYTHON_BIN" - <<PY
+  mem_summary="na"
+  if [[ -n "${containers_file:-}" ]] && [[ -s "${containers_file:-}" ]]; then
+    mem_summary="$("$PYTHON_BIN" - <<PY
 import json
 data=json.load(open("$containers_file"))
 groups={}
@@ -279,9 +321,10 @@ for item in data:
 parts=[]
 for svc in sorted(groups):
     parts.append(f"{svc}:{'/'.join(groups[svc])}")
-print(', '.join(parts))
+print(', '.join(parts) if parts else "na")
 PY
 )"
+  fi
 
   cat <<EOF > "$branch_dir/summary.md"
 # Benchmark results for $branch
