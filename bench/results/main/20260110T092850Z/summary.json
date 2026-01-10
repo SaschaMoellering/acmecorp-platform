@@ -1,0 +1,17 @@
+{
+  "median": {
+    "gateway-service": {
+      "median_bytes": 246625075.2,
+      "median_readable": "235.20MiB"
+    },
+    "orders-service": {
+      "median_bytes": 329252864.0,
+      "median_readable": "314.00MiB"
+    },
+    "catalog-service": {
+      "median_bytes": 179516211.2,
+      "median_readable": "171.20MiB"
+    }
+  },
+  "samples": "memory_samples.json"
+}
