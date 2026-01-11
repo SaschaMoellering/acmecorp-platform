@@ -4,11 +4,25 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_ROOT="$ROOT_DIR/bench/results"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
+
 HEALTH_URL="http://localhost:8080/api/gateway/status"
 LOAD_URL="http://localhost:8080/api/gateway/orders"
-WARMUP=60
-DURATION=120
-CONCURRENCY=25
+
+# Defaults (override via env)
+WARMUP="${WARMUP:-60}"
+DURATION="${DURATION:-120}"
+CONCURRENCY="${CONCURRENCY:-25}"
+
+STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-180}"
+CURL_TIMEOUT_SECONDS="${CURL_TIMEOUT_SECONDS:-2}"
+
+# Optional env vars:
+#   ONLY_BRANCH=java25 bash bench/run-matrix.sh
+#   MATRIX_FAIL_FAST=1 bash bench/run-matrix.sh
+#   MAVEN_MODULES_CSV="services/spring-boot/gateway-service,services/spring-boot/orders-service" bash bench/run-matrix.sh
+#   COMPOSE_QUIET=1 bash bench/run-matrix.sh
+MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-1}"
+COMPOSE_QUIET="${COMPOSE_QUIET:-1}"
 
 for cmd in docker curl git mvn; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -17,28 +31,18 @@ for cmd in docker curl git mvn; do
   fi
 done
 
-PYTHON_BIN="python"
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
+# Python detection (prefer python3)
+PYTHON_BIN="$(command -v python3 || true)"
+if [[ -z "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$(command -v python || true)"
 fi
-if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
-  echo "required command 'python' (or 'python3') is missing" >&2
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  echo "required command 'python3' (or 'python') is missing" >&2
   exit 1
 fi
-export PYTHON_BIN
 
-JQ_BIN="jq"
-if ! command -v "$JQ_BIN" >/dev/null 2>&1; then
-  JQ_BIN=""
-fi
-
-COMPOSE_CMD=()
-if docker compose version >/dev/null 2>&1; then
-  COMPOSE_CMD=(docker compose)
-elif command -v docker-compose >/dev/null 2>&1; then
-  COMPOSE_CMD=(docker-compose)
-else
-  echo "docker compose or docker-compose CLI not found" >&2
+if ! command -v jq >/dev/null 2>&1; then
+  echo "required command 'jq' is missing" >&2
   exit 1
 fi
 
@@ -57,7 +61,6 @@ if git show-ref --verify --quiet refs/heads/java21; then
 fi
 branches+=("main" "java25")
 
-# Optional: ONLY_BRANCH=java21 bash bench/run-matrix.sh
 if [[ -n "${ONLY_BRANCH:-}" ]]; then
   branches=("${ONLY_BRANCH}")
 fi
@@ -65,10 +68,7 @@ fi
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
 
 function ensure_compose_down() {
-  if [[ "${KEEP_COMPOSE_UP:-0}" == "1" ]]; then
-    return 0
-  fi
-  "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
+  docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
 
 function cleanup() {
@@ -78,8 +78,6 @@ function cleanup() {
 trap cleanup EXIT
 
 declare -a summary_rows=()
-MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-0}"
-KEEP_COMPOSE_UP="${KEEP_COMPOSE_UP:-0}"
 
 function branch_java_version() {
   case "$1" in
@@ -100,7 +98,11 @@ function pick_java_home_sdkman() {
   local matches=()
   while IFS= read -r -d '' path; do
     [[ -x "$path/bin/java" ]] && matches+=("$path")
-  done < <(find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \( -name "${version}.*" -o -name "${version}-*" \) -print0 2>/dev/null || true)
+  done < <(
+    find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \
+      \( -name "${version}.*" -o -name "${version}-*" \) \
+      -print0 2>/dev/null || true
+  )
 
   [[ ${#matches[@]} -gt 0 ]] || return 1
   printf '%s\n' "${matches[@]}" | sort -V | tail -n 1
@@ -122,7 +124,6 @@ function pick_java_home_system() {
       return 0
     fi
   done
-
   return 1
 }
 
@@ -146,172 +147,88 @@ function use_branch_java() {
   mvn -v
 }
 
+# Override module list via MAVEN_MODULES_CSV (comma-separated).
+declare -a MAVEN_MODULES=(
+  "services/spring-boot/gateway-service"
+  "services/spring-boot/orders-service"
+  "services/spring-boot/billing-service"
+  "services/spring-boot/notification-service"
+  "services/spring-boot/analytics-service"
+  "services/quarkus/catalog-service"
+)
+
+if [[ -n "${MAVEN_MODULES_CSV:-}" ]]; then
+  IFS=',' read -r -a MAVEN_MODULES <<< "${MAVEN_MODULES_CSV}"
+fi
+
 function package_modules() {
   local branch="$1"
-
   echo "Packaging $branch (module builds)..."
 
-  for svc in "$ROOT_DIR"/services/spring-boot/*-service; do
-    [[ -f "$svc/pom.xml" ]] || continue
-    echo "  - $(basename "$svc")"
-    mvn -q -f "$svc/pom.xml" -DskipTests package
+  for m in "${MAVEN_MODULES[@]}"; do
+    # Skip Quarkus on java11
+    if [[ "$branch" == "java11" ]] && [[ "$m" == services/quarkus/* ]]; then
+      continue
+    fi
+
+    local pom="$ROOT_DIR/$m/pom.xml"
+    if [[ ! -f "$pom" ]]; then
+      echo "ERROR: Missing pom.xml: $pom" >&2
+      echo "Hint: adjust MAVEN_MODULES or set MAVEN_MODULES_CSV." >&2
+      return 1
+    fi
+
+    echo "  - $m"
+    mvn -q -f "$pom" -DskipTests package
   done
 
+  # Optional integration tests module
   if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
     echo "  - integration-tests"
     mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
   fi
-
-  if [[ -d "$ROOT_DIR/services/quarkus" ]] && [[ "$branch" != "java11" ]]; then
-    for qsvc in "$ROOT_DIR"/services/quarkus/*; do
-      [[ -f "$qsvc/pom.xml" ]] || continue
-      echo "  - $(basename "$qsvc") (quarkus)"
-      mvn -q -f "$qsvc/pom.xml" -DskipTests package
-    done
-  fi
 }
 
-function extract_json_from_stdout() {
-  local stdout="$1"
-
-  [[ -n "${stdout//[[:space:]]/}" ]] || return 1
-
-  local candidate=""
-  candidate="$(printf '%s\n' "$stdout" | awk '/^[[:space:]]*[{[]/ {line=$0} END {print line}')"
-  [[ -n "${candidate//[[:space:]]/}" ]] || return 1
-
-  if [[ -n "$JQ_BIN" ]]; then
-    if ! printf '%s' "$candidate" | "$JQ_BIN" -e . >/dev/null 2>&1; then
-      return 1
-    fi
-  else
-    if ! printf '%s' "$candidate" | "$PYTHON_BIN" - <<'PY'
-import json
-import sys
-
-data = sys.stdin.read()
-if not data.strip():
-    raise SystemExit(1)
-json.loads(data)
-PY
-    then
-      return 1
-    fi
-  fi
-
-  printf '%s' "$candidate"
-}
-
-function http_status() {
+function wait_for_http_200() {
   local url="$1"
-  curl -sS -o /dev/null -w '%{http_code}' --max-time 2 "$url" 2>/dev/null || echo "000"
-}
+  local deadline_ts="$2"
 
-function wait_for_url_ok() {
-  local url="$1"
-  local timeout_seconds="$2"
-  local start_ts
-  local status
-
-  start_ts="$(date +%s)"
-  status="000"
-  until [[ "$(date +%s)" -ge $((start_ts + timeout_seconds)) ]]; do
-    status="$(http_status "$url")"
-    if [[ "$status" =~ ^[23][0-9][0-9]$ ]]; then
-      echo "$status"
+  while [[ "$(date +%s)" -lt "$deadline_ts" ]]; do
+    if curl -fsS --max-time "$CURL_TIMEOUT_SECONDS" "$url" >/dev/null 2>&1; then
       return 0
     fi
     sleep 2
   done
-
-  echo "$status"
   return 1
 }
 
-function write_branch_summary() {
-  local branch="$1"
-  local startup_seconds="$2"
-  local requests_per_sec="$3"
-  local p50="$4"
-  local p95="$5"
-  local p99="$6"
-  local errors="$7"
-  local mem_summary="$8"
-  local branch_dir="$9"
+function wait_for_gateway_ready() {
+  local start_ts="$1"
+  local deadline_ts="$2"
 
-  cat <<EOF > "$branch_dir/summary.md"
-# Benchmark results for $branch
-
-- Startup: ${startup_seconds}s
-- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
-- Memory snapshot: ${mem_summary}
-- Load metrics: [load.json](load.json)
-- Load stderr: [load.stderr.txt](load.stderr.txt)
-- Containers: [containers.json](containers.json)
-EOF
-
-  if [[ -f "$branch_dir/load.parse-error.json" ]]; then
-    cat <<EOF >> "$branch_dir/summary.md"
-
-## Load parsing error
-
-- Parse error file: [load.parse-error.json](load.parse-error.json)
-EOF
+  echo "Waiting for health endpoint ($HEALTH_URL)..."
+  if ! wait_for_http_200 "$HEALTH_URL" "$deadline_ts"; then
+    echo "health endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
+    return 1
   fi
+
+  echo "Waiting for orders endpoint to answer once ($LOAD_URL)..."
+  if ! wait_for_http_200 "$LOAD_URL" "$deadline_ts"; then
+    echo "orders endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
+    return 1
+  fi
+
+  local ready_ts
+  ready_ts="$(date +%s)"
+  echo "$((ready_ts - start_ts))"
 }
 
-function mark_branch_failure() {
-  local branch="$1"
-  local startup_seconds="$2"
-  local reason="$3"
-  local branch_dir="$4"
-  local containers_file="$5"
-
-  local requests_per_sec="0"
-  local p50="na"
-  local p95="na"
-  local p99="na"
-  local errors="$reason"
-  local mem_summary="na"
-
-  if [[ -n "$containers_file" ]] && [[ -s "$containers_file" ]]; then
-    if mem_summary="$("$PYTHON_BIN" - <<PY
-import json
-import sys
-
-path = "$containers_file"
-try:
-    with open(path, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    if not text.strip():
-        raise ValueError("containers.json is empty")
-    data = json.loads(text)
-except Exception as exc:
-    print(f"containers.json invalid: {path} ({exc})", file=sys.stderr)
-    print("na")
-    raise SystemExit(0)
-
-groups = {}
-for item in data:
-    svc = item.get("service", "unknown")
-    groups.setdefault(svc, []).append(item.get("mem", "na"))
-parts = []
-for svc in sorted(groups):
-    parts.append(f"{svc}:{'/'.join(groups[svc])}")
-print(', '.join(parts) if parts else "na")
-PY
-    )"; then
-      :
-    else
-      mem_summary="na"
-    fi
+function compose_up() {
+  if [[ "$COMPOSE_QUIET" == "1" ]]; then
+    docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
+  else
+    docker compose -f "$COMPOSE_FILE" up --build -d
   fi
-
-  # IMPORTANT: do NOT overwrite load.json (it should contain the real loadtest output if available)
-  printf '{"error":"%s"}\n' "$reason" > "$branch_dir/load.parse-error.json"
-
-  write_branch_summary "$branch" "$startup_seconds" "$requests_per_sec" "$p50" "$p95" "$p99" "$errors" "$mem_summary" "$branch_dir"
-  summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 }
 
 for branch in "${branches[@]}"; do
@@ -331,237 +248,96 @@ for branch in "${branches[@]}"; do
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
-  # clean previous parse error marker for this run/branch_dir (defensive)
-  rm -f "$branch_dir/load.parse-error.json" >/dev/null 2>&1 || true
-
-  package_modules "$branch"
+  if ! package_modules "$branch"; then
+    echo "packaging failed for $branch" >&2
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
+      exit 1
+    else
+      continue
+    fi
+  fi
 
   ensure_compose_down
-  ("${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" up --build -d) >/dev/null
+  compose_up
 
   start_ts="$(date +%s)"
-  ready_ts=""
-  echo "Waiting for health endpoint ($HEALTH_URL)..."
-  until [[ "$(date +%s)" -ge $((start_ts + 180)) ]]; do
-    if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
-      ready_ts="$(date +%s)"
-      break
-    fi
-    sleep 2
-  done
+  deadline_ts="$((start_ts + STARTUP_TIMEOUT_SECONDS))"
 
-  if [[ -z "$ready_ts" ]]; then
-    echo "health endpoint did not become ready for $branch" >&2
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+  startup_seconds=""
+  if ! startup_seconds="$(wait_for_gateway_ready "$start_ts" "$deadline_ts")"; then
+    docker compose -f "$COMPOSE_FILE" ps || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
     ensure_compose_down
-    exit 1
-  fi
-
-  startup_seconds=$((ready_ts - start_ts))
-  load_status="000"
-  if ! load_status="$(wait_for_url_ok "$LOAD_URL" 180)"; then
-    echo "LOAD_URL not ready (HTTP $load_status) for $branch" >&2
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
-    containers_file=""
-    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
-      :
-    else
-      containers_file="$branch_dir/containers.json"
-      printf '[]\n' > "$containers_file"
-      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
-    fi
-    ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "load_url_not_ready" "$branch_dir" "$containers_file"
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
       exit 1
-    fi
-    continue
-  fi
-
-  load_stderr_file="$branch_dir/load.stderr.txt"
-  load_stdout_file="$branch_dir/load.raw.stdout.txt"
-  load_exit=0
-  if bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" \
-      > "$load_stdout_file" 2> "$load_stderr_file"; then
-    load_exit=0
-  else
-    load_exit=$?
-  fi
-
-  load_stdout="$(cat "$load_stdout_file")"
-
-  if ! load_result="$(extract_json_from_stdout "$(cat "$load_stdout_file")")"; then
-    echo "loadtest output did not contain valid JSON for $branch (exit=$load_exit, stdout file: $load_stdout_file)" >&2
-    echo "----- loadtest sizes (bytes) -----" >&2
-    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
-    echo "----- loadtest stderr (first 50 lines) -----" >&2
-    sed -n '1,50p' "$load_stderr_file" >&2 || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
-    containers_file=""
-    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
-      :
     else
-      containers_file="$branch_dir/containers.json"
-      printf '[]\n' > "$containers_file"
-      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+      continue
     fi
+  fi
+
+  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}"
+  load_stderr="$branch_dir/load.stderr.txt"
+  load_json="$branch_dir/load.json"
+  load_raw_stdout="$branch_dir/load.stdout.txt"
+
+  if ! bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_raw_stdout" 2>"$load_stderr"; then
+    true
+  fi
+
+  if ! jq -e . "$load_raw_stdout" >"$load_json" 2>/dev/null; then
+    echo "loadtest output is not valid JSON for $branch" >&2
+    echo "----- stdout -----" >&2
+    sed -n '1,200p' "$load_raw_stdout" >&2 || true
+    echo "----- stderr -----" >&2
+    sed -n '1,200p' "$load_stderr" >&2 || true
     ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "loadtest_no_json" "$branch_dir" "$containers_file"
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
       exit 1
-    fi
-    continue
-  fi
-
-  if [[ -z "${load_result//[[:space:]]/}" ]]; then
-    echo "loadtest JSON was empty for $branch (stdout file: $load_stdout_file)" >&2
-    echo "----- loadtest sizes (bytes) -----" >&2
-    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
-    echo "----- loadtest stderr (first 50 lines) -----" >&2
-    sed -n '1,50p' "$load_stderr_file" >&2 || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
-    containers_file=""
-    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
-      :
     else
-      containers_file="$branch_dir/containers.json"
-      printf '[]\n' > "$containers_file"
-      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
+      continue
     fi
-    ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "loadtest_empty_json" "$branch_dir" "$containers_file"
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    fi
-    continue
-  fi
-
-  printf '%s\n' "$load_result" > "$branch_dir/load.json"
-  if [[ ! -s "$branch_dir/load.json" ]]; then
-    echo "load.json empty after write for $branch (file: $branch_dir/load.json)" >&2
-    echo "----- loadtest sizes (bytes) -----" >&2
-    wc -c "$load_stdout_file" "$load_stderr_file" >&2 || true
-    echo "----- loadtest stderr (first 50 lines) -----" >&2
-    sed -n '1,50p' "$load_stderr_file" >&2 || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" logs --tail=200 orders-service || true
-    containers_file=""
-    if containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir" 2>/dev/null)"; then
-      :
-    else
-      containers_file="$branch_dir/containers.json"
-      printf '[]\n' > "$containers_file"
-      echo "containers.json missing or invalid for $branch; wrote empty file: $containers_file" >&2
-    fi
-    ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "load_json_empty" "$branch_dir" "$containers_file"
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    fi
-    continue
   fi
 
   sleep 5
 
-  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")"
+  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")" || true
   ensure_compose_down
 
-  # IMPORTANT FIX:
-  # Do NOT do `printf ... | python - <<PY` because python reads the program from stdin.
-  # Read metrics from the written load.json file instead.
-  metrics_output=""
-  if ! metrics_output="$("$PYTHON_BIN" - "$branch_dir/load.json" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-try:
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.read()
-except Exception as exc:
-    print(f"cannot read load.json while computing metrics ({exc})", file=sys.stderr)
-    raise SystemExit(1)
-
-if not raw.strip():
-    print("load.json empty while computing metrics", file=sys.stderr)
-    raise SystemExit(1)
-
-try:
-    data = json.loads(raw)
-except Exception as exc:
-    print(f"load.json invalid while computing metrics ({exc})", file=sys.stderr)
-    raise SystemExit(1)
-
-print(data.get("requests_per_sec", 0))
-print(data.get("p50", "na"))
-print(data.get("p95", "na"))
-print(data.get("p99", "na"))
-print(data.get("errors", "na"))
-PY
-  )"; then
-    echo "failed to compute metrics from load.json for $branch (file: $branch_dir/load.json)" >&2
-    "${COMPOSE_CMD[@]}" -f "$COMPOSE_FILE" ps || true
-    ensure_compose_down
-    mark_branch_failure "$branch" "$startup_seconds" "loadtest_metrics_invalid" "$branch_dir" "$containers_file"
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    fi
-    continue
-  fi
-
-  mapfile -t metrics <<< "$metrics_output"
-
-  requests_per_sec="${metrics[0]:-0}"
-  p50="${metrics[1]:-na}"
-  p95="${metrics[2]:-na}"
-  p99="${metrics[3]:-na}"
-  errors="${metrics[4]:-na}"
+  requests_per_sec="$(jq -r '.requests_per_sec // 0' "$load_json")"
+  p50="$(jq -r '.p50 // "na"' "$load_json")"
+  p95="$(jq -r '.p95 // "na"' "$load_json")"
+  p99="$(jq -r '.p99 // "na"' "$load_json")"
+  errors="$(jq -r '.errors // "na"' "$load_json")"
 
   mem_summary="na"
-  if [[ -n "$containers_file" ]] && [[ -s "$containers_file" ]]; then
+  if [[ -n "${containers_file:-}" ]] && [[ -s "${containers_file:-}" ]]; then
     mem_summary="$("$PYTHON_BIN" - <<PY
 import json
-import sys
-
-path = "$containers_file"
-try:
-    with open(path, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    if not text.strip():
-        raise ValueError("containers.json is empty")
-    data = json.loads(text)
-except Exception as exc:
-    print(f"containers.json invalid: {path} ({exc})", file=sys.stderr)
-    print("na")
-    raise SystemExit(0)
-
-groups = {}
+data=json.load(open("$containers_file"))
+groups={}
 for item in data:
-    svc = item.get("service", "unknown")
-    groups.setdefault(svc, []).append(item.get("mem", "na"))
-parts = []
+    svc=item.get("service","unknown")
+    groups.setdefault(svc, []).append(item.get("mem","na"))
+parts=[]
 for svc in sorted(groups):
     parts.append(f"{svc}:{'/'.join(groups[svc])}")
 print(', '.join(parts) if parts else "na")
 PY
-    )"
-  else
-    if [[ -n "$containers_file" ]]; then
-      echo "containers.json empty or missing: $containers_file" >&2
-    else
-      echo "containers.json path missing from collect.sh output for $branch" >&2
-    fi
+)"
   fi
 
-  write_branch_summary "$branch" "$startup_seconds" "$requests_per_sec" "$p50" "$p95" "$p99" "$errors" "$mem_summary" "$branch_dir"
+  cat <<EOF > "$branch_dir/summary.md"
+# Benchmark results for $branch
+
+- Startup: ${startup_seconds}s
+- Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
+- Memory snapshot: ${mem_summary}
+- Load metrics: [load.json](load.json)
+- Load stdout: [load.stdout.txt](load.stdout.txt)
+- Load stderr: [load.stderr.txt](load.stderr.txt)
+- Containers: [containers.json](containers.json)
+EOF
+
   summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 done
 
