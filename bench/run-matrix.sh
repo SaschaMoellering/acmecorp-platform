@@ -356,4 +356,3 @@ matrix_file="$matrix_dir/matrix-summary.md"
 } > "$matrix_file"
 
 echo "Matrix results written to $matrix_file" >&2
-echo "Matrix results written to $matrix_file"
