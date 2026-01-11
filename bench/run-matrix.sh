@@ -142,9 +142,9 @@ function use_branch_java() {
 
   export JAVA_HOME="$java_home"
   export PATH="$JAVA_HOME/bin:$PATH"
-  echo "Using JAVA_HOME=$JAVA_HOME"
-  java -version
-  mvn -v
+  echo "Using JAVA_HOME=$JAVA_HOME" >&2
+  java -version >&2
+  mvn -v >&2
 }
 
 # Override module list via MAVEN_MODULES_CSV (comma-separated).
@@ -163,7 +163,7 @@ fi
 
 function package_modules() {
   local branch="$1"
-  echo "Packaging $branch (module builds)..."
+  echo "Packaging $branch (module builds)..." >&2
 
   for m in "${MAVEN_MODULES[@]}"; do
     # Skip Quarkus on java11
@@ -178,13 +178,13 @@ function package_modules() {
       return 1
     fi
 
-    echo "  - $m"
+    echo "  - $m" >&2
     mvn -q -f "$pom" -DskipTests package
   done
 
   # Optional integration tests module
   if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
-    echo "  - integration-tests"
+    echo "  - integration-tests" >&2
     mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
   fi
 }
@@ -206,13 +206,13 @@ function wait_for_gateway_ready() {
   local start_ts="$1"
   local deadline_ts="$2"
 
-  echo "Waiting for health endpoint ($HEALTH_URL)..."
+  echo "Waiting for health endpoint ($HEALTH_URL)..." >&2
   if ! wait_for_http_200 "$HEALTH_URL" "$deadline_ts"; then
     echo "health endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
     return 1
   fi
 
-  echo "Waiting for orders endpoint to answer once ($LOAD_URL)..."
+  echo "Waiting for orders endpoint to answer once ($LOAD_URL)..." >&2
   if ! wait_for_http_200 "$LOAD_URL" "$deadline_ts"; then
     echo "orders endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
     return 1
@@ -237,7 +237,7 @@ for branch in "${branches[@]}"; do
     continue
   fi
 
-  echo "---------- Benchmarking branch: $branch ----------"
+  echo "---------- Benchmarking branch: $branch ----------" >&2
   git checkout "$branch" >/dev/null
 
   java_ver="$(branch_java_version "$branch")"
@@ -275,7 +275,7 @@ for branch in "${branches[@]}"; do
     fi
   fi
 
-  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}"
+  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}" >&2
   load_stderr="$branch_dir/load.stderr.txt"
   load_json="$branch_dir/load.json"
   load_raw_stdout="$branch_dir/load.stdout.txt"
