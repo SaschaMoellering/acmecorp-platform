@@ -357,7 +357,9 @@ public class GatewayService {
             int size,
             long totalElements,
             int totalPages,
-            boolean last
+            // FIX: use Boolean (wrapper) instead of primitive boolean so that null is allowed
+            // (Orders Service may return "last": null or omit it)
+            Boolean last
     ) {
     }
 
