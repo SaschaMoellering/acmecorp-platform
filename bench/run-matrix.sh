@@ -4,48 +4,44 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_ROOT="$ROOT_DIR/bench/results"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
-
 HEALTH_URL="http://localhost:8080/api/gateway/status"
 LOAD_URL="http://localhost:8080/api/gateway/orders"
 
-# Defaults (override via env)
 WARMUP="${WARMUP:-60}"
 DURATION="${DURATION:-120}"
 CONCURRENCY="${CONCURRENCY:-25}"
+HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-120}"
 
-STARTUP_TIMEOUT_SECONDS="${STARTUP_TIMEOUT_SECONDS:-180}"
-CURL_TIMEOUT_SECONDS="${CURL_TIMEOUT_SECONDS:-2}"
+LOAD_READY_URL="${LOAD_READY_URL:-$LOAD_URL}"
+LOAD_READY_TIMEOUT_SECONDS="${LOAD_READY_TIMEOUT_SECONDS:-120}"
+LOAD_READY_CODES="${LOAD_READY_CODES:-200}"
 
-# Optional env vars:
-#   ONLY_BRANCH=java25 bash bench/run-matrix.sh
-#   MATRIX_FAIL_FAST=1 bash bench/run-matrix.sh
-#   MAVEN_MODULES_CSV="services/spring-boot/gateway-service,services/spring-boot/orders-service" bash bench/run-matrix.sh
-#   COMPOSE_QUIET=1 bash bench/run-matrix.sh
-MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-1}"
+MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-0}"
 COMPOSE_QUIET="${COMPOSE_QUIET:-1}"
+BUILD_MODE="${BUILD_MODE:-docker}"
 
-for cmd in docker curl git mvn; do
+SKIP_BUILD="${SKIP_BUILD:-0}"
+MVN_THREADS="${MVN_THREADS:-}"
+
+PYTHON_BIN="$(command -v python3 || true)"
+if [[ -z "$PYTHON_BIN" ]]; then
+  PYTHON_BIN="$(command -v python || true)"
+fi
+
+for cmd in docker curl git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "required command '$cmd' is missing" >&2
     exit 1
   fi
 done
-
-# Python detection (prefer python3)
-PYTHON_BIN="$(command -v python3 || true)"
-if [[ -z "$PYTHON_BIN" ]]; then
-  PYTHON_BIN="$(command -v python || true)"
+if [[ "$BUILD_MODE" == "hybrid" ]] && ! command -v mvn >/dev/null 2>&1; then
+  echo "required command 'mvn' is missing (BUILD_MODE=hybrid)" >&2
+  exit 1
 fi
 if [[ -z "${PYTHON_BIN:-}" ]]; then
   echo "required command 'python3' (or 'python') is missing" >&2
   exit 1
 fi
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "required command 'jq' is missing" >&2
-  exit 1
-fi
-
 if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "docker compose file missing: $COMPOSE_FILE" >&2
   exit 1
@@ -67,11 +63,11 @@ fi
 
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
 
-function ensure_compose_down() {
+ensure_compose_down() {
   docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
 }
 
-function cleanup() {
+cleanup() {
   ensure_compose_down
   git checkout "$initial_branch" >/dev/null 2>&1 || true
 }
@@ -79,7 +75,7 @@ trap cleanup EXIT
 
 declare -a summary_rows=()
 
-function branch_java_version() {
+branch_java_version() {
   case "$1" in
     java11) echo "11" ;;
     java17) echo "17" ;;
@@ -90,145 +86,121 @@ function branch_java_version() {
   esac
 }
 
-function pick_java_home_sdkman() {
-  local version="$1"
-  local sdkdir="${HOME}/.sdkman/candidates/java"
-  [[ -d "$sdkdir" ]] || return 1
-
-  local matches=()
-  while IFS= read -r -d '' path; do
-    [[ -x "$path/bin/java" ]] && matches+=("$path")
-  done < <(
-    find "$sdkdir" -maxdepth 1 -mindepth 1 -type d \
-      \( -name "${version}.*" -o -name "${version}-*" \) \
-      -print0 2>/dev/null || true
-  )
-
-  [[ ${#matches[@]} -gt 0 ]] || return 1
-  printf '%s\n' "${matches[@]}" | sort -V | tail -n 1
-}
-
-function pick_java_home_system() {
-  local version="$1"
-  local candidates=(
-    "/usr/lib/jvm/java-${version}-openjdk-amd64"
-    "/usr/lib/jvm/java-${version}-openjdk"
-    "/usr/lib/jvm/temurin-${version}-jdk-amd64"
-    "/usr/lib/jvm/temurin-${version}-jdk"
-    "/usr/lib/jvm/java-${version}-temurin"
-  )
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -d "$candidate" ]]; then
-      echo "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
-
-function use_branch_java() {
-  local version="$1"
-  local java_home=""
-
-  if java_home="$(pick_java_home_sdkman "$version")"; then
-    :
-  elif java_home="$(pick_java_home_system "$version")"; then
-    :
-  else
-    echo "No JDK found for Java ${version}. Install a JDK under ~/.sdkman/candidates/java or /usr/lib/jvm and retry." >&2
-    exit 1
-  fi
-
-  export JAVA_HOME="$java_home"
-  export PATH="$JAVA_HOME/bin:$PATH"
-  echo "Using JAVA_HOME=$JAVA_HOME"
-  java -version
-  mvn -v
-}
-
-# Override module list via MAVEN_MODULES_CSV (comma-separated).
 declare -a MAVEN_MODULES=(
+  "services/quarkus/catalog-service"
   "services/spring-boot/gateway-service"
   "services/spring-boot/orders-service"
   "services/spring-boot/billing-service"
   "services/spring-boot/notification-service"
   "services/spring-boot/analytics-service"
-  "services/quarkus/catalog-service"
 )
 
 if [[ -n "${MAVEN_MODULES_CSV:-}" ]]; then
   IFS=',' read -r -a MAVEN_MODULES <<< "${MAVEN_MODULES_CSV}"
 fi
 
-function package_modules() {
+build_branch_hybrid() {
   local branch="$1"
-  echo "Packaging $branch (module builds)..."
 
+  if [[ "$SKIP_BUILD" == "1" ]]; then
+    echo "Skipping host build for $branch (SKIP_BUILD=1)" >&2
+    return 0
+  fi
+
+  if [[ -f "$ROOT_DIR/pom.xml" ]]; then
+    echo "Packaging $branch (root aggregator)..." >&2
+    (cd "$ROOT_DIR" && mvn -q ${MVN_THREADS} -DskipTests package)
+    return 0
+  fi
+
+  echo "Packaging $branch (module builds)..." >&2
   for m in "${MAVEN_MODULES[@]}"; do
-    # Skip Quarkus on java11
-    if [[ "$branch" == "java11" ]] && [[ "$m" == services/quarkus/* ]]; then
-      continue
-    fi
-
     local pom="$ROOT_DIR/$m/pom.xml"
     if [[ ! -f "$pom" ]]; then
       echo "ERROR: Missing pom.xml: $pom" >&2
-      echo "Hint: adjust MAVEN_MODULES or set MAVEN_MODULES_CSV." >&2
       return 1
     fi
-
-    echo "  - $m"
-    mvn -q -f "$pom" -DskipTests package
+    echo "  - $m" >&2
+    (cd "$ROOT_DIR/$m" && mvn -q ${MVN_THREADS} -DskipTests package)
   done
-
-  # Optional integration tests module
-  if [[ -f "$ROOT_DIR/integration-tests/pom.xml" ]]; then
-    echo "  - integration-tests"
-    mvn -q -f "$ROOT_DIR/integration-tests/pom.xml" -DskipTests package
-  fi
 }
 
-function wait_for_http_200() {
+wait_for_health() {
   local url="$1"
-  local deadline_ts="$2"
+  local timeout="$2"
+  local start_ts
+  start_ts="$(date +%s)"
 
-  while [[ "$(date +%s)" -lt "$deadline_ts" ]]; do
-    if curl -fsS --max-time "$CURL_TIMEOUT_SECONDS" "$url" >/dev/null 2>&1; then
+  echo "Waiting for health endpoint ($url) up to ${timeout}s..." >&2
+  while true; do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "$(date +%s)"
       return 0
+    fi
+    if [[ "$(date +%s)" -ge $((start_ts + timeout)) ]]; then
+      return 1
     fi
     sleep 2
   done
-  return 1
 }
 
-function wait_for_gateway_ready() {
-  local start_ts="$1"
-  local deadline_ts="$2"
+wait_for_http_codes() {
+  local url="$1"
+  local timeout="$2"
+  local codes_csv="$3"
+  local start_ts
+  start_ts="$(date +%s)"
 
-  echo "Waiting for health endpoint ($HEALTH_URL)..."
-  if ! wait_for_http_200 "$HEALTH_URL" "$deadline_ts"; then
-    echo "health endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
-    return 1
-  fi
+  local codes
+  codes="$(echo "$codes_csv" | tr ',' ' ' | xargs)"
 
-  echo "Waiting for orders endpoint to answer once ($LOAD_URL)..."
-  if ! wait_for_http_200 "$LOAD_URL" "$deadline_ts"; then
-    echo "orders endpoint did not become ready within ${STARTUP_TIMEOUT_SECONDS}s" >&2
-    return 1
-  fi
+  echo "Waiting for endpoint readiness ($url) expecting HTTP [${codes}] up to ${timeout}s..." >&2
+  while true; do
+    local code
+    code="$(curl -sS -o /dev/null -w "%{http_code}" "$url" || true)"
+    if [[ -n "$code" ]]; then
+      for ok in $codes; do
+        if [[ "$code" == "$ok" ]]; then
+          echo "$(date +%s)"
+          return 0
+        fi
+      done
+    fi
 
-  local ready_ts
-  ready_ts="$(date +%s)"
-  echo "$((ready_ts - start_ts))"
+    if [[ "$(date +%s)" -ge $((start_ts + timeout)) ]]; then
+      echo "Timeout waiting for $url (last http_code=${code:-na})" >&2
+      return 1
+    fi
+    sleep 2
+  done
 }
 
-function compose_up() {
+compose_up_build() {
   if [[ "$COMPOSE_QUIET" == "1" ]]; then
     docker compose -f "$COMPOSE_FILE" up --build -d >/dev/null
   else
     docker compose -f "$COMPOSE_FILE" up --build -d
   fi
+}
+
+dump_load_debug() {
+  local branch="$1"
+  local out="$2"
+  local err="$3"
+  echo "loadtest output is not valid JSON for $branch" >&2
+  echo "----- loadtest stdout (first 200 lines) -----" >&2
+  sed -n '1,200p' "$out" >&2 || true
+  echo "----- loadtest stderr (first 200 lines) -----" >&2
+  sed -n '1,200p' "$err" >&2 || true
+}
+
+dump_compose_debug() {
+  echo "----- docker compose ps -----" >&2
+  docker compose -f "$COMPOSE_FILE" ps >&2 || true
+  echo "----- gateway-service logs (tail=200) -----" >&2
+  docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service >&2 || true
+  echo "----- orders-service logs (tail=200) -----" >&2
+  docker compose -f "$COMPOSE_FILE" logs --tail=200 orders-service >&2 || true
 }
 
 for branch in "${branches[@]}"; do
@@ -237,77 +209,113 @@ for branch in "${branches[@]}"; do
     continue
   fi
 
-  echo "---------- Benchmarking branch: $branch ----------"
-  git checkout "$branch" >/dev/null
-
-  java_ver="$(branch_java_version "$branch")"
-  if [[ "$java_ver" != "unknown" ]]; then
-    use_branch_java "$java_ver"
-  fi
+  echo "---------- Benchmarking branch: $branch ----------" >&2
+  git checkout "$branch" >/dev/null 2>&1 || true
 
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
 
-  if ! package_modules "$branch"; then
-    echo "packaging failed for $branch" >&2
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    else
-      continue
+  if [[ "$BUILD_MODE" == "hybrid" ]]; then
+    if ! build_branch_hybrid "$branch"; then
+      echo "host build failed for $branch" >&2
+      if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
     fi
+  else
+    echo "BUILD_MODE=docker: skipping host Maven build for $branch" >&2
   fi
 
   ensure_compose_down
-  compose_up
+  compose_up_build
 
   start_ts="$(date +%s)"
-  deadline_ts="$((start_ts + STARTUP_TIMEOUT_SECONDS))"
-
-  startup_seconds=""
-  if ! startup_seconds="$(wait_for_gateway_ready "$start_ts" "$deadline_ts")"; then
-    docker compose -f "$COMPOSE_FILE" ps || true
-    docker compose -f "$COMPOSE_FILE" logs --tail=200 gateway-service || true
+  if ! ready_ts="$(wait_for_health "$HEALTH_URL" "$HEALTH_TIMEOUT_SECONDS")"; then
+    echo "health endpoint did not become ready for $branch" >&2
+    dump_compose_debug
     ensure_compose_down
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    else
-      continue
-    fi
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
-  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}"
+  if ! load_ready_ts="$(wait_for_http_codes "$LOAD_READY_URL" "$LOAD_READY_TIMEOUT_SECONDS" "$LOAD_READY_CODES")"; then
+    echo "load endpoint did not become ready for $branch" >&2
+    dump_compose_debug
+    ensure_compose_down
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+  fi
+
+  startup_seconds=$((ready_ts - start_ts))
+
+  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}" >&2
+  load_stdout="$branch_dir/load.stdout.txt"
   load_stderr="$branch_dir/load.stderr.txt"
   load_json="$branch_dir/load.json"
-  load_raw_stdout="$branch_dir/load.stdout.txt"
 
-  if ! bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_raw_stdout" 2>"$load_stderr"; then
-    true
+  # loadtest emits JSON to stdout; we decide based on JSON.ok
+  bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_stdout" 2>"$load_stderr"
+
+  if [[ ! -s "$load_stdout" ]]; then
+    echo "loadtest produced empty stdout for $branch" >&2
+    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
+    ensure_compose_down
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
-  if ! jq -e . "$load_raw_stdout" >"$load_json" 2>/dev/null; then
-    echo "loadtest output is not valid JSON for $branch" >&2
-    echo "----- stdout -----" >&2
-    sed -n '1,200p' "$load_raw_stdout" >&2 || true
-    echo "----- stderr -----" >&2
-    sed -n '1,200p' "$load_stderr" >&2 || true
+  # Validate JSON + canonicalize to load.json
+  if ! "$PYTHON_BIN" -c 'import json,sys; raw=sys.stdin.read().strip();
+if not raw: raise SystemExit("empty stdout from loadtest");
+obj=json.loads(raw); print(json.dumps(obj))' <"$load_stdout" >"$load_json"; then
+    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
     ensure_compose_down
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then
-      exit 1
-    else
-      continue
-    fi
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+  fi
+
+  # Parse metrics (+ ok) from canonical JSON file
+  mapfile -t metrics < <("$PYTHON_BIN" - <<PY
+import json
+
+data = json.load(open("$load_json"))
+
+ok = bool(data.get("ok", True))
+rps = data.get("requests_per_sec", 0)
+p50 = data.get("p50", "na")
+p95 = data.get("p95", "na")
+p99 = data.get("p99", "na")
+
+err = "na"
+if not ok:
+    err = data.get("error", "ok=false")
+else:
+    non2xx = data.get("http_non2xx", "na")
+    sock = data.get("socket_errors", {})
+    # only show if meaningful
+    if non2xx != "na" or (isinstance(sock, dict) and any(int(v) != 0 for v in sock.values() if isinstance(v, int))):
+        err = f"http_non2xx={non2xx} socket_errors={sock}"
+
+print("1" if ok else "0")
+print(rps)
+print(p50)
+print(p95)
+print(p99)
+print(err)
+PY
+)
+
+  load_ok="${metrics[0]:-0}"
+  requests_per_sec="${metrics[1]:-0}"
+  p50="${metrics[2]:-na}"
+  p95="${metrics[3]:-na}"
+  p99="${metrics[4]:-na}"
+  errors="${metrics[5]:-na}"
+
+  if [[ "$load_ok" != "1" ]]; then
+    echo "loadtest reported ok=false for $branch: ${errors}" >&2
+    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
+    ensure_compose_down
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
   sleep 5
-
-  containers_file="$(bash "$ROOT_DIR/bench/collect.sh" "$branch_dir")" || true
+  containers_file="$("$ROOT_DIR/bench/collect.sh" "$branch_dir")" || true
   ensure_compose_down
-
-  requests_per_sec="$(jq -r '.requests_per_sec // 0' "$load_json")"
-  p50="$(jq -r '.p50 // "na"' "$load_json")"
-  p95="$(jq -r '.p95 // "na"' "$load_json")"
-  p99="$(jq -r '.p99 // "na"' "$load_json")"
-  errors="$(jq -r '.errors // "na"' "$load_json")"
 
   mem_summary="na"
   if [[ -n "${containers_file:-}" ]] && [[ -s "${containers_file:-}" ]]; then
@@ -348,10 +356,10 @@ matrix_file="$matrix_dir/matrix-summary.md"
   echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Errors | Memory | Details |"
   echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   for row in "${summary_rows[@]}"; do
-    IFS='|' read -r branch startup requests p50 p95 p99 errors memory <<< "$row"
-    version="$(branch_java_version "$branch")"
-    details="[link](../${branch}/${timestamp}/summary.md)"
-    echo "| ${branch} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${errors} | ${memory} | ${details} |"
+    IFS='|' read -r b startup requests p50 p95 p99 errors memory <<< "$row"
+    version="$(branch_java_version "$b")"
+    details="[link](../${b}/${timestamp}/summary.md)"
+    echo "| ${b} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${errors} | ${memory} | ${details} |"
   done
 } > "$matrix_file"
 
