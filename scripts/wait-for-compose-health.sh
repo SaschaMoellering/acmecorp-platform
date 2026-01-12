@@ -4,64 +4,90 @@ set -euo pipefail
 DEFAULT_TIMEOUT_SECONDS=180
 DEFAULT_INTERVAL_SECONDS=2
 
-TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}
-INTERVAL_SECONDS=${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}
-BASE_URL=${BASE_URL:-http://localhost:8080}
+TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}"
+INTERVAL_SECONDS="${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}"
+BASE_URL="${BASE_URL:-http://localhost:8080}"
 
-# We assume BASE_URL points to gateway (8080). Other services are on fixed ports.
+# scheme://host (drop port/path) from BASE_URL
+ORIGIN="$(
+  python3 -c '
+import os, urllib.parse
+u = urllib.parse.urlparse(os.environ.get("BASE_URL","http://localhost:8080"))
+scheme = u.scheme or "http"
+host = u.hostname or "localhost"
+print(f"{scheme}://{host}")
+'
+)"
+
 SERVICES=(
-  "gateway-service|$BASE_URL/actuator/health|spring"
-  "orders-service|http://localhost:8081/actuator/health|spring"
-  "billing-service|http://localhost:8082/actuator/health|spring"
-  "notification-service|http://localhost:8083/actuator/health|spring"
-  "analytics-service|http://localhost:8084/actuator/health|spring"
-  # Quarkus SmallRye Health (default)
-  "catalog-service|http://localhost:8085/q/health|quarkus"
-  # If you prefer readiness semantics:
-  # "catalog-service|http://localhost:8085/q/health/ready|quarkus"
+  "gateway-service|${ORIGIN}:8080/actuator/health|spring"
+  "orders-service|${ORIGIN}:8081/actuator/health|spring"
+  "billing-service|${ORIGIN}:8082/actuator/health|spring"
+  "notification-service|${ORIGIN}:8083/actuator/health|spring"
+  "analytics-service|${ORIGIN}:8084/actuator/health|spring"
+  "catalog-service|${ORIGIN}:8085/q/health|quarkus"
 )
 
-check_health() {
+fetch() {
   local url="$1"
-  local kind="${2:-auto}"
+  local tmp
+  tmp="$(mktemp)"
+  # prints:
+  #   <http_code>\n<body>
+  local code="000"
+  code="$(curl -sS -m 2 -o "$tmp" -w "%{http_code}" "$url" 2>/dev/null || true)"
+  [[ -n "$code" ]] || code="000"
+  printf '%s\n' "$code"
+  cat "$tmp" 2>/dev/null || true
+  rm -f "$tmp" || true
+}
 
-  local response
-  if ! response="$(curl -fsS "$url" 2>/dev/null)"; then
-    return 1
+json_status_up() {
+  python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sys.exit(0 if d.get("status") == "UP" else 1)
+'
+}
+
+check_spring_health() {
+  local health_url="$1"
+  local readiness_url="${health_url%/actuator/health}/actuator/health/readiness"
+
+  # Try readiness first (Spring Boot groups)
+  local out code body
+  out="$(fetch "$readiness_url")"
+  code="$(printf '%s\n' "$out" | head -n1)"
+  body="$(printf '%s\n' "$out" | tail -n +2)"
+
+  if [[ "$code" == "200" ]] && json_status_up <<<"$body"; then
+    return 0
   fi
 
-  printf '%s' "$response" | python3 - "$kind" <<'PY'
-import json, sys
+  # Fallback to /actuator/health
+  out="$(fetch "$health_url")"
+  code="$(printf '%s\n' "$out" | head -n1)"
+  body="$(printf '%s\n' "$out" | tail -n +2)"
 
-kind = sys.argv[1] if len(sys.argv) > 1 else "auto"
+  [[ "$code" == "200" ]] && json_status_up <<<"$body"
+}
 
-try:
-    data = json.load(sys.stdin)
-except json.JSONDecodeError:
-    sys.exit(1)
-
-def ok_spring(d):
-    # Spring Boot actuator health: {"status":"UP", ...}
-    return d.get("status") == "UP"
-
-def ok_quarkus(d):
-    # Quarkus SmallRye Health: {"status":"UP","checks":[...]}
-    return d.get("status") == "UP"
-
-if kind == "spring":
-    sys.exit(0 if ok_spring(data) else 1)
-elif kind == "quarkus":
-    sys.exit(0 if ok_quarkus(data) else 1)
-else:
-    # auto: accept either shape as long as status == UP
-    sys.exit(0 if data.get("status") == "UP" else 1)
-PY
+check_quarkus_health() {
+  local url="$1"
+  local out code body
+  out="$(fetch "$url")"
+  code="$(printf '%s\n' "$out" | head -n1)"
+  body="$(printf '%s\n' "$out" | tail -n +2)"
+  [[ "$code" == "200" ]] && json_status_up <<<"$body"
 }
 
 print_diagnostics() {
-  echo "[diagnostics] docker compose status" >&2
+  echo "[diagnostics] docker compose ps/logs" >&2
   if command -v docker >/dev/null 2>&1; then
-    if [ -f infra/local/docker-compose.yml ]; then
+    if [[ -f infra/local/docker-compose.yml ]]; then
       (cd infra/local && docker compose ps) || true
       (cd infra/local && docker compose logs --tail 200) || true
     else
@@ -73,22 +99,31 @@ print_diagnostics() {
 }
 
 for entry in "${SERVICES[@]}"; do
-  name="${entry%%|*}"
-  rest="${entry#*|}"
-  url="${rest%%|*}"
-  kind="${rest##*|}"
+  IFS='|' read -r name url kind <<<"$entry"
 
   echo "[wait] $name -> $url"
   start="$(date +%s)"
 
   while true; do
-    if check_health "$url" "$kind"; then
-      echo "READY: $name"
-      break
+    if [[ "$kind" == "spring" ]]; then
+      if check_spring_health "$url"; then
+        echo "READY: $name"
+        break
+      fi
+    else
+      if check_quarkus_health "$url"; then
+        echo "READY: $name"
+        break
+      fi
     fi
 
-    if (( $(date +%s) - start >= TIMEOUT_SECONDS )); then
+    if (( "$(date +%s)" - start >= TIMEOUT_SECONDS )); then
       echo "[timeout] $name not healthy at $url after ${TIMEOUT_SECONDS}s" >&2
+      echo "[timeout] last probe:" >&2
+      probe="$(fetch "$url")"
+      printf '%s\n' "$probe" | head -n1 >&2
+      printf '%s\n' "$probe" | tail -n +2 | head -c 500 >&2
+      echo >&2
       print_diagnostics
       exit 1
     fi
