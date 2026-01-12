@@ -1,0 +1,9 @@
+# Java benchmark matrix (20260112T185709Z)
+
+| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Errors | Memory | Details |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| java11 | 11 | 13 | 7445.49 | 3.09ms | 5.15ms | 5.91ms | na | analytics-service:388.6MiB, billing-service:427.8MiB, catalog-service:227.8MiB, gateway-service:488.8MiB, notification-service:436.7MiB, orders-service:483.2MiB, postgres:99.73MiB, rabbitmq:139.4MiB, redis:3.367MiB | [link](../java11/20260112T185709Z/summary.md) |
+| java17 | 17 | 14 | 7251.82 | 3.16ms | 5.41ms | 6.26ms | na | analytics-service:300.9MiB, billing-service:350.6MiB, catalog-service:240.6MiB, gateway-service:379MiB, notification-service:393.5MiB, orders-service:386MiB, postgres:88.52MiB, rabbitmq:146.2MiB, redis:4.215MiB | [link](../java17/20260112T185709Z/summary.md) |
+| java21 | 21 | 15 | 6975.47 | 3.30ms | 5.44ms | 6.23ms | na | analytics-service:299.3MiB, billing-service:330.3MiB, catalog-service:239.4MiB, gateway-service:391.9MiB, notification-service:325.6MiB, orders-service:435.5MiB, postgres:95.12MiB, rabbitmq:135.2MiB, redis:5.484MiB | [link](../java21/20260112T185709Z/summary.md) |
+| main | 21 | 13 | 7016.93 | 3.28ms | 5.38ms | 6.15ms | na | analytics-service:308.2MiB, billing-service:326.4MiB, catalog-service:219.7MiB, gateway-service:387.3MiB, notification-service:352.8MiB, orders-service:431MiB, postgres:91.77MiB, rabbitmq:139.5MiB, redis:7.969MiB | [link](../main/20260112T185709Z/summary.md) |
+| java25 | 25 | 13 | 7030.33 | 3.28ms | 5.40ms | 6.18ms | na | analytics-service:308.1MiB, billing-service:378.1MiB, catalog-service:244.8MiB, gateway-service:393.3MiB, notification-service:324.3MiB, orders-service:456.9MiB, postgres:88.39MiB, rabbitmq:135.7MiB, redis:3.375MiB | [link](../java25/20260112T185709Z/summary.md) |
