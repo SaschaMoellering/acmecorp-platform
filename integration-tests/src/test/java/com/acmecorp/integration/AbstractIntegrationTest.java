@@ -7,13 +7,17 @@ import io.restassured.path.json.JsonPath;
 import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.BeforeAll;
 
+import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.restassured.RestAssured.given;
-import static org.assertj.core.api.Assertions.assertThat;
 
 public abstract class AbstractIntegrationTest {
 
@@ -42,24 +46,88 @@ public abstract class AbstractIntegrationTest {
     }
 
     private static void waitForServiceHealth(String serviceName, String url) {
+        List<String> candidates = healthCandidates(url);
+        AtomicReference<AttemptResult> lastAttempt = new AtomicReference<>();
         try {
             org.awaitility.Awaitility.await()
                     .atMost(Duration.ofSeconds(120))
                     .pollInterval(Duration.ofSeconds(2))
-                    .untilAsserted(() -> {
-                        Map<String, Object> health = given()
-                                .when()
-                                .get(url)
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<Map<String, Object>>() {});
-                        assertThat(health.get("status"))
-                                .withFailMessage("Health status for %s at %s was not UP", serviceName, url)
-                                .isEqualTo("UP");
-                    });
+                    .until(() -> isAnyHealthUp(candidates, lastAttempt));
         } catch (ConditionTimeoutException ex) {
-            throw new IllegalStateException("Timed out waiting for " + serviceName + " at " + url, ex);
+            AttemptResult attempt = lastAttempt.get();
+            String lastInfo = attempt == null
+                    ? "no responses captured"
+                    : "last response from " + attempt.url + " status=" + attempt.statusCode
+                    + " body=" + attempt.bodySnippet;
+            throw new IllegalStateException(
+                    "Timed out waiting for " + serviceName + " at " + url
+                            + "; tried " + candidates
+                            + "; " + lastInfo,
+                    ex);
+        }
+    }
+
+    private static List<String> healthCandidates(String healthUrl) {
+        Set<String> candidates = new LinkedHashSet<>();
+        if (healthUrl.endsWith("/actuator/health")) {
+            candidates.add(healthUrl.replace("/actuator/health", "/actuator/health/readiness"));
+        }
+        candidates.add(healthUrl);
+        String base = baseUrl(healthUrl);
+        candidates.add(base + "/q/health/ready");
+        candidates.add(base + "/q/health");
+        return new ArrayList<>(candidates);
+    }
+
+    private static String baseUrl(String url) {
+        URI uri = URI.create(url);
+        return uri.getScheme() + "://" + uri.getAuthority();
+    }
+
+    private static boolean isAnyHealthUp(List<String> urls, AtomicReference<AttemptResult> lastAttempt) {
+        for (String url : urls) {
+            io.restassured.response.Response response = given()
+                    .when()
+                    .get(url);
+            int statusCode = response.getStatusCode();
+            String body = response.getBody().asString();
+            lastAttempt.set(new AttemptResult(url, statusCode, snippet(body)));
+            if (statusCode != 200) {
+                continue;
+            }
+            try {
+                Map<String, Object> health = response.as(new TypeRef<Map<String, Object>>() {});
+                if ("UP".equals(health.get("status"))) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // Try next candidate if JSON parsing fails.
+            }
+        }
+        return false;
+    }
+
+    private static String snippet(String body) {
+        if (body == null) {
+            return "<empty>";
+        }
+        String trimmed = body.trim();
+        if (trimmed.isEmpty()) {
+            return "<empty>";
+        }
+        int max = 200;
+        return trimmed.length() <= max ? trimmed : trimmed.substring(0, max) + "...";
+    }
+
+    private static final class AttemptResult {
+        private final String url;
+        private final int statusCode;
+        private final String bodySnippet;
+
+        private AttemptResult(String url, int statusCode, String bodySnippet) {
+            this.url = url;
+            this.statusCode = statusCode;
+            this.bodySnippet = bodySnippet;
         }
     }
 
