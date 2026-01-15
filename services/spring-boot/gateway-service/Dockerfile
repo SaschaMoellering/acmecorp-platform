@@ -1,25 +1,54 @@
+# syntax=docker/dockerfile:1.6
+
 ARG JAVA_VERSION=25
-ARG MAVEN_VERSION=3.9.9
-FROM eclipse-temurin:${JAVA_VERSION}-jdk AS build
-ARG MAVEN_VERSION
-RUN set -e; \
-    apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl; \
-    MAVEN_TGZ=apache-maven-${MAVEN_VERSION}-bin.tar.gz; \
-    curl -fsSL "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${MAVEN_VERSION}/${MAVEN_TGZ}" -o /tmp/maven.tar.gz; \
-    tar -xzf /tmp/maven.tar.gz -C /opt; \
-    ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn; \
-    rm -f /tmp/maven.tar.gz; \
-    apt-get purge -y --auto-remove curl; \
-    rm -rf /var/lib/apt/lists/*
+ARG MAVEN_VERSION=3.9
+
+FROM maven:${MAVEN_VERSION}-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /workspace
-COPY pom.xml .
-RUN mvn -q dependency:go-offline
+
+COPY pom.xml ./
+
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -ntp -q -DskipTests \
+      dependency:resolve \
+      dependency:resolve-plugins
+
 COPY src ./src
-RUN mvn -q package -DskipTests
+
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -ntp -q -DskipTests package
+
+RUN ls -la /workspace/target
+
+
+FROM eclipse-temurin:${JAVA_VERSION}-jre AS extract
+WORKDIR /layers
+
+COPY --from=build /workspace/target/gateway-service-*.jar /tmp/app.jar
+RUN java -Djarmode=layertools -jar /tmp/app.jar extract
+
 
 FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
-COPY --from=build /workspace/target/gateway-service-*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java","-jar","app.jar"]
+
+RUN set -eux; \
+    groupadd -r app; \
+    useradd -r -g app -d /app -s /sbin/nologin app; \
+    chown -R app:app /app
+
+COPY --from=extract /layers/dependencies/ /app/
+COPY --from=extract /layers/snapshot-dependencies/ /app/
+COPY --from=extract /layers/spring-boot-loader/ /app/
+COPY --from=extract /layers/application/ /app/
+
+USER app
+EXPOSE 8084
+
+ENTRYPOINT ["java", \
+  "-XX:+UseCompactObjectHeaders", \
+  "-XX:MaxRAMPercentage=75", \
+  "-XX:InitialRAMPercentage=25", \
+  "-XX:+ExitOnOutOfMemoryError", \
+  "-XX:+HeapDumpOnOutOfMemoryError", \
+  "-XX:HeapDumpPath=/tmp", \
+  "org.springframework.boot.loader.launch.JarLauncher"]
