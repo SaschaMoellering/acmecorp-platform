@@ -165,7 +165,7 @@ public class GatewayService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<PageResponse<InvoiceSummary>>() {})
                 .map(page -> {
-                    List<InvoiceSummary> content = page != null ? page.content() : null;
+                    List<InvoiceSummary> content = page != null ? page.content : null;
                     return content != null ? content : new ArrayList<InvoiceSummary>();
                 })
                 .onErrorReturn(new ArrayList<InvoiceSummary>());
