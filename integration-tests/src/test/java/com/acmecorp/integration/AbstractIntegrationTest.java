@@ -22,26 +22,22 @@ import static io.restassured.RestAssured.given;
 public abstract class AbstractIntegrationTest {
 
     protected static String gatewayBase;
-    protected static String ordersBase;
-    protected static String catalogBase;
-    protected static String billingBase;
-    protected static String analyticsBase;
+    protected static String gatewayApiBase;
+    private static final Set<String> EXPECTED_SERVICES = Set.of(
+            "orders",
+            "billing",
+            "notification",
+            "analytics",
+            "catalog"
+    );
 
     @BeforeAll
     static void setupBase() {
-        gatewayBase = System.getenv().getOrDefault("ACMECORP_BASE_URL", "http://localhost:8080");
-        ordersBase = gatewayBase.replace("8080", "8081");
-        catalogBase = gatewayBase.replace("8080", "8085");
-        billingBase = gatewayBase.replace("8080", "8082");
-        analyticsBase = gatewayBase.replace("8080", "8084");
+        gatewayBase = resolveBaseUrl();
+        gatewayApiBase = gatewayBase + "/api/gateway";
         RestAssured.baseURI = gatewayBase;
 
         waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
-        waitForServiceHealth("orders-service", ordersBase + "/actuator/health");
-        waitForServiceHealth("billing-service", billingBase + "/actuator/health");
-        waitForServiceHealth("notification-service", gatewayBase.replace("8080", "8083") + "/actuator/health");
-        waitForServiceHealth("analytics-service", analyticsBase + "/actuator/health");
-        waitForServiceHealth("catalog-service", catalogBase + "/actuator/health");
         waitForGatewaySystemStatus();
     }
 
@@ -82,6 +78,17 @@ public abstract class AbstractIntegrationTest {
     private static String baseUrl(String url) {
         URI uri = URI.create(url);
         return uri.getScheme() + "://" + uri.getAuthority();
+    }
+
+    private static String resolveBaseUrl() {
+        String base = System.getProperty("acmecorp.baseUrl");
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ACMECORP_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = "http://localhost:8080";
+        }
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private static boolean isAnyHealthUp(List<String> urls, AtomicReference<AttemptResult> lastAttempt) {
@@ -132,16 +139,37 @@ public abstract class AbstractIntegrationTest {
     }
 
     private static void waitForGatewaySystemStatus() {
-        String url = gatewayBase + "/api/gateway/system/status";
+        String url = gatewayApiBase + "/system/status";
         try {
             org.awaitility.Awaitility.await()
                     .atMost(Duration.ofSeconds(120))
                     .pollInterval(Duration.ofSeconds(2))
-                    .untilAsserted(() -> given()
-                            .when()
-                            .get(url)
-                            .then()
-                            .statusCode(200));
+                    .until(() -> {
+                        List<Map<String, Object>> statuses = given()
+                                .when()
+                                .get(url)
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .as(new TypeRef<List<Map<String, Object>>>() {});
+
+                        if (statuses == null || statuses.isEmpty()) {
+                            return false;
+                        }
+
+                        Set<String> seen = new LinkedHashSet<>();
+                        for (Map<String, Object> status : statuses) {
+                            Object service = status.get("service");
+                            Object health = status.get("status");
+                            if (service != null) {
+                                seen.add(service.toString());
+                            }
+                            if (health == null || !"UP".equalsIgnoreCase(health.toString())) {
+                                return false;
+                            }
+                        }
+                        return seen.containsAll(EXPECTED_SERVICES);
+                    });
         } catch (ConditionTimeoutException ex) {
             throw new IllegalStateException("Timed out waiting for gateway system status at " + url, ex);
         }
@@ -150,7 +178,7 @@ public abstract class AbstractIntegrationTest {
     protected List<Map<String, Object>> fetchCatalogItems() {
         return given()
                 .when()
-                .get(catalogBase + "/api/catalog")
+                .get(gatewayApiBase + "/catalog")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -171,7 +199,7 @@ public abstract class AbstractIntegrationTest {
                 .contentType(ContentType.JSON)
                 .body(body)
                 .when()
-                .post(ordersBase + "/api/orders")
+                .post(gatewayApiBase + "/orders")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -181,7 +209,7 @@ public abstract class AbstractIntegrationTest {
     protected JsonPath confirmOrder(long orderId) {
         return given()
                 .when()
-                .post(ordersBase + "/api/orders/{id}/confirm", orderId)
+                .post(gatewayApiBase + "/orders/{id}/confirm", orderId)
                 .then()
                 .statusCode(200)
                 .extract()
@@ -193,7 +221,7 @@ public abstract class AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> orders = (List<Map<String, Object>>) (List<?>) given()
                 .when()
-                .get(ordersBase + "/api/orders")
+                .get(gatewayApiBase + "/orders")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -205,7 +233,7 @@ public abstract class AbstractIntegrationTest {
     protected Map<String, Object> fetchAnalyticsCounters() {
         return given()
                 .when()
-                .get(gatewayBase + "/api/gateway/analytics/counters")
+                .get(gatewayApiBase + "/analytics/counters")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -215,7 +243,7 @@ public abstract class AbstractIntegrationTest {
     protected List<Map<String, Object>> fetchSystemStatus() {
         return given()
                 .when()
-                .get(gatewayBase + "/api/gateway/system/status")
+                .get(gatewayApiBase + "/system/status")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -224,14 +252,22 @@ public abstract class AbstractIntegrationTest {
 
     protected List<Map<String, Object>> findInvoicesForOrder(long orderId) {
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> invoices = (List<Map<String, Object>>) (List<?>) given()
+        Map<String, Object> orderDetails = (Map<String, Object>) (Map<?, ?>) given()
                 .when()
-                .get(billingBase + "/api/billing/invoices?orderId={orderId}", orderId)
+                .get(gatewayApiBase + "/orders/{id}", orderId)
                 .then()
                 .statusCode(200)
                 .extract()
                 .jsonPath()
-                .getList("content", Map.class);
-        return invoices;
+                .getMap("$");
+
+        if (orderDetails == null) {
+            return List.of();
+        }
+        Object invoiceData = orderDetails.get("invoices");
+        if (invoiceData instanceof List<?> list) {
+            return (List<Map<String, Object>>) (List<?>) list;
+        }
+        return List.of();
     }
 }

@@ -1,44 +1,30 @@
-# syntax=docker/dockerfile:1.7
+ARG APP_NAME=app
 
-ARG MAVEN_VERSION=3.9
-ARG JAVA_VERSION=21
-
-FROM maven:${MAVEN_VERSION}-eclipse-temurin-21 AS build
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
-
-ENV MAVEN_OPTS="-Dmaven.repo.local=/root/.m2/repository" \
-    MAVEN_CLI_OPTS="-q -DskipTests -Dquarkus.package.jar.type=fast-jar"
-
 COPY pom.xml ./
-
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn ${MAVEN_CLI_OPTS} package || true
-
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar dependency:resolve dependency:resolve-plugins
 COPY src ./src
-
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn ${MAVEN_CLI_OPTS} package
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-RUN set -eux; \
-    groupadd -r app; \
-    useradd -r -g app -d /app -s /sbin/nologin app; \
-    mkdir -p /app /tmp; \
-    chown -R app:app /app /tmp
+ARG APP_NAME=app
+ENV APP_NAME=${APP_NAME}
+
+RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app && mkdir -p /app && chown -R app:app /app
+RUN mkdir -p /opt/app && chown -R app:app /opt/app
 
 COPY --from=build --chown=app:app /workspace/target/quarkus-app/ /app/quarkus-app/
 COPY --from=build --chown=app:app /workspace/target/quarkus-artifact.properties /app/
 
-USER app
-EXPOSE 8085
+RUN set -eu; \
+  base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
+  printf '%s\n' "${base}" > /opt/app/jvm.options; \
+  chown app:app /opt/app/jvm.options
 
-ENTRYPOINT ["java", \
-  "-XX:MaxRAMPercentage=75", \
-  "-XX:InitialRAMPercentage=25", \
-  "-XX:+ExitOnOutOfMemoryError", \
-  "-XX:+HeapDumpOnOutOfMemoryError", \
-  "-XX:HeapDumpPath=/tmp", \
-  "-Djava.security.egd=file:/dev/urandom", \
-  "-jar","/app/quarkus-app/quarkus-run.jar"]
+USER app
+EXPOSE 8080
+
+ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) -jar /app/quarkus-app/quarkus-run.jar"]
