@@ -10,6 +10,8 @@ import com.acmecorp.orders.messaging.NotificationPublisher;
 import com.acmecorp.orders.repository.OrderRepository;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -34,6 +36,8 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class OrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
     private final CatalogClient catalogClient;
@@ -112,18 +116,24 @@ public class OrderService {
 
     @Transactional
     public Order confirm(Long id) {
-        Order order = getOrder(id);
-        if (order.getStatus() != OrderStatus.NEW) {
-            throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be confirmed");
-        }
-        order.setStatus(OrderStatus.CONFIRMED);
-        order.setUpdatedAt(Instant.now());
-        Order saved = orderRepository.save(order);
+        log.info("Confirming order id={}", id);
+        try {
+            Order order = getOrder(id);
+            if (order.getStatus() != OrderStatus.NEW) {
+                throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be confirmed");
+            }
+            order.setStatus(OrderStatus.CONFIRMED);
+            order.setUpdatedAt(Instant.now());
+            Order saved = orderRepository.save(order);
 
-        billingClient.createInvoice(saved);
-        analyticsClient.track("orders.confirmed", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
-        notificationPublisher.sendOrderConfirmation(saved.getCustomerEmail(), saved.getOrderNumber());
-        return saved;
+            billingClient.createInvoice(saved);
+            analyticsClient.track("orders.confirmed", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
+            notificationPublisher.sendOrderConfirmation(saved.getCustomerEmail(), saved.getOrderNumber());
+            return saved;
+        } catch (RuntimeException ex) {
+            log.error("Failed to confirm order id={}", id, ex);
+            throw ex;
+        }
     }
 
     @Transactional
