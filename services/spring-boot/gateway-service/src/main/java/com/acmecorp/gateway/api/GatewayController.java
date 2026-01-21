@@ -11,6 +11,7 @@ import com.acmecorp.gateway.service.GatewayService.SeedResult;
 import com.acmecorp.gateway.service.GatewayService.SystemStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -130,7 +131,12 @@ public class GatewayController {
 
     @GetMapping("/analytics/counters")
     public Mono<Map<String, Long>> analyticsCounters() {
-        return gatewayService.analyticsCounters();
+        return gatewayService.analyticsCounters()
+                .onErrorMap(ex -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Downstream analytics failure",
+                        ex
+                ));
     }
 
     @GetMapping("/system/status")
