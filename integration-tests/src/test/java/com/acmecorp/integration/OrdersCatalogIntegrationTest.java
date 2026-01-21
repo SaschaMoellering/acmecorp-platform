@@ -31,11 +31,11 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
 
         given()
                 .when()
-                .get(ordersBase + "/api/orders/{id}", orderId)
+                .get(gatewayApiBase + "/orders/{id}", orderId)
                 .then()
                 .statusCode(200)
-                .body("id", org.hamcrest.Matchers.equalTo((int) orderId))
-                .body("items[0].productId", org.hamcrest.Matchers.equalTo(productId.toString()));
+                .body("order.id", org.hamcrest.Matchers.equalTo((int) orderId))
+                .body("order.items[0].productId", org.hamcrest.Matchers.equalTo(productId.toString()));
     }
 
     @Test
@@ -51,7 +51,7 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
                 .contentType(ContentType.JSON)
                 .body(body)
                 .when()
-                .post(ordersBase + "/api/orders")
+                .post(gatewayApiBase + "/orders")
                 .then()
                 .statusCode(400);
     }

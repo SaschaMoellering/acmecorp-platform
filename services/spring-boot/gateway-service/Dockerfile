@@ -1,54 +1,54 @@
-# syntax=docker/dockerfile:1.6
-
 ARG JAVA_VERSION=25
-ARG MAVEN_VERSION=3.9
+ARG APP_NAME=app
+ARG JAR_PATTERN=${APP_NAME}-*.jar
 
-FROM maven:${MAVEN_VERSION}-eclipse-temurin-${JAVA_VERSION} AS build
+FROM maven:3.9-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /workspace
-
+ARG JAR_PATTERN
 COPY pom.xml ./
-
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -ntp -q -DskipTests \
-      dependency:resolve \
-      dependency:resolve-plugins
-
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests dependency:resolve dependency:resolve-plugins
 COPY src ./src
-
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -ntp -q -DskipTests package
-
-RUN ls -la /workspace/target
-
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests package
 
 FROM eclipse-temurin:${JAVA_VERSION}-jre AS extract
 WORKDIR /layers
 
-COPY --from=build /workspace/target/gateway-service-*.jar /tmp/app.jar
-RUN java -Djarmode=layertools -jar /tmp/app.jar extract
+COPY --from=build /workspace/target/ /tmp/target/
 
+RUN set -eu; \
+    echo "== target listing =="; ls -lah /tmp/target; \
+    echo "== jar candidates =="; ls -1 /tmp/target/*.jar; \
+    JAR="$(ls -1 /tmp/target/*.jar | grep -v '\.jar\.original$' | head -n1)"; \
+    echo "Using jar: ${JAR}"; \
+    cp "${JAR}" /tmp/app.jar; \
+    test -f /tmp/app.jar; \
+    java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher
 
 FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
+ARG APP_NAME=app
+ARG JAVA_VERSION=25
+ENV APP_NAME=${APP_NAME}
+ENV JAVA_VERSION=${JAVA_VERSION}
 
-RUN set -eux; \
-    groupadd -r app; \
-    useradd -r -g app -d /app -s /sbin/nologin app; \
-    chown -R app:app /app
+RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
+RUN mkdir -p /opt/app && chown -R app:app /opt/app
 
-COPY --from=extract /layers/dependencies/ /app/
-COPY --from=extract /layers/snapshot-dependencies/ /app/
-COPY --from=extract /layers/spring-boot-loader/ /app/
-COPY --from=extract /layers/application/ /app/
+COPY --from=extract --chown=app:app /layers/app/dependencies/ /app/
+COPY --from=extract --chown=app:app /layers/app/snapshot-dependencies/ /app/
+COPY --from=extract --chown=app:app /layers/app/spring-boot-loader/ /app/
+COPY --from=extract --chown=app:app /layers/app/application/ /app/
+
+RUN set -eu; \
+  base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
+  extra=''; \
+  case "${JAVA_VERSION}" in \
+    25) extra='-XX:+UseCompactObjectHeaders' ;; \
+    *) extra='' ;; \
+  esac; \
+  printf '%s %s\n' "${base}" "${extra}" > /opt/app/jvm.options; \
+  chown app:app /opt/app/jvm.options
 
 USER app
-EXPOSE 8084
-
-ENTRYPOINT ["java", \
-  "-XX:+UseCompactObjectHeaders", \
-  "-XX:MaxRAMPercentage=75", \
-  "-XX:InitialRAMPercentage=25", \
-  "-XX:+ExitOnOutOfMemoryError", \
-  "-XX:+HeapDumpOnOutOfMemoryError", \
-  "-XX:HeapDumpPath=/tmp", \
-  "org.springframework.boot.loader.launch.JarLauncher"]
+EXPOSE 8080
+ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher"]

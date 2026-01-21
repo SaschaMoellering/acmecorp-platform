@@ -8,24 +8,24 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 
-# scheme://host (drop port/path) from BASE_URL
+# scheme://host[:port] (drop path) from BASE_URL
 ORIGIN="$(
   python3 -c '
 import os, urllib.parse
 u = urllib.parse.urlparse(os.environ.get("BASE_URL","http://localhost:8080"))
 scheme = u.scheme or "http"
 host = u.hostname or "localhost"
-print(f"{scheme}://{host}")
+port = u.port
+if port:
+    print(f"{scheme}://{host}:{port}")
+else:
+    print(f"{scheme}://{host}")
 '
 )"
 
 SERVICES=(
-  "gateway-service|${ORIGIN}:8080/actuator/health|spring"
-  "orders-service|${ORIGIN}:8081/actuator/health|spring"
-  "billing-service|${ORIGIN}:8082/actuator/health|spring"
-  "notification-service|${ORIGIN}:8083/actuator/health|spring"
-  "analytics-service|${ORIGIN}:8084/actuator/health|spring"
-  "catalog-service|${ORIGIN}:8085/q/health|quarkus"
+  "gateway-service|${ORIGIN}/actuator/health|spring"
+  "system-status|${ORIGIN}/api/gateway/system/status|system"
 )
 
 fetch() {
@@ -53,6 +53,30 @@ sys.exit(0 if d.get("status") == "UP" else 1)
 '
 }
 
+system_status_up() {
+  python3 -c '
+import json, sys
+expected = {"orders", "billing", "notification", "analytics", "catalog"}
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+if not isinstance(data, list):
+    sys.exit(1)
+seen = set()
+for entry in data:
+    if not isinstance(entry, dict):
+        sys.exit(1)
+    service = entry.get("service")
+    status = entry.get("status")
+    if service:
+        seen.add(str(service))
+    if not status or str(status).upper() != "UP":
+        sys.exit(1)
+sys.exit(0 if expected.issubset(seen) else 1)
+'
+}
+
 check_spring_health() {
   local health_url="$1"
   local readiness_url="${health_url%/actuator/health}/actuator/health/readiness"
@@ -75,13 +99,13 @@ check_spring_health() {
   [[ "$code" == "200" ]] && json_status_up <<<"$body"
 }
 
-check_quarkus_health() {
+check_system_status() {
   local url="$1"
   local out code body
   out="$(fetch "$url")"
   code="$(printf '%s\n' "$out" | head -n1)"
   body="$(printf '%s\n' "$out" | tail -n +2)"
-  [[ "$code" == "200" ]] && json_status_up <<<"$body"
+  [[ "$code" == "200" ]] && system_status_up <<<"$body"
 }
 
 print_diagnostics() {
@@ -110,8 +134,8 @@ for entry in "${SERVICES[@]}"; do
         echo "READY: $name"
         break
       fi
-    else
-      if check_quarkus_health "$url"; then
+    elif [[ "$kind" == "system" ]]; then
+      if check_system_status "$url"; then
         echo "READY: $name"
         break
       fi
