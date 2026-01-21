@@ -6,6 +6,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ApiError {
     private final String code;
@@ -21,7 +22,8 @@ public class ApiError {
     }
 
     public static ApiError fromException(Exception ex) {
-        if (ex instanceof MethodArgumentNotValidException validation) {
+        if (ex instanceof MethodArgumentNotValidException) {
+            MethodArgumentNotValidException validation = (MethodArgumentNotValidException) ex;
             return new ApiError(
                     "VALIDATION_ERROR",
                     "Validation failed",
@@ -33,11 +35,12 @@ public class ApiError {
                                             "field", error.getField(),
                                             "message", error.getDefaultMessage()
                                     ))
-                                    .toList()
+                                    .collect(Collectors.toList())
                     )
             );
         }
-        if (ex instanceof ResponseStatusException statusException) {
+        if (ex instanceof ResponseStatusException) {
+            ResponseStatusException statusException = (ResponseStatusException) ex;
             HttpStatus status = HttpStatus.valueOf(statusException.getStatusCode().value());
             String message = Optional.ofNullable(statusException.getReason()).orElse(status.getReasonPhrase());
             return new ApiError(status.name(), message, status, Map.of());
