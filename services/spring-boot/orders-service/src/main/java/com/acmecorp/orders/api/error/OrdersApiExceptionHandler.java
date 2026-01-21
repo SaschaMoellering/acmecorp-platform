@@ -11,7 +11,7 @@ public class OrdersApiExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handle(ResponseStatusException ex) {
         ApiError error = ApiError.fromException(ex);
-        return ResponseEntity.status(ex.getStatusCode()).body(ApiError.toResponse(error));
+        return ResponseEntity.status(ex.getStatus()).body(ApiError.toResponse(error));
     }
 
     @ExceptionHandler(Exception.class)

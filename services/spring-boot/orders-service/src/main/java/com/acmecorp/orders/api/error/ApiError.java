@@ -41,7 +41,7 @@ public class ApiError {
         }
         if (ex instanceof ResponseStatusException) {
             ResponseStatusException statusException = (ResponseStatusException) ex;
-            HttpStatus status = HttpStatus.valueOf(statusException.getStatusCode().value());
+            HttpStatus status = statusException.getStatus();
             String message = Optional.ofNullable(statusException.getReason()).orElse(status.getReasonPhrase());
             return new ApiError(status.name(), message, status, Map.of());
         }
