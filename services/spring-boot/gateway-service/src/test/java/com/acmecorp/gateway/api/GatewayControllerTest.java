@@ -319,6 +319,6 @@ class GatewayControllerTest {
         webClient.get()
                 .uri("/api/gateway/analytics/counters")
                 .exchange()
-                .expectStatus().is5xxServerError();
+                .expectStatus().isEqualTo(502);
     }
 }
