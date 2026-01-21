@@ -1,3 +1,5 @@
+name: acmecorp-local
+
 services:
   postgres:
     image: postgres:16
@@ -10,84 +12,216 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acmecorp -d acmecorp"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: acmecorp-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: acmecorp
+      RABBITMQ_DEFAULT_PASS: acmecorp
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    # Optional, aber hilfreich um "ready" zu erkennen
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   redis:
     image: redis:7
     container_name: acmecorp-redis
     ports:
       - "6379:6379"
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: acmecorp-rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   orders-service:
-    build: ../../services/spring-boot/orders-service
-    depends_on:
-      - postgres
+    build:
+      context: ../../services/spring-boot/orders-service
+      dockerfile: Dockerfile
+    image: local-orders-service
+    container_name: local-orders-service-1
     environment:
+      APP_NAME: orders-service
       SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8081:8081"
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/acmecorp
+      SPRING_DATASOURCE_USERNAME: acmecorp
+      SPRING_DATASOURCE_PASSWORD: acmecorp
+      ACMECORP_SERVICES_CATALOG: http://catalog-service:8080
+      ACMECORP_SERVICES_BILLING: http://billing-service:8080
+      ACMECORP_SERVICES_ANALYTICS: http://analytics-service:8080
+      ACMECORP_SERVICES_NOTIFICATION: http://notification-service:8080
+      # RabbitMQ (fix gegen guest/guest)
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: acmecorp
+      SPRING_RABBITMQ_PASSWORD: acmecorp
+      # Redis (falls genutzt)
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   billing-service:
-    build: ../../services/spring-boot/billing-service
-    depends_on:
-      - postgres
+    build:
+      context: ../../services/spring-boot/billing-service
+      dockerfile: Dockerfile
+    image: local-billing-service
+    container_name: local-billing-service-1
     environment:
+      APP_NAME: billing-service
       SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8082:8082"
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/acmecorp
+      SPRING_DATASOURCE_USERNAME: acmecorp
+      SPRING_DATASOURCE_PASSWORD: acmecorp
+      # RabbitMQ
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: acmecorp
+      SPRING_RABBITMQ_PASSWORD: acmecorp
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   notification-service:
-    build: ../../services/spring-boot/notification-service
-    depends_on:
-      - postgres
-      - rabbitmq
+    build:
+      context: ../../services/spring-boot/notification-service
+      dockerfile: Dockerfile
+    image: local-notification-service
+    container_name: local-notification-service-1
     environment:
+      APP_NAME: notification-service
       SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8083:8083"
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/acmecorp
+      SPRING_DATASOURCE_USERNAME: acmecorp
+      SPRING_DATASOURCE_PASSWORD: acmecorp
+      # RabbitMQ
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: acmecorp
+      SPRING_RABBITMQ_PASSWORD: acmecorp
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   analytics-service:
-    build: ../../services/spring-boot/analytics-service
-    depends_on:
-      - postgres
-      - redis
+    build:
+      context: ../../services/spring-boot/analytics-service
+      dockerfile: Dockerfile
+    image: local-analytics-service
+    container_name: local-analytics-service-1
     environment:
+      APP_NAME: analytics-service
       SPRING_PROFILES_ACTIVE: docker
-    ports:
-      - "8084:8084"
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/acmecorp
+      SPRING_DATASOURCE_USERNAME: acmecorp
+      SPRING_DATASOURCE_PASSWORD: acmecorp
+      # RabbitMQ
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: "5672"
+      SPRING_RABBITMQ_USERNAME: acmecorp
+      SPRING_RABBITMQ_PASSWORD: acmecorp
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   catalog-service:
-    build: ../../services/quarkus/catalog-service
+    build:
+      context: ../../services/quarkus/catalog-service
+      dockerfile: Dockerfile
+    image: local-catalog-service
+    container_name: local-catalog-service-1
+    environment:
+      APP_NAME: catalog-service
+      QUARKUS_PROFILE: docker
+      QUARKUS_HTTP_PORT: "8080"
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/acmecorp
+      QUARKUS_DATASOURCE_USERNAME: acmecorp
+      QUARKUS_DATASOURCE_PASSWORD: acmecorp
+      # RabbitMQ (Quarkus)
+      QUARKUS_RABBITMQ_HOST: rabbitmq
+      QUARKUS_RABBITMQ_PORT: "5672"
+      QUARKUS_RABBITMQ_USERNAME: acmecorp
+      QUARKUS_RABBITMQ_PASSWORD: acmecorp
+      # Redis (falls genutzt)
+      QUARKUS_REDIS_HOSTS: redis://redis:6379
     depends_on:
-      - postgres
-    ports:
-      - "8085:8085"
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   gateway-service:
-    build: ../../services/spring-boot/gateway-service
-    depends_on:
-      - orders-service
-      - catalog-service
-      - billing-service
-      - analytics-service
-      - notification-service
+    build:
+      context: ../../services/spring-boot/gateway-service
+      dockerfile: Dockerfile
+    image: local-gateway-service
+    container_name: local-gateway-service-1
     environment:
+      APP_NAME: gateway-service
       SPRING_PROFILES_ACTIVE: docker
-
-      ORDERS_BASE_URL: http://orders-service:8081
-      CATALOG_BASE_URL: http://catalog-service:8085
-      BILLING_BASE_URL: http://billing-service:8082
-      NOTIFICATION_BASE_URL: http://notification-service:8083
-      ANALYTICS_BASE_URL: http://analytics-service:8084
-
+      SERVER_PORT: "8080"
+      ORDERS_BASE_URL: http://orders-service:8080
+      CATALOG_BASE_URL: http://catalog-service:8080
+      BILLING_BASE_URL: http://billing-service:8080
+      NOTIFICATION_BASE_URL: http://notification-service:8080
+      ANALYTICS_BASE_URL: http://analytics-service:8080
     ports:
       - "8080:8080"
+    depends_on:
+      - orders-service
+      - billing-service
+      - notification-service
+      - analytics-service
+      - catalog-service
+    restart: unless-stopped
 
 volumes:
   pgdata:
