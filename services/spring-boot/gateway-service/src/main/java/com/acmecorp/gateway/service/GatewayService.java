@@ -150,7 +150,7 @@ public class GatewayService {
         // Order details from Orders Service
         String orderUrl = ordersBaseUrl + "/api/orders/{id}";
         // Invoices for that order from Billing Service (assumed endpoint)
-        String invoiceUrl = billingBaseUrl + "/api/invoices?orderId={orderId}";
+        String invoiceUrl = billingBaseUrl + "/api/billing/invoices?orderId={orderId}";
 
         log.debug("Fetching order details for {} via Orders Service: {}", id, orderUrl);
         log.debug("Fetching invoices for order {} via Billing Service: {}", id, invoiceUrl);
@@ -163,8 +163,12 @@ public class GatewayService {
         Mono<List<InvoiceSummary>> invoicesMono = webClient.get()
                 .uri(invoiceUrl, id)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<InvoiceSummary>>() {})
-                .onErrorReturn(new ArrayList<>());
+                .bodyToMono(new ParameterizedTypeReference<PageResponse<InvoiceSummary>>() {})
+                .map(page -> {
+                    List<InvoiceSummary> content = page != null ? page.content() : null;
+                    return content != null ? content : new ArrayList<InvoiceSummary>();
+                })
+                .onErrorReturn(new ArrayList<InvoiceSummary>());
 
         return Mono.zip(orderMono, invoicesMono)
                 .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
