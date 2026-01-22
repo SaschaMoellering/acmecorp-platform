@@ -83,6 +83,9 @@ public abstract class AbstractIntegrationTest {
     private static String resolveBaseUrl() {
         String base = System.getProperty("acmecorp.baseUrl");
         if (base == null || base.isBlank()) {
+            base = System.getenv("GATEWAY_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
             base = System.getenv("ACMECORP_BASE_URL");
         }
         if (base == null || base.isBlank()) {
