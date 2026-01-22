@@ -116,6 +116,16 @@ The test ensures the fixed flow cannot regresses into N+1 while developers can s
 7. Episode 7 – Automation, GitOps, and Helm Deployments  
 8. Episode 8 – Monitoring, Alerts, and Runbook Drills  
 
+## Backport automation
+
+Use the backport script to cherry-pick a fix from `main` into the long-lived Java branches:
+
+```bash
+bash scripts/backport.sh <SHA>
+```
+
+You can also run the GitHub Actions workflow manually (workflow_dispatch) and provide `commit_sha` (and optionally `branches`) to backport via CI.
+
 ## Troubleshooting
 
 - **Ports in use** – stop conflicting containers/processes if `docker compose` fails to bind 8080–8085, 5432, 6379, or 5672.
