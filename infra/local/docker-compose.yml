@@ -67,9 +67,9 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: acmecorp
       SPRING_RABBITMQ_PASSWORD: acmecorp
-      # Redis (falls genutzt)
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
+      # Redis (falls genutzt) - FIX
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,9 +97,9 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: acmecorp
       SPRING_RABBITMQ_PASSWORD: acmecorp
-      # Redis
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
+      # Redis - FIX
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,9 +127,9 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: acmecorp
       SPRING_RABBITMQ_PASSWORD: acmecorp
-      # Redis
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
+      # Redis - FIX
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
     depends_on:
       postgres:
         condition: service_healthy
@@ -157,9 +157,9 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: acmecorp
       SPRING_RABBITMQ_PASSWORD: acmecorp
-      # Redis
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
+      # Redis - FIX
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
     depends_on:
       postgres:
         condition: service_healthy
