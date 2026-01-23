@@ -1,5 +1,6 @@
 .PHONY: test-backend test-frontend test-all smoke-local up down build-backend
 
+
 test-backend:
 	for svc in services/spring-boot/*; do \
 		if [ -d "$$svc" ] && [ -f "$$svc/pom.xml" ]; then \

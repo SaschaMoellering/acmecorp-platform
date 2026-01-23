@@ -1,8 +1,8 @@
-ARG JAVA_VERSION=25
+ARG JAVA_VERSION=11
 ARG APP_NAME=app
 ARG JAR_PATTERN=${APP_NAME}-*.jar
 
-FROM maven:3.9-eclipse-temurin-${JAVA_VERSION} AS build
+FROM maven:3.9.9-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /workspace
 ARG JAR_PATTERN
 COPY pom.xml ./
@@ -22,12 +22,12 @@ RUN set -eu; \
     echo "Using jar: ${JAR}"; \
     cp "${JAR}" /tmp/app.jar; \
     test -f /tmp/app.jar; \
-    java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher
+    java -Djarmode=layertools -jar /tmp/app.jar extract --destination /layers/app
 
 FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
 ARG APP_NAME=app
-ARG JAVA_VERSION=25
+ARG JAVA_VERSION=11
 ENV APP_NAME=${APP_NAME}
 ENV JAVA_VERSION=${JAVA_VERSION}
 
@@ -41,14 +41,9 @@ COPY --from=extract --chown=app:app /layers/app/application/ /app/
 
 RUN set -eu; \
   base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
-  extra=''; \
-  case "${JAVA_VERSION}" in \
-    25) extra='-XX:+UseCompactObjectHeaders' ;; \
-    *) extra='' ;; \
-  esac; \
-  printf '%s %s\n' "${base}" "${extra}" > /opt/app/jvm.options; \
+  printf '%s\n' "${base}" > /opt/app/jvm.options; \
   chown app:app /opt/app/jvm.options
 
 USER app
 EXPOSE 8080
-ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.JarLauncher"]

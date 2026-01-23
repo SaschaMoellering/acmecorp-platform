@@ -19,6 +19,9 @@
     <surefire.version>3.2.5</surefire.version>
     <jackson.version>2.17.2</jackson.version>
     <assertj.version>3.26.3</assertj.version>
+    <enforcer.plugin.version>3.5.0</enforcer.plugin.version>
+    <animal.sniffer.version>1.23</animal.sniffer.version>
+    <java11.signature.version>1.0</java11.signature.version>
     <acmecorp.baseUrl>http://localhost:8080</acmecorp.baseUrl>
   </properties>
 
@@ -66,7 +69,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>${enforcer.plugin.version}</version>
         <executions>
           <execution>
             <id>enforce-java</id>
@@ -75,9 +78,24 @@
             </goals>
             <configuration>
               <rules>
-                <requireJavaVersion>
-                  <version>[11,12)</version>
-                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[3.6.3,)</version>
+                </requireMavenVersion>
+                <requireProperty>
+                  <property>maven.compiler.release</property>
+                  <regex>11</regex>
+                  <message>maven.compiler.release must be 11.</message>
+                </requireProperty>
+                <requireProperty>
+                  <property>maven.compiler.source</property>
+                  <regex>11</regex>
+                  <message>maven.compiler.source must be 11.</message>
+                </requireProperty>
+                <requireProperty>
+                  <property>maven.compiler.target</property>
+                  <regex>11</regex>
+                  <message>maven.compiler.target must be 11.</message>
+                </requireProperty>
               </rules>
             </configuration>
           </execution>
@@ -104,6 +122,27 @@
             <ACMECORP_BASE_URL>${acmecorp.baseUrl}</ACMECORP_BASE_URL>
           </environmentVariables>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>animal-sniffer-maven-plugin</artifactId>
+        <version>${animal.sniffer.version}</version>
+        <executions>
+          <execution>
+            <id>check-java11-api</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <signature>
+                <groupId>org.codehaus.mojo.signature</groupId>
+                <artifactId>java11</artifactId>
+                <version>${java11.signature.version}</version>
+              </signature>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
