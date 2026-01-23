@@ -8,31 +8,53 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -S /var/run/docker.sock ]; then
-  echo "[require-docker] docker socket not found at /var/run/docker.sock." >&2
+diagnostics() {
+  echo "[diagnostics] docker version" >&2
+  docker version || true
+  echo "[diagnostics] docker context show" >&2
+  docker context show || true
+  echo "[diagnostics] docker context inspect (Endpoints)" >&2
+  docker context inspect "$(docker context show)" | sed -n '/Endpoints/,+20p' || true
+  echo "[diagnostics] DOCKER_HOST=${DOCKER_HOST:-<unset>}" >&2
+  echo "[diagnostics] /var/run/docker.sock" >&2
   ls -lah /var/run/docker.sock || true
-  exit 1
-fi
-
-check_docker() {
-  local subcmd="$1"
-  local output
-  if ! output="$(docker ${subcmd} 2>&1)"; then
-    if echo "${output}" | rg -i "permission denied|access denied|cannot connect to the docker daemon"; then
-      echo "[require-docker] docker ${subcmd} failed: ${output}" >&2
-      echo "[diagnostics] /var/run/docker.sock" >&2
-      ls -lah /var/run/docker.sock || true
-      echo "[diagnostics] docker group" >&2
-      getent group docker || true
-      echo "[diagnostics] groups" >&2
-      groups || true
-      echo "Runner user must be in docker group or use root/sudo; on GitHub Actions prefer using the hosted runner where docker works by default." >&2
-      exit 1
-    fi
-    echo "[require-docker] docker ${subcmd} failed: ${output}" >&2
-    exit 1
-  fi
+  local rootless_sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/docker.sock"
+  echo "[diagnostics] ${rootless_sock}" >&2
+  ls -lah "${rootless_sock}" || true
 }
 
-check_docker "version"
-check_docker "info"
+try_docker_info() {
+  local host="$1"
+  local output
+  if [ -n "${host}" ]; then
+    if output="$(DOCKER_HOST="${host}" docker info 2>&1)"; then
+      export DOCKER_HOST="${host}"
+      return 0
+    fi
+  else
+    if output="$(docker info 2>&1)"; then
+      return 0
+    fi
+  fi
+  echo "${output}" >&2
+  return 1
+}
+
+if ! try_docker_info ""; then
+  rootless_default="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/docker.sock"
+  if [ -S "${rootless_default}" ] && try_docker_info "unix://${rootless_default}"; then
+    echo "[require-docker] using DOCKER_HOST=${DOCKER_HOST}" >&2
+  elif [ -S "$HOME/.docker/run/docker.sock" ] && try_docker_info "unix://$HOME/.docker/run/docker.sock"; then
+    echo "[require-docker] using DOCKER_HOST=${DOCKER_HOST}" >&2
+  else
+    diagnostics
+    echo "Runner user must be in docker group or use root/sudo; on GitHub Actions prefer using the hosted runner where docker works by default." >&2
+    exit 1
+  fi
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  diagnostics
+  echo "[require-docker] docker compose version failed." >&2
+  exit 1
+fi
