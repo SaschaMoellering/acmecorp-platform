@@ -108,6 +108,10 @@ jobs:
           distribution: temurin
           java-version: 11
 
+      - name: Require Docker
+        run: |
+          bash scripts/require-docker.sh
+
       - name: Start Docker Compose stack
         run: |
           cd infra/local
@@ -135,6 +139,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Require Docker
+        run: |
+          bash scripts/require-docker.sh
 
       - name: Start Docker Compose
         run: |
