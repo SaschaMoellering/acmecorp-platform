@@ -185,6 +185,16 @@ public abstract class AbstractIntegrationTest {
                 .as(new TypeRef<List<Map<String, Object>>>() {});
     }
 
+    protected Map<String, Object> fetchGatewayHealth() {
+        return given()
+                .when()
+                .get(gatewayBase + "/actuator/health")
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<Map<String, Object>>() {});
+    }
+
     protected JsonPath createOrder(String customerEmail, UUID productId, int quantity) {
         String body = """
                 {
