@@ -73,6 +73,71 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void createOrderIsIdempotentWithSameKey() {
+        List<Map<String, Object>> catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+
+        Map<String, Object> first = catalog.get(0);
+        UUID productId = UUID.fromString(first.get("id").toString());
+
+        String body = """
+                {
+                  "customerEmail": "idempotent@example.com",
+                  "items": [
+                    {"productId":"%s","quantity":1}
+                  ]
+                }
+                """.formatted(productId);
+
+        String key = "idem-" + java.util.UUID.randomUUID();
+
+        long firstId = given()
+                .contentType(ContentType.JSON)
+                .header("Idempotency-Key", key)
+                .body(body)
+                .when()
+                .post(gatewayApiBase + "/orders")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        long secondId = given()
+                .contentType(ContentType.JSON)
+                .header("Idempotency-Key", key)
+                .body(body)
+                .when()
+                .post(gatewayApiBase + "/orders")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        assertThat(secondId).isEqualTo(firstId);
+
+        String differentBody = """
+                {
+                  "customerEmail": "idempotent@example.com",
+                  "items": [
+                    {"productId":"%s","quantity":2}
+                  ]
+                }
+                """.formatted(productId);
+
+        given()
+                .contentType(ContentType.JSON)
+                .header("Idempotency-Key", key)
+                .body(differentBody)
+                .when()
+                .post(gatewayApiBase + "/orders")
+                .then()
+                .statusCode(409)
+                .body("error", org.hamcrest.Matchers.equalTo("CONFLICT"));
+    }
+
+    @Test
     void orderHistoryTracksStatusChanges() {
         List<Map<String, Object>> catalog = fetchCatalogItems();
         assertThat(catalog).isNotEmpty();

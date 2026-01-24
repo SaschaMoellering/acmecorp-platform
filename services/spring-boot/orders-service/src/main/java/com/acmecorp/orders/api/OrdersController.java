@@ -37,8 +37,9 @@ public class OrdersController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request) {
-        var order = orderService.createOrder(request);
+    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request,
+                                                     @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        var order = orderService.createOrder(request, idempotencyKey);
         return ResponseEntity.ok(OrderResponse.from(order));
     }
 
