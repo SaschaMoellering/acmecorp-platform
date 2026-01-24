@@ -17,6 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: 'maven'
 
       - name: Run backend tests
         run: |
@@ -112,8 +113,7 @@ jobs:
         run: |
           cd infra/local
           docker compose up -d --build
-          # Give services time to start
-          sleep 40
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run integration tests
         env:
@@ -140,8 +140,7 @@ jobs:
         run: |
           cd infra/local
           docker compose up -d
-          # Wait for services to become healthy
-          sleep 30
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run smoke tests
         run: |

@@ -19,3 +19,8 @@ The app expects the gateway-service at `http://localhost:8080` (configurable via
 - `src/api` — gateway API client
 - `src/components` — layout shell, UI primitives, feature widgets
 - `src/views` — routed pages: Dashboard, Orders, Catalog, Analytics, System
+
+## CI note: `dist` worker shim
+
+In CI we create a temporary `dist/worker.js` symlink to keep Vitest/Tinypool happy in clean checkouts.
+`dist/` is intentionally not tracked in git.
