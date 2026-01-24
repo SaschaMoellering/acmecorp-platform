@@ -1,4 +1,4 @@
-package com.acmecorp.orders.api.error;
+package com.acmecorp.analytics.api.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestControllerAdvice
-public class OrdersApiExceptionHandler {
+public class AnalyticsApiExceptionHandler {
 
     private static final List<String> TRACE_HEADERS = List.of(
             "X-B3-TraceId",
