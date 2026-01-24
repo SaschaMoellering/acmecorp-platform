@@ -238,9 +238,8 @@ export async function deleteProduct(id: string): Promise<void> {
 }
 
 export type SeedResult = {
-  ordersCreated: number;
-  productsCreated: number;
-  message: string;
+  catalogSeeded: number;
+  ordersSeeded: number;
 };
 
 export async function seedDemoData(): Promise<SeedResult> {

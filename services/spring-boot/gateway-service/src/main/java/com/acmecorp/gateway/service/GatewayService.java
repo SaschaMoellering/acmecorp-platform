@@ -357,18 +357,8 @@ public class GatewayService {
         String ordersSeedUrl = ordersBaseUrl + "/api/orders/seed";
         String catalogSeedUrl = catalogBaseUrl + "/api/catalog/seed";
 
-        log.debug("Seeding orders via Orders Service: {}", ordersSeedUrl);
         log.debug("Seeding catalog via Catalog Service: {}", catalogSeedUrl);
-
-        Mono<Integer> ordersSeed = webClient.post()
-                .uri(ordersSeedUrl)
-                .retrieve()
-                .bodyToMono(OrdersSeedResponse.class)
-                .map(resp -> resp != null ? resp.count : 0)
-                .onErrorResume(ex -> {
-                    log.warn("Failed to seed orders: {}", ex.getMessage());
-                    return Mono.just(0);
-                });
+        log.debug("Seeding orders via Orders Service: {}", ordersSeedUrl);
 
         Mono<Integer> catalogSeed = webClient.post()
                 .uri(catalogSeedUrl)
@@ -380,16 +370,24 @@ public class GatewayService {
                     return Mono.just(0);
                 });
 
-        return Mono.zip(ordersSeed, catalogSeed)
-                .map(tuple -> {
-                    int ordersCreated = tuple.getT1();
-                    int productsCreated = tuple.getT2();
-                    SeedResult result = new SeedResult();
-                    result.ordersCreated = ordersCreated;
-                    result.productsCreated = productsCreated;
-                    result.message = "Seed completed";
-                    return result;
+        Mono<Integer> ordersSeed = webClient.post()
+                .uri(ordersSeedUrl)
+                .retrieve()
+                .bodyToMono(OrdersSeedResponse.class)
+                .map(resp -> resp != null ? resp.count : 0)
+                .onErrorResume(ex -> {
+                    log.warn("Failed to seed orders: {}", ex.getMessage());
+                    return Mono.just(0);
                 });
+
+        return catalogSeed.flatMap(catalogCount ->
+                ordersSeed.map(orderCount -> {
+                    SeedResult result = new SeedResult();
+                    result.catalogSeeded = catalogCount;
+                    result.ordersSeeded = orderCount;
+                    return result;
+                })
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -463,9 +461,8 @@ public class GatewayService {
     }
 
     public static class SeedResult {
-        public int ordersCreated;
-        public int productsCreated;
-        public String message;
+        public int catalogSeeded;
+        public int ordersSeeded;
     }
 
     private static class ServiceDescriptor {

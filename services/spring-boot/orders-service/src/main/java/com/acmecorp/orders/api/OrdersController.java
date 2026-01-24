@@ -98,14 +98,8 @@ public class OrdersController {
 
     @PostMapping("/seed")
     public Map<String, Object> seed() {
-        List<OrderRequest> demoRequests = List.of(
-                new OrderRequest("seed+1@acme.test", List.of(new OrderRequest.Item("SKU-1", 1)), OrderStatus.NEW),
-                new OrderRequest("seed+2@acme.test", List.of(new OrderRequest.Item("SKU-2", 2)), OrderStatus.CONFIRMED),
-                new OrderRequest("seed+3@acme.test", List.of(new OrderRequest.Item("SKU-3", 1)), OrderStatus.CANCELLED)
-        );
-
-        var seeded = orderService.seedDemoData(demoRequests);
-        int count = (seeded == null || seeded.isEmpty()) ? demoRequests.size() : seeded.size();
+        var seeded = orderService.seedDemoData();
+        int count = seeded == null ? 0 : seeded.size();
         return Map.of(
                 "seeded", true,
                 "count", count
