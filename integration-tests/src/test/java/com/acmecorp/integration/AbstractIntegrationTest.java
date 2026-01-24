@@ -39,7 +39,6 @@ public abstract class AbstractIntegrationTest {
         ordersBase = resolveOrdersBaseUrl();
         RestAssured.baseURI = gatewayBase;
 
-        waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
         waitForGatewaySystemStatus();
         seedDemoData();
     }
@@ -165,13 +164,7 @@ public abstract class AbstractIntegrationTest {
                     .atMost(Duration.ofSeconds(120))
                     .pollInterval(Duration.ofSeconds(2))
                     .until(() -> {
-                        List<Map<String, Object>> statuses = given()
-                                .when()
-                                .get(url)
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<Map<String, Object>>>() {});
+                        List<Map<String, Object>> statuses = fetchSystemStatus(url);
 
                         if (statuses == null || statuses.isEmpty()) {
                             return false;
@@ -184,23 +177,84 @@ public abstract class AbstractIntegrationTest {
                             if (service != null) {
                                 seen.add(service.toString());
                             }
-                            if (health == null || !"UP".equalsIgnoreCase(health.toString())) {
+                            if (health == null || !isHealthyState(health.toString())) {
                                 return false;
                             }
                         }
                         return seen.containsAll(EXPECTED_SERVICES);
                     });
         } catch (ConditionTimeoutException ex) {
-            throw new IllegalStateException("Timed out waiting for gateway system status at " + url, ex);
+            String statusBody = safeBody(given().when().get(url));
+            throw new IllegalStateException("Timed out waiting for gateway system status at " + url
+                    + "; last response=" + statusBody, ex);
         }
     }
 
     private static void seedDemoData() {
-        given()
+        var response = given()
                 .when()
-                .post(gatewayApiBase + "/seed")
+                .post(gatewayApiBase + "/seed");
+        assertStatus(response, 200, "POST " + gatewayApiBase + "/seed");
+    }
+
+    protected static List<Map<String, Object>> fetchSystemStatus(String url) {
+        return given()
+                .when()
+                .get(url)
                 .then()
-                .statusCode(200);
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<List<Map<String, Object>>>() {});
+    }
+
+    protected static boolean isHealthyState(String status) {
+        if (status == null) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return "UP".equals(normalized) || "READY".equals(normalized);
+    }
+
+    protected static void assertStatus(io.restassured.response.Response response, int expected, String endpoint) {
+        int actual = response.getStatusCode();
+        if (actual != expected) {
+            String body = safeBody(response);
+            String systemStatus = fetchSystemStatusRaw();
+            String message = "Request failed: " + endpoint
+                    + " status=" + actual
+                    + " body=" + body
+                    + " systemStatus=" + systemStatus
+                    + " urls=" + serviceUrls();
+            throw new AssertionError(message);
+        }
+    }
+
+    protected static String fetchSystemStatusRaw() {
+        try {
+            return safeBody(given().when().get(gatewayApiBase + "/system/status"));
+        } catch (Exception ex) {
+            return "unavailable (" + ex.getMessage() + ")";
+        }
+    }
+
+    protected static Map<String, String> serviceUrls() {
+        return Map.of(
+                "gateway", gatewayBase,
+                "orders", ordersBase,
+                "gatewayApi", gatewayApiBase
+        );
+    }
+
+    protected static String safeBody(io.restassured.response.Response response) {
+        if (response == null) {
+            return "<no response>";
+        }
+        try {
+            String body = response.getBody() != null ? response.getBody().asString() : null;
+            return body == null ? "<empty>" : body;
+        } catch (Exception ex) {
+            return "<unreadable body>";
+        }
     }
 
     protected List<Map<String, Object>> fetchCatalogItems() {
