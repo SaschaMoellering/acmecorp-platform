@@ -18,12 +18,13 @@ spring:
     password: ${DB_PASSWORD:acmecorp}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
   flyway:
     baseline-on-migrate: true
+    baseline-version: 0
   data:
     web:
       pageable:
