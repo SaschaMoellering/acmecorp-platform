@@ -20,6 +20,11 @@ This document defines the branch strategy and allowed deltas while keeping the *
 - **Allowed diffs**: Only update Maven compiler/toolchain settings, Docker build/runtime images, and JVM launch flags to satisfy version compatibility. Any other change requires a justification entry in the matrix notes.
 - **Benchmark harness**: When the benchmark scripts exist, they must run identically on every branch except for the JVM they invoke.
 
+## Java enforcement
+
+- Each Java service and `integration-tests` enforces the branch Java version via `maven-enforcer-plugin` using the `java.version` property.
+- For local builds, either set `JAVA_HOME` to the branch version or use `scripts/run-build-in-jdk.sh <11|17|21|25>` to build in a containerized JDK.
+
 ## How to use
 
 ```bash
