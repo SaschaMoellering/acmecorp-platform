@@ -23,6 +23,7 @@ public abstract class AbstractIntegrationTest {
 
     protected static String gatewayBase;
     protected static String gatewayApiBase;
+    protected static String ordersBase;
     private static final Set<String> EXPECTED_SERVICES = Set.of(
             "orders",
             "billing",
@@ -35,6 +36,7 @@ public abstract class AbstractIntegrationTest {
     static void setupBase() {
         gatewayBase = resolveBaseUrl();
         gatewayApiBase = gatewayBase + "/api/gateway";
+        ordersBase = resolveOrdersBaseUrl();
         RestAssured.baseURI = gatewayBase;
 
         waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
@@ -90,6 +92,20 @@ public abstract class AbstractIntegrationTest {
         }
         if (base == null || base.isBlank()) {
             base = "http://localhost:8080";
+        }
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    private static String resolveOrdersBaseUrl() {
+        String base = System.getProperty("acmecorp.ordersBaseUrl");
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ORDERS_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ACMECORP_ORDERS_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = "http://localhost:8081";
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }

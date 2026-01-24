@@ -66,6 +66,24 @@ export type PageResponse<T> = {
   totalPages: number;
 };
 
+export type ApiErrorResponse = {
+  timestamp: string;
+  traceId: string | null;
+  status: number;
+  error: string;
+  message: string;
+  path: string;
+  fields?: Record<string, string>;
+};
+
+export type ApiError = Error & {
+  status: number;
+  error?: string;
+  fields?: Record<string, string>;
+  traceId?: string | null;
+  path?: string;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function handle<T>(path: string, init?: RequestInit): Promise<T> {
@@ -73,17 +91,37 @@ async function handle<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...init
   });
-  if (!res.ok) {
-      console.error('API error for', path, 'status:', res.status, 'body:', text);
-      throw new Error(`Request failed: ${res.status}`);
-  }
 
   const text = await res.text();
+  if (!res.ok) {
+    const error = toApiError(res, text, path);
+    console.error('API error for', path, 'status:', res.status, 'body:', text);
+    throw error;
+  }
   if (!text) {
     return undefined as T;
   }
 
   return JSON.parse(text);
+}
+
+function toApiError(res: Response, text: string, path: string): ApiError {
+  let parsed: ApiErrorResponse | null = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as ApiErrorResponse;
+    } catch {
+      parsed = null;
+    }
+  }
+  const message = parsed?.message || `Request failed: ${res.status}`;
+  const error = new Error(message) as ApiError;
+  error.status = res.status;
+  error.error = parsed?.error;
+  error.fields = parsed?.fields;
+  error.traceId = parsed?.traceId ?? null;
+  error.path = parsed?.path || path;
+  return error;
 }
 
 export function fetchOrders(): Promise<Order[]> {
