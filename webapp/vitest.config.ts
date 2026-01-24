@@ -1,12 +1,18 @@
 /// <reference types="vitest/config" />
 
 import { defineConfig, mergeConfig } from 'vitest/config'
-import viteConfig from './vite.config.js'
+import { resolve } from 'node:path'
+import viteConfig from './vite.config.ts'
 
 // Vitest will use *this* file instead of any root-level config
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    resolve: {
+      alias: {
+        vitest: resolve('node_modules/vitest/dist/index.js'),
+      },
+    },
     test: {
       environment: 'jsdom',
       globals: true,

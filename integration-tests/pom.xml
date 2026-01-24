@@ -9,9 +9,10 @@
   <packaging>jar</packaging>
 
   <properties>
-    <maven.compiler.release>11</maven.compiler.release>
-    <maven.compiler.source>11</maven.compiler.source>
-    <maven.compiler.target>11</maven.compiler.target>
+    <java.version>11</java.version>
+    <maven.compiler.release>${java.version}</maven.compiler.release>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.jupiter.version>5.10.3</junit.jupiter.version>
     <restassured.version>5.4.0</restassured.version>
@@ -19,9 +20,6 @@
     <surefire.version>3.2.5</surefire.version>
     <jackson.version>2.17.2</jackson.version>
     <assertj.version>3.26.3</assertj.version>
-    <enforcer.plugin.version>3.5.0</enforcer.plugin.version>
-    <animal.sniffer.version>1.23</animal.sniffer.version>
-    <java11.signature.version>1.0</java11.signature.version>
     <acmecorp.baseUrl>http://localhost:8080</acmecorp.baseUrl>
   </properties>
 
@@ -68,49 +66,6 @@
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <version>${enforcer.plugin.version}</version>
-        <executions>
-          <execution>
-            <id>enforce-java</id>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <requireMavenVersion>
-                  <version>[3.6.3,)</version>
-                </requireMavenVersion>
-                <requireProperty>
-                  <property>maven.compiler.release</property>
-                  <regex>11</regex>
-                  <message>maven.compiler.release must be 11.</message>
-                </requireProperty>
-                <requireProperty>
-                  <property>maven.compiler.source</property>
-                  <regex>11</regex>
-                  <message>maven.compiler.source must be 11.</message>
-                </requireProperty>
-                <requireProperty>
-                  <property>maven.compiler.target</property>
-                  <regex>11</regex>
-                  <message>maven.compiler.target must be 11.</message>
-                </requireProperty>
-              </rules>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
-        <configuration>
-          <release>${maven.compiler.release}</release>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${surefire.version}</version>
         <configuration>
@@ -123,23 +78,23 @@
           </environmentVariables>
         </configuration>
       </plugin>
+    
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>animal-sniffer-maven-plugin</artifactId>
-        <version>${animal.sniffer.version}</version>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.5.0</version>
         <executions>
           <execution>
-            <id>check-java11-api</id>
-            <phase>verify</phase>
+            <id>enforce-java</id>
             <goals>
-              <goal>check</goal>
+              <goal>enforce</goal>
             </goals>
             <configuration>
-              <signature>
-                <groupId>org.codehaus.mojo.signature</groupId>
-                <artifactId>java11</artifactId>
-                <version>${java11.signature.version}</version>
-              </signature>
+              <rules>
+                <requireJavaVersion>
+                  <version>${java.version}</version>
+                </requireJavaVersion>
+              </rules>
             </configuration>
           </execution>
         </executions>

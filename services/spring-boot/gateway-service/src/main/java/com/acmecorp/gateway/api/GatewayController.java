@@ -9,14 +9,23 @@ import com.acmecorp.gateway.service.GatewayService.ProductRequest;
 import com.acmecorp.gateway.service.GatewayService.ProductSummary;
 import com.acmecorp.gateway.service.GatewayService.SeedResult;
 import com.acmecorp.gateway.service.GatewayService.SystemStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,8 +56,73 @@ public class GatewayController {
     }
 
     @PostMapping(path = "/orders", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<OrderSummary> createOrder(@RequestBody OrderRequest request) {
-        return gatewayService.createOrder(request);
+    @Operation(
+            summary = "Create an order",
+            description = "Creates a new order. If Idempotency-Key is provided, repeated requests with the same key and payload return the same order."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Order created or replayed",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = OrderSummary.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "id": 42,
+                                      "orderNumber": "ORD-2025-00001",
+                                      "customerEmail": "customer@example.com",
+                                      "status": "NEW",
+                                      "totalAmount": 29.00,
+                                      "currency": "USD",
+                                      "createdAt": "2025-01-01T12:00:00Z",
+                                      "updatedAt": "2025-01-01T12:00:00Z",
+                                      "items": [
+                                        {"productId":"11111111-1111-1111-1111-111111111111","quantity":1}
+                                      ]
+                                    }
+                                    """)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Validation error",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = com.acmecorp.gateway.api.error.ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Resource not found",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = com.acmecorp.gateway.api.error.ApiErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Idempotency key conflict",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = com.acmecorp.gateway.api.error.ApiErrorResponse.class))
+            )
+    })
+    public Mono<OrderSummary> createOrder(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = OrderRequest.class),
+                            examples = @ExampleObject(value = """
+                                    {
+                                      "customerEmail": "customer@example.com",
+                                      "items": [
+                                        {"productId":"11111111-1111-1111-1111-111111111111","quantity":1}
+                                      ]
+                                    }
+                                    """)
+                    )
+            ) @RequestBody OrderRequest request,
+            @Parameter(
+                    description = "Optional idempotency key to safely retry order creation",
+                    required = false,
+                    example = "0f1f7a3d-8c6d-4c9b-9a3d-2d6f4f8e6b11"
+            )
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return gatewayService.createOrder(request, idempotencyKey);
     }
 
     @PutMapping(path = "/orders/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -58,7 +132,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/orders/{id}")
-    public Mono<Void> deleteOrder(@PathVariable("id") Long id) {
+    public Mono<Map<String, Object>> deleteOrder(@PathVariable("id") Long id) {
         return gatewayService.deleteOrder(id);
     }
 
@@ -83,8 +157,14 @@ public class GatewayController {
     }
 
     @GetMapping("/orders/{id}")
-    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id) {
-        return gatewayService.orderDetails(id);
+    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id,
+                                               @RequestParam(name = "includeHistory", defaultValue = "false") boolean includeHistory) {
+        return gatewayService.orderDetails(id, includeHistory);
+    }
+
+    @GetMapping("/orders/{id}/history")
+    public Mono<List<Map<String, Object>>> orderHistory(@PathVariable("id") Long id) {
+        return gatewayService.orderHistory(id);
     }
 
     // -------------------------------------------------------------------------
@@ -120,7 +200,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/catalog/{id}")
-    public Mono<Void> deleteProduct(@PathVariable("id") String id) {
+    public Mono<Map<String, Object>> deleteProduct(@PathVariable("id") String id) {
         return gatewayService.deleteProduct(id);
     }
 
@@ -130,7 +210,12 @@ public class GatewayController {
 
     @GetMapping("/analytics/counters")
     public Mono<Map<String, Long>> analyticsCounters() {
-        return gatewayService.analyticsCounters();
+        return gatewayService.analyticsCounters()
+                .onErrorMap(ex -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Downstream analytics failure",
+                        ex
+                ));
     }
 
     @GetMapping("/system/status")

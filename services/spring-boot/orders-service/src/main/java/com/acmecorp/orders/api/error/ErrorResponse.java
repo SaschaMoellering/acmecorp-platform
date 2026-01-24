@@ -1,34 +1,18 @@
 package com.acmecorp.orders.api.error;
 
-import java.time.Instant;
+import java.util.Map;
 
 public class ErrorResponse {
+    public String code;
+    public String message;
+    public Map<String, Object> details;
 
-    private final int status;
-    private final String error;
-    private final String message;
-    private final Instant timestamp;
+    public ErrorResponse() {
+    }
 
-    public ErrorResponse(int status, String error, String message, Instant timestamp) {
-        this.status = status;
-        this.error = error;
+    public ErrorResponse(String code, String message, Map<String, Object> details) {
+        this.code = code;
         this.message = message;
-        this.timestamp = timestamp;
-    }
-
-    public int getStatus() {
-        return status;
-    }
-
-    public String getError() {
-        return error;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public Instant getTimestamp() {
-        return timestamp;
+        this.details = details;
     }
 }
