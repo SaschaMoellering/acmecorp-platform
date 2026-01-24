@@ -4,6 +4,7 @@ import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import com.acmecorp.orders.web.OrderStatusHistoryResponse;
 import com.acmecorp.orders.web.PageResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -51,6 +52,11 @@ public class OrdersController {
     @GetMapping("/{id}")
     public OrderResponse getOrder(@PathVariable("id") Long id) {
         return orderService.toResponse(orderService.getOrder(id));
+    }
+
+    @GetMapping("/{id}/history")
+    public List<OrderStatusHistoryResponse> history(@PathVariable("id") Long id) {
+        return orderService.history(id);
     }
 
     @GetMapping

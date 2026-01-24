@@ -1,5 +1,6 @@
 package com.acmecorp.integration;
 
+import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 
@@ -69,5 +70,37 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
                 .statusCode(404)
                 .body("error", org.hamcrest.Matchers.equalTo("NOT_FOUND"))
                 .body("status", org.hamcrest.Matchers.equalTo(404));
+    }
+
+    @Test
+    void orderHistoryTracksStatusChanges() {
+        List<Map<String, Object>> catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+
+        Map<String, Object> first = catalog.get(0);
+        UUID productId = UUID.fromString(first.get("id").toString());
+
+        var createResponse = createOrder("timeline@example.com", productId, 1);
+        long orderId = createResponse.getLong("id");
+
+        confirmOrder(orderId);
+
+        List<Map<String, Object>> history = given()
+                .when()
+                .get(gatewayApiBase + "/orders/{id}/history", orderId)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<List<Map<String, Object>>>() {});
+
+        assertThat(history).hasSizeGreaterThanOrEqualTo(2);
+        Map<String, Object> created = history.get(0);
+        Map<String, Object> confirmed = history.get(1);
+        assertThat(created.get("oldStatus")).isNull();
+        assertThat(created.get("newStatus")).isEqualTo("NEW");
+        assertThat(created.get("reason")).isEqualTo("created");
+        assertThat(confirmed.get("oldStatus")).isEqualTo("NEW");
+        assertThat(confirmed.get("newStatus")).isEqualTo("CONFIRMED");
+        assertThat(confirmed.get("reason")).isEqualTo("confirmed");
     }
 }

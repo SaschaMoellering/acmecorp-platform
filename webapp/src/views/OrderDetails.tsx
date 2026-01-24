@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Table from '../components/ui/Table';
-import { Order, OrderStatus, fetchOrderById } from '../api/client';
+import { Order, OrderStatus, OrderStatusHistory, fetchOrderById, fetchOrderHistory } from '../api/client';
 
 function statusTone(status: OrderStatus) {
   switch (status) {
@@ -20,6 +20,7 @@ function statusTone(status: OrderStatus) {
 function OrderDetails() {
   const { id } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
+  const [history, setHistory] = useState<OrderStatusHistory[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -27,6 +28,13 @@ function OrderDetails() {
     fetchOrderById(id)
       .then(setOrder)
       .catch(() => setError('Order not found'));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchOrderHistory(id)
+      .then(setHistory)
+      .catch(() => setHistory([]));
   }, [id]);
 
   if (error) return <div className="page"><p>{error}</p></div>;
@@ -62,6 +70,28 @@ function OrderDetails() {
             `${order.currency} ${item.lineTotal.toFixed?.(2) ?? item.lineTotal}`
           ])}
         />
+      </Card>
+      <Card title="Status history">
+        {history.length === 0 ? (
+          <p>No history recorded yet.</p>
+        ) : (
+          <div className="timeline">
+            {history.map((entry) => (
+              <div key={entry.id} className="timeline-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '8px 0', borderBottom: '1px solid rgba(148, 163, 184, 0.2)' }}>
+                <div>
+                  <strong>{entry.newStatus}</strong>{' '}
+                  <span style={{ color: '#64748b' }}>
+                    {entry.oldStatus ? `${entry.oldStatus} → ${entry.newStatus}` : `created as ${entry.newStatus}`}
+                  </span>
+                  {entry.reason && <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{entry.reason}</div>}
+                </div>
+                <div style={{ color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                  {new Date(entry.changedAt).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );

@@ -6,10 +6,13 @@ import com.acmecorp.orders.client.CatalogClient;
 import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
+import com.acmecorp.orders.domain.OrderStatusHistory;
 import com.acmecorp.orders.messaging.NotificationPublisher;
 import com.acmecorp.orders.repository.OrderRepository;
+import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import com.acmecorp.orders.web.OrderStatusHistoryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -40,17 +43,20 @@ public class OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
+    private final OrderStatusHistoryRepository historyRepository;
     private final CatalogClient catalogClient;
     private final BillingClient billingClient;
     private final AnalyticsClient analyticsClient;
     private final NotificationPublisher notificationPublisher;
 
     public OrderService(OrderRepository orderRepository,
+                        OrderStatusHistoryRepository historyRepository,
                         CatalogClient catalogClient,
                         BillingClient billingClient,
                         AnalyticsClient analyticsClient,
                         NotificationPublisher notificationPublisher) {
         this.orderRepository = orderRepository;
+        this.historyRepository = historyRepository;
         this.catalogClient = catalogClient;
         this.billingClient = billingClient;
         this.analyticsClient = analyticsClient;
@@ -73,6 +79,7 @@ public class OrderService {
         applyItems(order, request.items());
 
         Order saved = orderRepository.save(order);
+        recordStatusChange(saved, null, saved.getStatus(), "created");
         analyticsClient.track("orders.created", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
     }
@@ -122,9 +129,11 @@ public class OrderService {
             if (order.getStatus() != OrderStatus.NEW) {
                 throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be confirmed");
             }
+            OrderStatus oldStatus = order.getStatus();
             order.setStatus(OrderStatus.CONFIRMED);
             order.setUpdatedAt(Instant.now());
             Order saved = orderRepository.save(order);
+            recordStatusChange(saved, oldStatus, saved.getStatus(), "confirmed");
 
             billingClient.createInvoice(saved);
             analyticsClient.track("orders.confirmed", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
@@ -145,9 +154,11 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.NEW) {
             throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be cancelled");
         }
+        OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         order.setUpdatedAt(Instant.now());
         Order saved = orderRepository.save(order);
+        recordStatusChange(saved, oldStatus, saved.getStatus(), "cancelled");
         analyticsClient.track("orders.cancelled", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
     }
@@ -168,6 +179,7 @@ public class OrderService {
     @Transactional
     public Order updateOrder(Long id, OrderRequest request) {
         Order order = getOrder(id);
+        OrderStatus oldStatus = order.getStatus();
 
         if (request.customerEmail() != null) {
             order.setCustomerEmail(request.customerEmail());
@@ -186,6 +198,9 @@ public class OrderService {
         }
 
         Order saved = orderRepository.save(order);
+        if (request.status() != null && oldStatus != saved.getStatus()) {
+            recordStatusChange(saved, oldStatus, saved.getStatus(), "updated");
+        }
         analyticsClient.track("orders.updated", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
     }
@@ -195,6 +210,15 @@ public class OrderService {
         Order order = getOrder(id);
         orderRepository.delete(order);
         analyticsClient.track("orders.deleted", Map.of("orderId", order.getId(), "orderNumber", order.getOrderNumber()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistoryResponse> history(Long orderId) {
+        getOrder(orderId);
+        return historyRepository.findByOrderIdOrderByChangedAtAsc(orderId)
+                .stream()
+                .map(OrderStatusHistoryResponse::from)
+                .toList();
     }
 
     @Transactional
@@ -285,7 +309,9 @@ public class OrderService {
 
         order.setCurrency("USD");
         order.setTotalAmount(total);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        recordStatusChange(saved, null, saved.getStatus(), "seeded");
+        return saved;
     }
 
     private List<OrderRequest> defaultSeeds() {
@@ -319,5 +345,15 @@ public class OrderService {
                     return prefix + String.format("%05d", next);
                 })
                 .orElse(prefix + "00001");
+    }
+
+    private void recordStatusChange(Order order, OrderStatus oldStatus, OrderStatus newStatus, String reason) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setOldStatus(oldStatus);
+        history.setNewStatus(newStatus);
+        history.setReason(reason);
+        history.setChangedAt(Instant.now());
+        historyRepository.save(history);
     }
 }

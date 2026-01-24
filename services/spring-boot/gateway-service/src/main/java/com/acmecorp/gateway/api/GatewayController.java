@@ -84,8 +84,14 @@ public class GatewayController {
     }
 
     @GetMapping("/orders/{id}")
-    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id) {
-        return gatewayService.orderDetails(id);
+    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id,
+                                               @RequestParam(name = "includeHistory", defaultValue = "false") boolean includeHistory) {
+        return gatewayService.orderDetails(id, includeHistory);
+    }
+
+    @GetMapping("/orders/{id}/history")
+    public Mono<List<Map<String, Object>>> orderHistory(@PathVariable("id") Long id) {
+        return gatewayService.orderHistory(id);
     }
 
     // -------------------------------------------------------------------------
