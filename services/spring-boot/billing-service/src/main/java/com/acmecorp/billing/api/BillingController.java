@@ -6,14 +6,13 @@ import com.acmecorp.billing.web.InvoiceRequest;
 import com.acmecorp.billing.web.InvoiceResponse;
 import com.acmecorp.billing.web.PaymentRequest;
 import com.acmecorp.billing.web.PageResponse;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/billing")
@@ -50,9 +49,7 @@ public class BillingController {
                                                       @RequestParam(name = "page", defaultValue = "0") int page,
                                                       @RequestParam(name = "size", defaultValue = "20") int size) {
         var invoices = billingService.listInvoices(customerEmail, status, orderId, page, size);
-        var responses = invoices.getContent().stream()
-                .map(InvoiceResponse::from)
-                .collect(Collectors.toList());
+        var responses = invoices.getContent().stream().map(InvoiceResponse::from).toList();
         return PageResponse.from(new PageImpl<>(responses, PageRequest.of(page, size), invoices.getTotalElements()));
     }
 

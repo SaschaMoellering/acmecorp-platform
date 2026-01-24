@@ -77,13 +77,15 @@ class BillingControllerTest {
 
         mockMvc.perform(post("/api/billing/invoices")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"
-                                + "\"orderId\":10,"
-                                + "\"orderNumber\":\"ORD-10\","
-                                + "\"customerEmail\":\"billing@acme.test\","
-                                + "\"amount\":45.50,"
-                                + "\"currency\":\"USD\""
-                                + "}"))
+                        .content("""
+                                {
+                                  "orderId": 10,
+                                  "orderNumber": "ORD-10",
+                                  "customerEmail": "billing@acme.test",
+                                  "amount": 45.50,
+                                  "currency": "USD"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invoiceNumber").value("INV-3"))
                 .andExpect(jsonPath("$.status").value("OPEN"));

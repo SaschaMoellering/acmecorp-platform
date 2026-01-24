@@ -4,6 +4,7 @@ import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.BeforeAll;
 
 import java.net.URI;
@@ -14,20 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import static io.restassured.RestAssured.given;
 
 public abstract class AbstractIntegrationTest {
 
-    private static final Duration MAX_WAIT = Duration.ofSeconds(120);
-    private static final Duration INITIAL_BACKOFF = Duration.ofSeconds(1);
-    private static final Duration MAX_BACKOFF = Duration.ofSeconds(5);
-    private static final AtomicBoolean WAIT_ONCE = new AtomicBoolean(false);
     protected static String gatewayBase;
     protected static String gatewayApiBase;
+    protected static String ordersBase;
     private static final Set<String> EXPECTED_SERVICES = Set.of(
             "orders",
             "billing",
@@ -38,24 +34,35 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeAll
     static void setupBase() {
-        gatewayBase = gatewayBaseUrl();
+        gatewayBase = resolveBaseUrl();
         gatewayApiBase = gatewayBase + "/api/gateway";
+        ordersBase = resolveOrdersBaseUrl();
         RestAssured.baseURI = gatewayBase;
 
-        if (WAIT_ONCE.compareAndSet(false, true)) {
-            waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
-            waitForGatewaySystemStatus();
-        }
+        waitForGatewaySystemStatus();
+        seedDemoData();
     }
 
     private static void waitForServiceHealth(String serviceName, String url) {
         List<String> candidates = healthCandidates(url);
         AtomicReference<AttemptResult> lastAttempt = new AtomicReference<>();
-        waitWithBackoff(
-                "waiting for " + serviceName + " at " + url,
-                () -> isAnyHealthUp(candidates, lastAttempt),
-                () -> formatLastAttempt(lastAttempt.get())
-        );
+        try {
+            org.awaitility.Awaitility.await()
+                    .atMost(Duration.ofSeconds(120))
+                    .pollInterval(Duration.ofSeconds(2))
+                    .until(() -> isAnyHealthUp(candidates, lastAttempt));
+        } catch (ConditionTimeoutException ex) {
+            AttemptResult attempt = lastAttempt.get();
+            String lastInfo = attempt == null
+                    ? "no responses captured"
+                    : "last response from " + attempt.url + " status=" + attempt.statusCode
+                    + " body=" + attempt.bodySnippet;
+            throw new IllegalStateException(
+                    "Timed out waiting for " + serviceName + " at " + url
+                            + "; tried " + candidates
+                            + "; " + lastInfo,
+                    ex);
+        }
     }
 
     private static List<String> healthCandidates(String healthUrl) {
@@ -75,44 +82,52 @@ public abstract class AbstractIntegrationTest {
         return uri.getScheme() + "://" + uri.getAuthority();
     }
 
-    private static String gatewayBaseUrl() {
-        String base = getenvOrProperty("GATEWAY_BASE_URL", "gateway.baseUrl");
+    private static String resolveBaseUrl() {
+        String base = System.getProperty("acmecorp.baseUrl");
+        if (base == null || base.isBlank()) {
+            base = System.getenv("GATEWAY_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ACMECORP_BASE_URL");
+        }
         if (base == null || base.isBlank()) {
             base = "http://localhost:8080";
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
-    private static String getenvOrProperty(String env, String property) {
-        String value = System.getenv(env);
-        if (value == null || value.isBlank()) {
-            value = System.getProperty(property);
+    private static String resolveOrdersBaseUrl() {
+        String base = System.getProperty("acmecorp.ordersBaseUrl");
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ORDERS_BASE_URL");
         }
-        return value;
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ACMECORP_ORDERS_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = "http://localhost:8081";
+        }
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private static boolean isAnyHealthUp(List<String> urls, AtomicReference<AttemptResult> lastAttempt) {
         for (String url : urls) {
+            io.restassured.response.Response response = given()
+                    .when()
+                    .get(url);
+            int statusCode = response.getStatusCode();
+            String body = response.getBody().asString();
+            lastAttempt.set(new AttemptResult(url, statusCode, snippet(body)));
+            if (statusCode != 200) {
+                continue;
+            }
             try {
-                io.restassured.response.Response response = given()
-                        .when()
-                        .get(url);
-                int statusCode = response.getStatusCode();
-                String body = response.getBody().asString();
-                lastAttempt.set(new AttemptResult(url, statusCode, snippet(body)));
-                if (statusCode != 200) {
-                    continue;
+                Map<String, Object> health = response.as(new TypeRef<Map<String, Object>>() {});
+                if ("UP".equals(health.get("status"))) {
+                    return true;
                 }
-                try {
-                    Map<String, Object> health = response.as(new TypeRef<Map<String, Object>>() {});
-                    if ("UP".equals(health.get("status"))) {
-                        return true;
-                    }
-                } catch (Exception ignored) {
-                    // Try next candidate if JSON parsing fails.
-                }
-            } catch (Exception ex) {
-                lastAttempt.set(new AttemptResult(url, 0, "request failed: " + ex.getClass().getSimpleName()));
+            } catch (Exception ignored) {
+                // Try next candidate if JSON parsing fails.
             }
         }
         return false;
@@ -144,76 +159,101 @@ public abstract class AbstractIntegrationTest {
 
     private static void waitForGatewaySystemStatus() {
         String url = gatewayApiBase + "/system/status";
-        AtomicReference<AttemptResult> lastAttempt = new AtomicReference<>();
-        waitWithBackoff(
-                "waiting for gateway system status at " + url,
-                () -> isGatewaySystemUp(url, lastAttempt),
-                () -> formatLastAttempt(lastAttempt.get())
+        try {
+            org.awaitility.Awaitility.await()
+                    .atMost(Duration.ofSeconds(120))
+                    .pollInterval(Duration.ofSeconds(2))
+                    .until(() -> {
+                        List<Map<String, Object>> statuses = fetchSystemStatus(url);
+
+                        if (statuses == null || statuses.isEmpty()) {
+                            return false;
+                        }
+
+                        Set<String> seen = new LinkedHashSet<>();
+                        for (Map<String, Object> status : statuses) {
+                            Object service = status.get("service");
+                            Object health = status.get("status");
+                            if (service != null) {
+                                seen.add(service.toString());
+                            }
+                            if (health == null || !isHealthyState(health.toString())) {
+                                return false;
+                            }
+                        }
+                        return seen.containsAll(EXPECTED_SERVICES);
+                    });
+        } catch (ConditionTimeoutException ex) {
+            String statusBody = safeBody(given().when().get(url));
+            throw new IllegalStateException("Timed out waiting for gateway system status at " + url
+                    + "; last response=" + statusBody, ex);
+        }
+    }
+
+    private static void seedDemoData() {
+        var response = given()
+                .when()
+                .post(gatewayApiBase + "/seed");
+        assertStatus(response, 200, "POST " + gatewayApiBase + "/seed");
+    }
+
+    protected static List<Map<String, Object>> fetchSystemStatus(String url) {
+        return given()
+                .when()
+                .get(url)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<List<Map<String, Object>>>() {});
+    }
+
+    protected static boolean isHealthyState(String status) {
+        if (status == null) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return "UP".equals(normalized) || "READY".equals(normalized);
+    }
+
+    protected static void assertStatus(io.restassured.response.Response response, int expected, String endpoint) {
+        int actual = response.getStatusCode();
+        if (actual != expected) {
+            String body = safeBody(response);
+            String systemStatus = fetchSystemStatusRaw();
+            String message = "Request failed: " + endpoint
+                    + " status=" + actual
+                    + " body=" + body
+                    + " systemStatus=" + systemStatus
+                    + " urls=" + serviceUrls();
+            throw new AssertionError(message);
+        }
+    }
+
+    protected static String fetchSystemStatusRaw() {
+        try {
+            return safeBody(given().when().get(gatewayApiBase + "/system/status"));
+        } catch (Exception ex) {
+            return "unavailable (" + ex.getMessage() + ")";
+        }
+    }
+
+    protected static Map<String, String> serviceUrls() {
+        return Map.of(
+                "gateway", gatewayBase,
+                "orders", ordersBase,
+                "gatewayApi", gatewayApiBase
         );
     }
 
-    private static boolean isGatewaySystemUp(String url, AtomicReference<AttemptResult> lastAttempt) {
-        try {
-            io.restassured.response.Response response = given()
-                    .when()
-                    .get(url);
-            int statusCode = response.getStatusCode();
-            String body = response.getBody().asString();
-            lastAttempt.set(new AttemptResult(url, statusCode, snippet(body)));
-            if (statusCode != 200) {
-                return false;
-            }
-            List<Map<String, Object>> statuses = response.as(new TypeRef<List<Map<String, Object>>>() {});
-
-            if (statuses == null || statuses.isEmpty()) {
-                return false;
-            }
-
-            Set<String> seen = new LinkedHashSet<>();
-            for (Map<String, Object> status : statuses) {
-                Object service = status.get("service");
-                Object health = status.get("status");
-                if (service != null) {
-                    seen.add(service.toString());
-                }
-                if (health == null || !"UP".equalsIgnoreCase(health.toString())) {
-                    return false;
-                }
-            }
-            return seen.containsAll(EXPECTED_SERVICES);
-        } catch (Exception ignored) {
-            lastAttempt.set(new AttemptResult(url, 0, "request failed: " + ignored.getClass().getSimpleName()));
-            return false;
+    protected static String safeBody(io.restassured.response.Response response) {
+        if (response == null) {
+            return "<no response>";
         }
-    }
-
-    private static String formatLastAttempt(AttemptResult attempt) {
-        return attempt == null
-                ? "no responses captured"
-                : "last response from " + attempt.url + " status=" + attempt.statusCode
-                + " body=" + attempt.bodySnippet;
-    }
-
-    private static void waitWithBackoff(String description, Supplier<Boolean> condition, Supplier<String> detailSupplier) {
-        long deadlineNanos = System.nanoTime() + MAX_WAIT.toNanos();
-        long backoffMillis = INITIAL_BACKOFF.toMillis();
-        long maxBackoffMillis = MAX_BACKOFF.toMillis();
-        while (System.nanoTime() < deadlineNanos) {
-            if (Boolean.TRUE.equals(condition.get())) {
-                return;
-            }
-            sleep(backoffMillis);
-            backoffMillis = Math.min(maxBackoffMillis, backoffMillis * 2);
-        }
-        String details = detailSupplier == null ? "" : "; " + detailSupplier.get();
-        throw new IllegalStateException("Timed out " + description + details);
-    }
-
-    private static void sleep(long millis) {
         try {
-            Thread.sleep(millis);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
+            String body = response.getBody() != null ? response.getBody().asString() : null;
+            return body == null ? "<empty>" : body;
+        } catch (Exception ex) {
+            return "<unreadable body>";
         }
     }
 
@@ -228,15 +268,14 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected JsonPath createOrder(String customerEmail, UUID productId, int quantity) {
-        String body = String.format("{\n"
-                        + "  \"customerEmail\": \"%s\",\n"
-                        + "  \"items\": [\n"
-                        + "    {\"productId\":\"%s\",\"quantity\":%d}\n"
-                        + "  ]\n"
-                        + "}",
-                customerEmail,
-                productId,
-                quantity);
+        String body = """
+                {
+                  "customerEmail": "%s",
+                  "items": [
+                    {"productId":"%s","quantity":%d}
+                  ]
+                }
+                """.formatted(customerEmail, productId, quantity);
 
         return given()
                 .contentType(ContentType.JSON)
@@ -308,8 +347,8 @@ public abstract class AbstractIntegrationTest {
             return List.of();
         }
         Object invoiceData = orderDetails.get("invoices");
-        if (invoiceData instanceof List<?>) {
-            return (List<Map<String, Object>>) (List<?>) invoiceData;
+        if (invoiceData instanceof List<?> list) {
+            return (List<Map<String, Object>>) (List<?>) list;
         }
         return List.of();
     }

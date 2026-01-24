@@ -74,14 +74,18 @@ class OrdersControllerTest {
         order.setCurrency("USD");
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
-        Mockito.when(orderService.createOrder(Mockito.any())).thenReturn(order);
+        Mockito.when(orderService.createOrder(Mockito.any(), Mockito.nullable(String.class))).thenReturn(order);
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"
-                                + "\"customerEmail\":\"demo@acme.test\","
-                                + "\"items\":[{\"productId\":\"SKU-1\",\"quantity\":1}]"
-                                + "}"))
+                        .content("""
+                                {
+                                  "customerEmail": "demo@acme.test",
+                                  "items": [
+                                    {"productId":"SKU-1","quantity":1}
+                                  ]
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderNumber").value("ORD-2025-00055"))
                 .andExpect(jsonPath("$.status").value("NEW"))
@@ -102,11 +106,13 @@ class OrdersControllerTest {
 
         mockMvc.perform(put("/api/orders/5")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{"
-                                + "\"customerEmail\":\"updated@acme.test\","
-                                + "\"items\":[{\"productId\":\"SKU-1\",\"quantity\":2}],"
-                                + "\"status\":\"CONFIRMED\""
-                                + "}"))
+                        .content("""
+                                {
+                                  "customerEmail": "updated@acme.test",
+                                  "items": [{"productId":"SKU-1","quantity":2}],
+                                  "status": "CONFIRMED"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerEmail").value("updated@acme.test"))
                 .andExpect(jsonPath("$.status").value("CONFIRMED"));
@@ -165,21 +171,37 @@ class OrdersControllerTest {
     void createOrderShouldFailValidationWhenItemsMissing() throws Exception {
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                .content("{"
-                        + "\"customerEmail\":\"demo@acme.test\","
-                        + "\"items\":[]"
-                        + "}"))
+                .content("""
+                                {
+                                  "customerEmail": "demo@acme.test",
+                                  "items": []
+                                }
+                                """))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void seedOrdersShouldReturnCount() throws Exception {
+        var seed1 = new com.acmecorp.orders.web.OrderResponse(
+                1L, "ORD-SEED-00001", "seed+1@acme.test", OrderStatus.NEW,
+                new BigDecimal("49.00"), "USD", Instant.now(), Instant.now(), List.of()
+        );
+        var seed2 = new com.acmecorp.orders.web.OrderResponse(
+                2L, "ORD-SEED-00002", "seed+2@acme.test", OrderStatus.NEW,
+                new BigDecimal("38.00"), "USD", Instant.now(), Instant.now(), List.of()
+        );
+        var seed3 = new com.acmecorp.orders.web.OrderResponse(
+                3L, "ORD-SEED-00003", "seed+3@acme.test", OrderStatus.NEW,
+                new BigDecimal("29.00"), "USD", Instant.now(), Instant.now(), List.of()
+        );
+        Mockito.when(orderService.seedDemoData()).thenReturn(List.of(seed1, seed2, seed3));
+
         mockMvc.perform(post("/api/orders/seed"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seeded").value(true))
                 .andExpect(jsonPath("$.count").value(3));
 
-        Mockito.verify(orderService).seedDemoData(Mockito.<OrderRequest>anyList());
+        Mockito.verify(orderService).seedDemoData();
     }
 
     @Test

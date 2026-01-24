@@ -1,8 +1,7 @@
 .PHONY: test-backend test-frontend test-all smoke-local up down build-backend
 
-
 test-backend:
-	for svc in services/spring-boot/*; do \
+	for svc in services/spring-boot/* services/quarkus/*; do \
 		if [ -d "$$svc" ] && [ -f "$$svc/pom.xml" ]; then \
 			echo "Testing $$svc"; \
 			(cd "$$svc" && mvn -q test); \
@@ -24,7 +23,7 @@ down:
 	cd infra/local && docker compose down
 
 build-backend:
-	for svc in services/spring-boot/*; do \
+	for svc in services/spring-boot/* services/quarkus/*; do \
 		if [ -d "$$svc" ] && [ -f "$$svc/pom.xml" ]; then \
 			echo "Building $$svc"; \
 			(cd "$$svc" && mvn -q package -DskipTests); \

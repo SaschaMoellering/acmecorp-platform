@@ -8,7 +8,7 @@ import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.messaging.NotificationPublisher;
 import com.acmecorp.orders.repository.OrderRepository;
-import javax.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;

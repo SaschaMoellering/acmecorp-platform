@@ -1,6 +1,6 @@
 package com.acmecorp.notification.domain;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity

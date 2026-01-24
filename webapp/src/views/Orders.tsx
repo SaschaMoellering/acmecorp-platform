@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -39,6 +39,7 @@ function Orders() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const createKeyRef = useRef<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [createForm, setCreateForm] = useState<OrderFormState>({
@@ -96,11 +97,15 @@ function Orders() {
     resetMessages();
     setCreating(true);
     try {
+      if (!createKeyRef.current && globalThis.crypto?.randomUUID) {
+        createKeyRef.current = globalThis.crypto.randomUUID();
+      }
       await createOrder({
         customerEmail: createForm.customerEmail,
         status: createForm.status,
         items: [{ productId: createForm.productId, quantity: Number(createForm.quantity) }]
-      });
+      }, createKeyRef.current ?? undefined);
+      createKeyRef.current = null;
       setMessage('Order saved');
       setCreateForm({ customerEmail: '', productId: '', quantity: 1, status: 'NEW' });
       await loadOrders();

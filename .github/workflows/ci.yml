@@ -5,9 +5,20 @@ on:
   pull_request:
 
 jobs:
+  branch-parity:
+    name: Branch Parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check java branch parity
+        run: bash ./scripts/check-branch-parity.sh
+
   backend:
     name: Backend Tests (Spring + Quarkus)
     runs-on: ubuntu-latest
+    needs: branch-parity
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +27,8 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 11
+          cache: 'maven'
 
       - name: Run backend tests
         run: |
@@ -30,6 +42,7 @@ jobs:
   frontend:
     name: Frontend Tests (Vite + Vitest)
     runs-on: ubuntu-latest
+    needs: branch-parity
     defaults:
       run:
         working-directory: webapp
@@ -54,7 +67,6 @@ jobs:
         run: |
           cd ..
           mkdir -p dist
-          # symlink root dist/worker.js -> webapp's Vitest worker
           SRC="webapp/node_modules/vitest/dist/worker.js"
           DST="dist/worker.js"
           if [ -e "$DST" ] && [ "$(readlink -f "$SRC")" = "$(readlink -f "$DST")" ]; then
@@ -64,7 +76,8 @@ jobs:
           fi
 
       - name: Run unit tests (Vitest)
-        run: npx vitest run --pool=forks
+        # Vitest does not support Jest's --runInBand; use a single-thread pool.
+        run: npx vitest run --pool=threads --poolOptions.threads.singleThread
 
   frontend-e2e:
     name: Frontend E2E (Playwright)
@@ -108,16 +121,11 @@ jobs:
           distribution: temurin
           java-version: 11
 
-      - name: Require Docker
-        run: |
-          bash scripts/require-docker.sh
-
       - name: Start Docker Compose stack
         run: |
           cd infra/local
           docker compose up -d --build
-          # Give services time to start
-          sleep 40
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run integration tests
         env:
@@ -140,21 +148,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Require Docker
-        run: |
-          bash scripts/require-docker.sh
-
       - name: Start Docker Compose
         run: |
           cd infra/local
           docker compose up -d
-          # Wait for services to become healthy
-          sleep 30
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run smoke tests
         run: |
           chmod +x scripts/smoke-local.sh
-          BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh
+          BASE_URL=http://localhost:8080 bash -x ./scripts/smoke-local.sh
 
       - name: Stop Docker Compose
         if: always()

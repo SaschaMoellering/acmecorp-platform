@@ -1,4 +1,0 @@
-management:
-  health:
-    db:
-      enabled: false
