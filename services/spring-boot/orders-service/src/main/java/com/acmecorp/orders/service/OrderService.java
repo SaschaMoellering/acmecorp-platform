@@ -257,10 +257,22 @@ public class OrderService {
     }
 
     @Transactional
-    public List<OrderResponse> seedDemoData(List<OrderRequest> requests) {
-        orderRepository.deleteAll();
+    public List<OrderResponse> seedDemoData() {
+        List<SeedOrderSpec> seeds = defaultSeedSpecs();
+        List<String> seedOrderNumbers = seeds.stream()
+                .map(SeedOrderSpec::orderNumber)
+                .collect(Collectors.toList());
 
-        List<OrderRequest> seeds = (requests == null || requests.isEmpty()) ? defaultSeeds() : requests;
+        List<Order> existing = orderRepository.findByOrderNumberIn(seedOrderNumbers);
+        if (!existing.isEmpty()) {
+            List<Long> ids = existing.stream().map(Order::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            if (!ids.isEmpty()) {
+                historyRepository.deleteByOrderIdIn(ids);
+                idempotencyRepository.deleteByOrderIdIn(ids);
+            }
+            orderRepository.deleteAll(existing);
+        }
+
         return seeds.stream()
                 .map(this::createSeedOrder)
                 .map(OrderResponse::from)
@@ -322,38 +334,59 @@ public class OrderService {
         order.setTotalAmount(total);
     }
 
-    private Order createSeedOrder(OrderRequest request) {
+    private Order createSeedOrder(SeedOrderSpec spec) {
         Order order = new Order();
-        order.setOrderNumber(generateOrderNumber());
-        order.setCustomerEmail(request.customerEmail());
-        order.setStatus(Optional.ofNullable(request.status()).orElse(OrderStatus.NEW));
-        order.setCreatedAt(Instant.now());
-        order.setUpdatedAt(order.getCreatedAt());
+        order.setOrderNumber(spec.orderNumber());
+        order.setCustomerEmail(spec.customerEmail());
+        order.setStatus(OrderStatus.NEW);
+        order.setCreatedAt(spec.createdAt());
+        order.setUpdatedAt(spec.createdAt());
 
-        BigDecimal total = BigDecimal.ZERO;
-        for (OrderRequest.Item itemRequest : request.items()) {
-            OrderItem item = new OrderItem();
-            item.setProductId(itemRequest.productId());
-            item.setProductName(itemRequest.productId());
-            item.setUnitPrice(BigDecimal.TEN);
-            item.setQuantity(itemRequest.quantity());
-            item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(itemRequest.quantity())));
-            order.addItem(item);
-            total = total.add(item.getLineTotal());
-        }
+        OrderItem item = new OrderItem();
+        item.setProductId(spec.productId());
+        item.setProductName(spec.productName());
+        item.setUnitPrice(spec.unitPrice());
+        item.setQuantity(spec.quantity());
+        item.setLineTotal(spec.unitPrice().multiply(BigDecimal.valueOf(spec.quantity())));
+        order.addItem(item);
 
         order.setCurrency("USD");
-        order.setTotalAmount(total);
+        order.setTotalAmount(item.getLineTotal());
         Order saved = orderRepository.save(order);
-        recordStatusChange(saved, null, saved.getStatus(), "seeded");
+        recordStatusChangeAt(saved, null, saved.getStatus(), "seeded", spec.createdAt());
         return saved;
     }
 
-    private List<OrderRequest> defaultSeeds() {
+    private List<SeedOrderSpec> defaultSeedSpecs() {
+        Instant base = Instant.parse("2024-01-01T00:00:00Z");
         return List.of(
-                new OrderRequest("seed+1@acme.test", List.of(new OrderRequest.Item("SKU-1", 1)), OrderStatus.NEW),
-                new OrderRequest("seed+2@acme.test", List.of(new OrderRequest.Item("SKU-2", 2)), OrderStatus.CONFIRMED),
-                new OrderRequest("seed+3@acme.test", List.of(new OrderRequest.Item("SKU-3", 1)), OrderStatus.CANCELLED)
+                new SeedOrderSpec(
+                        "ORD-SEED-00001",
+                        "seed+1@acme.test",
+                        "11111111-1111-1111-1111-111111111111",
+                        "Acme Streamer Pro",
+                        new BigDecimal("49.00"),
+                        1,
+                        base
+                ),
+                new SeedOrderSpec(
+                        "ORD-SEED-00002",
+                        "seed+2@acme.test",
+                        "22222222-2222-2222-2222-222222222222",
+                        "Alerting Add-on",
+                        new BigDecimal("19.00"),
+                        2,
+                        base.plusSeconds(60)
+                ),
+                new SeedOrderSpec(
+                        "ORD-SEED-00003",
+                        "seed+3@acme.test",
+                        "33333333-3333-3333-3333-333333333333",
+                        "Secure Storage 1TB",
+                        new BigDecimal("29.00"),
+                        1,
+                        base.plusSeconds(120)
+                )
         );
     }
 
@@ -419,5 +452,69 @@ public class OrderService {
         history.setReason(reason);
         history.setChangedAt(Instant.now());
         historyRepository.save(history);
+    }
+
+    private void recordStatusChangeAt(Order order, OrderStatus oldStatus, OrderStatus newStatus, String reason, Instant changedAt) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setOldStatus(oldStatus);
+        history.setNewStatus(newStatus);
+        history.setReason(reason);
+        history.setChangedAt(changedAt);
+        historyRepository.save(history);
+    }
+
+    private static final class SeedOrderSpec {
+        private final String orderNumber;
+        private final String customerEmail;
+        private final String productId;
+        private final String productName;
+        private final BigDecimal unitPrice;
+        private final int quantity;
+        private final Instant createdAt;
+
+        private SeedOrderSpec(String orderNumber,
+                              String customerEmail,
+                              String productId,
+                              String productName,
+                              BigDecimal unitPrice,
+                              int quantity,
+                              Instant createdAt) {
+            this.orderNumber = orderNumber;
+            this.customerEmail = customerEmail;
+            this.productId = productId;
+            this.productName = productName;
+            this.unitPrice = unitPrice;
+            this.quantity = quantity;
+            this.createdAt = createdAt;
+        }
+
+        private String orderNumber() {
+            return orderNumber;
+        }
+
+        private String customerEmail() {
+            return customerEmail;
+        }
+
+        private String productId() {
+            return productId;
+        }
+
+        private String productName() {
+            return productName;
+        }
+
+        private BigDecimal unitPrice() {
+            return unitPrice;
+        }
+
+        private int quantity() {
+            return quantity;
+        }
+
+        private Instant createdAt() {
+            return createdAt;
+        }
     }
 }
