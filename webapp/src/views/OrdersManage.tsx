@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/ui/Card';
 import Table from '../components/ui/Table';
 import Badge from '../components/ui/Badge';
@@ -25,6 +25,7 @@ function OrdersManage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const createKeyRef = useRef<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -61,11 +62,15 @@ function OrdersManage() {
     setFormError(null);
     setToast(null);
     try {
+      if (!createKeyRef.current && globalThis.crypto?.randomUUID) {
+        createKeyRef.current = globalThis.crypto.randomUUID();
+      }
       await createOrder({
         customerEmail: values.customerEmail,
         status: values.status,
         items: [{ productId: values.productId, quantity: values.quantity }]
-      });
+      }, createKeyRef.current ?? undefined);
+      createKeyRef.current = null;
       setCreateOpen(false);
       setToast('Order created');
       await loadOrders();

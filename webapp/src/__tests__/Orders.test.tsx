@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import Orders from '../views/Orders';
 import { listOrders } from '../api/client';
 
@@ -40,12 +40,7 @@ describe('Orders view', () => {
 
     expect(screen.getByText(/Loading orders/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
-    // Scope to the Orders card to avoid duplicate matches across stale renders.
-    const ordersCard = screen.getByText('Orders').closest('.card');
-    if (!ordersCard) {
-      throw new Error('Orders card not found');
-    }
-    expect(within(ordersCard).getByText('orders@example.com')).toBeInTheDocument();
+    expect(screen.getByText('orders@example.com')).toBeInTheDocument();
     expect(mockedListOrders).toHaveBeenCalled();
   });
 

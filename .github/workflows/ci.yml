@@ -5,9 +5,20 @@ on:
   pull_request:
 
 jobs:
+  branch-parity:
+    name: Branch Parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check java branch parity
+        run: bash ./scripts/check-branch-parity.sh
+
   backend:
     name: Backend Tests (Spring + Quarkus)
     runs-on: ubuntu-latest
+    needs: branch-parity
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,6 +28,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: 'maven'
 
       - name: Run backend tests
         run: |
@@ -30,6 +42,7 @@ jobs:
   frontend:
     name: Frontend Tests (Vite + Vitest)
     runs-on: ubuntu-latest
+    needs: branch-parity
     defaults:
       run:
         working-directory: webapp
@@ -112,8 +125,7 @@ jobs:
         run: |
           cd infra/local
           docker compose up -d --build
-          # Give services time to start
-          sleep 40
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run integration tests
         env:
@@ -140,8 +152,7 @@ jobs:
         run: |
           cd infra/local
           docker compose up -d
-          # Wait for services to become healthy
-          sleep 30
+          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run smoke tests
         run: |

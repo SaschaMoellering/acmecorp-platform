@@ -20,11 +20,7 @@ The app expects the gateway-service at `http://localhost:8080` (configurable via
 - `src/components` — layout shell, UI primitives, feature widgets
 - `src/views` — routed pages: Dashboard, Orders, Catalog, Analytics, System
 
-## Testing
+## CI note: `dist` worker shim
 
-```bash
-cd webapp
-npx vitest run --config vitest.config.ts --pool=threads --poolOptions.threads.singleThread
-```
-
-Vitest does not support Jest's `--runInBand`, so CI uses a single-thread pool for deterministic runs.
+In CI we create a temporary `dist/worker.js` symlink to keep Vitest/Tinypool happy in clean checkouts.
+`dist/` is intentionally not tracked in git.

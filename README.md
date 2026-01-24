@@ -68,15 +68,6 @@ curl -X POST http://localhost:8080/api/gateway/seed
 
 The UI uses `VITE_API_BASE_URL` (default `http://localhost:8080`). Adjust that env var when running the SPA against a different gateway host.
 
-## Containerized Builds/Tests (Baseline JDK)
-
-Use Docker to run backend builds/tests against a specific Java baseline, independent of the host JDK.
-
-```bash
-./scripts/run-build-in-jdk.sh 17
-./scripts/run-tests-in-jdk.sh 17
-```
-
 ## API Overview
 
 - `GET /api/gateway/status` – lightweight service health.
@@ -124,6 +115,16 @@ The test ensures the fixed flow cannot regresses into N+1 while developers can s
 6. Episode 6 – Catalog and Orders Management Workflows  
 7. Episode 7 – Automation, GitOps, and Helm Deployments  
 8. Episode 8 – Monitoring, Alerts, and Runbook Drills  
+
+## Backport automation
+
+Use the backport script to cherry-pick a fix from `main` into the long-lived Java branches:
+
+```bash
+bash scripts/backport.sh <SHA>
+```
+
+You can also run the GitHub Actions workflow manually (workflow_dispatch) and provide `commit_sha` (and optionally `branches`) to backport via CI.
 
 ## Troubleshooting
 

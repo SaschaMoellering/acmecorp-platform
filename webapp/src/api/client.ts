@@ -37,6 +37,15 @@ export type OrderItemPayload = {
   quantity: number;
 };
 
+export type OrderStatusHistory = {
+  id: number;
+  orderId: number;
+  oldStatus: OrderStatus | null;
+  newStatus: OrderStatus;
+  reason: string;
+  changedAt: string;
+};
+
 export type NewOrderPayload = {
   customerEmail: string;
   status?: OrderStatus;
@@ -66,6 +75,24 @@ export type PageResponse<T> = {
   totalPages: number;
 };
 
+export type ApiErrorResponse = {
+  timestamp: string;
+  traceId: string | null;
+  status: number;
+  error: string;
+  message: string;
+  path: string;
+  fields?: Record<string, string>;
+};
+
+export type ApiError = Error & {
+  status: number;
+  error?: string;
+  fields?: Record<string, string>;
+  traceId?: string | null;
+  path?: string;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function handle<T>(path: string, init?: RequestInit): Promise<T> {
@@ -73,17 +100,37 @@ async function handle<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...init
   });
-  if (!res.ok) {
-      console.error('API error for', path, 'status:', res.status, 'body:', text);
-      throw new Error(`Request failed: ${res.status}`);
-  }
 
   const text = await res.text();
+  if (!res.ok) {
+    const error = toApiError(res, text, path);
+    console.error('API error for', path, 'status:', res.status, 'body:', text);
+    throw error;
+  }
   if (!text) {
     return undefined as T;
   }
 
   return JSON.parse(text);
+}
+
+function toApiError(res: Response, text: string, path: string): ApiError {
+  let parsed: ApiErrorResponse | null = null;
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as ApiErrorResponse;
+    } catch {
+      parsed = null;
+    }
+  }
+  const message = parsed?.message || `Request failed: ${res.status}`;
+  const error = new Error(message) as ApiError;
+  error.status = res.status;
+  error.error = parsed?.error;
+  error.fields = parsed?.fields;
+  error.traceId = parsed?.traceId ?? null;
+  error.path = parsed?.path || path;
+  return error;
 }
 
 export function fetchOrders(): Promise<Order[]> {
@@ -92,6 +139,10 @@ export function fetchOrders(): Promise<Order[]> {
 
 export function fetchOrderById(id: string | number): Promise<Order> {
   return handle<Order>(`/api/gateway/orders/${id}`);
+}
+
+export function fetchOrderHistory(id: string | number): Promise<OrderStatusHistory[]> {
+  return handle<OrderStatusHistory[]>(`/api/gateway/orders/${id}/history`);
 }
 
 export function fetchCatalog(): Promise<Product[]> {
@@ -124,9 +175,15 @@ export function getOrder(id: string): Promise<Order> {
   return handle<Order>(`/api/gateway/orders/${id}`);
 }
 
-export function createOrder(payload: NewOrderPayload): Promise<Order> {
+export function createOrder(payload: NewOrderPayload, idempotencyKey?: string): Promise<Order> {
+  const key = idempotencyKey || (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : undefined);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) {
+    headers['Idempotency-Key'] = key;
+  }
   return handle<Order>('/api/gateway/orders', {
     method: 'POST',
+    headers,
     body: JSON.stringify(payload)
   });
 }
@@ -181,9 +238,8 @@ export async function deleteProduct(id: string): Promise<void> {
 }
 
 export type SeedResult = {
-  ordersCreated: number;
-  productsCreated: number;
-  message: string;
+  catalogSeeded: number;
+  ordersSeeded: number;
 };
 
 export async function seedDemoData(): Promise<SeedResult> {
