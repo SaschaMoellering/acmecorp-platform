@@ -53,6 +53,21 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
                 .when()
                 .post(gatewayApiBase + "/orders")
                 .then()
-                .statusCode(400);
+                .statusCode(400)
+                .body("error", org.hamcrest.Matchers.equalTo("VALIDATION_ERROR"))
+                .body("fields.items", org.hamcrest.Matchers.notNullValue());
+    }
+
+    @Test
+    void fetchingMissingOrderShouldReturnNotFound() {
+        long missingId = 999999L;
+
+        given()
+                .when()
+                .get(ordersBase + "/api/orders/{id}", missingId)
+                .then()
+                .statusCode(404)
+                .body("error", org.hamcrest.Matchers.equalTo("NOT_FOUND"))
+                .body("status", org.hamcrest.Matchers.equalTo(404));
     }
 }
