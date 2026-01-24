@@ -37,6 +37,15 @@ export type OrderItemPayload = {
   quantity: number;
 };
 
+export type OrderStatusHistory = {
+  id: number;
+  orderId: number;
+  oldStatus: OrderStatus | null;
+  newStatus: OrderStatus;
+  reason: string;
+  changedAt: string;
+};
+
 export type NewOrderPayload = {
   customerEmail: string;
   status?: OrderStatus;
@@ -130,6 +139,10 @@ export function fetchOrders(): Promise<Order[]> {
 
 export function fetchOrderById(id: string | number): Promise<Order> {
   return handle<Order>(`/api/gateway/orders/${id}`);
+}
+
+export function fetchOrderHistory(id: string | number): Promise<OrderStatusHistory[]> {
+  return handle<OrderStatusHistory[]>(`/api/gateway/orders/${id}/history`);
 }
 
 export function fetchCatalog(): Promise<Product[]> {

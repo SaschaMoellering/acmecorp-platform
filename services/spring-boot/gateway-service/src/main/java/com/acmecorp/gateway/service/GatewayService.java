@@ -146,6 +146,10 @@ public class GatewayService {
     }
 
     public Mono<OrderWithInvoice> orderDetails(Long id) {
+        return orderDetails(id, false);
+    }
+
+    public Mono<OrderWithInvoice> orderDetails(Long id, boolean includeHistory) {
         // Order details from Orders Service
         String orderUrl = ordersBaseUrl + "/api/orders/{id}";
         // Invoices for that order from Billing Service (assumed endpoint)
@@ -169,8 +173,25 @@ public class GatewayService {
                 })
                 .onErrorReturn(new ArrayList<InvoiceSummary>());
 
-        return Mono.zip(orderMono, invoicesMono)
-                .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
+        if (!includeHistory) {
+            return Mono.zip(orderMono, invoicesMono)
+                    .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
+        }
+
+        Mono<List<Map<String, Object>>> historyMono = orderHistory(id)
+                .onErrorReturn(new ArrayList<>());
+
+        return Mono.zip(orderMono, invoicesMono, historyMono)
+                .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2(), tuple.getT3()));
+    }
+
+    public Mono<List<Map<String, Object>>> orderHistory(Long id) {
+        String url = ordersBaseUrl + "/api/orders/{id}/history";
+        log.debug("Fetching order history {} via Orders Service: {}", id, url);
+        return webClient.get()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
     }
 
     // -------------------------------------------------------------------------
@@ -396,6 +417,7 @@ public class GatewayService {
     public static class OrderWithInvoice {
         public OrderSummary order;
         public List<InvoiceSummary> invoices;
+        public List<Map<String, Object>> history;
 
         public OrderWithInvoice() {
         }
@@ -403,6 +425,12 @@ public class GatewayService {
         public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
             this.order = order;
             this.invoices = invoices;
+        }
+
+        public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices, List<Map<String, Object>> history) {
+            this.order = order;
+            this.invoices = invoices;
+            this.history = history;
         }
     }
 
