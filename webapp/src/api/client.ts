@@ -175,9 +175,15 @@ export function getOrder(id: string): Promise<Order> {
   return handle<Order>(`/api/gateway/orders/${id}`);
 }
 
-export function createOrder(payload: NewOrderPayload): Promise<Order> {
+export function createOrder(payload: NewOrderPayload, idempotencyKey?: string): Promise<Order> {
+  const key = idempotencyKey || (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : undefined);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) {
+    headers['Idempotency-Key'] = key;
+  }
   return handle<Order>('/api/gateway/orders', {
     method: 'POST',
+    headers,
     body: JSON.stringify(payload)
   });
 }

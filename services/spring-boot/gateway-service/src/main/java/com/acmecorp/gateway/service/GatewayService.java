@@ -61,17 +61,26 @@ public class GatewayService {
                 .bodyToMono(new ParameterizedTypeReference<PageResponse<OrderSummary>>() {});
     }
 
-    public Mono<OrderSummary> createOrder(OrderRequest request) {
+    public Mono<OrderSummary> createOrder(OrderRequest request, String idempotencyKey) {
         String url = ordersBaseUrl + "/api/orders";
 
         log.debug("Creating order via Orders Service: {}", url);
 
-        return webClient.post()
+        var requestSpec = webClient.post()
                 .uri(url)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
+                .bodyValue(request);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            requestSpec = requestSpec.header("Idempotency-Key", idempotencyKey);
+        }
+
+        return requestSpec.retrieve()
                 .bodyToMono(OrderSummary.class);
+    }
+
+    public Mono<OrderSummary> createOrder(OrderRequest request) {
+        return createOrder(request, null);
     }
 
     public Mono<OrderSummary> updateOrder(Long id, OrderRequest request) {

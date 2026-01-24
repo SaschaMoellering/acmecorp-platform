@@ -3,11 +3,13 @@ package com.acmecorp.orders.service;
 import com.acmecorp.orders.client.AnalyticsClient;
 import com.acmecorp.orders.client.BillingClient;
 import com.acmecorp.orders.client.CatalogClient;
+import com.acmecorp.orders.domain.OrderIdempotency;
 import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.domain.OrderStatusHistory;
 import com.acmecorp.orders.messaging.NotificationPublisher;
+import com.acmecorp.orders.repository.OrderIdempotencyRepository;
 import com.acmecorp.orders.repository.OrderRepository;
 import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import com.acmecorp.orders.web.OrderRequest;
@@ -25,6 +27,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.Year;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +47,7 @@ public class OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
+    private final OrderIdempotencyRepository idempotencyRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final CatalogClient catalogClient;
     private final BillingClient billingClient;
@@ -50,12 +55,14 @@ public class OrderService {
     private final NotificationPublisher notificationPublisher;
 
     public OrderService(OrderRepository orderRepository,
+                        OrderIdempotencyRepository idempotencyRepository,
                         OrderStatusHistoryRepository historyRepository,
                         CatalogClient catalogClient,
                         BillingClient billingClient,
                         AnalyticsClient analyticsClient,
                         NotificationPublisher notificationPublisher) {
         this.orderRepository = orderRepository;
+        this.idempotencyRepository = idempotencyRepository;
         this.historyRepository = historyRepository;
         this.catalogClient = catalogClient;
         this.billingClient = billingClient;
@@ -64,9 +71,24 @@ public class OrderService {
     }
 
     @Transactional
-    public Order createOrder(OrderRequest request) {
+    public Order createOrder(OrderRequest request, String idempotencyKey) {
         if (request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Order must contain at least one item");
+        }
+
+        String requestHash = requestHash(request);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var existing = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                OrderIdempotency record = existing.get();
+                if (!record.getRequestHash().equals(requestHash)) {
+                    throw new ResponseStatusException(
+                            org.springframework.http.HttpStatus.CONFLICT,
+                            "Idempotency-Key reuse with different request"
+                    );
+                }
+                return getOrder(record.getOrder().getId());
+            }
         }
 
         Order order = new Order();
@@ -79,9 +101,22 @@ public class OrderService {
         applyItems(order, request.items());
 
         Order saved = orderRepository.save(order);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            OrderIdempotency record = new OrderIdempotency();
+            record.setIdempotencyKey(idempotencyKey);
+            record.setRequestHash(requestHash);
+            record.setOrder(saved);
+            record.setCreatedAt(Instant.now());
+            idempotencyRepository.save(record);
+        }
         recordStatusChange(saved, null, saved.getStatus(), "created");
         analyticsClient.track("orders.created", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
+    }
+
+    @Transactional
+    public Order createOrder(OrderRequest request) {
+        return createOrder(request, null);
     }
 
     @Transactional(readOnly = true)
@@ -345,6 +380,35 @@ public class OrderService {
                     return prefix + String.format("%05d", next);
                 })
                 .orElse(prefix + "00001");
+    }
+
+    private String requestHash(OrderRequest request) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(Objects.toString(request.customerEmail(), ""));
+        builder.append('|');
+        builder.append(request.status() != null ? request.status().name() : "");
+        builder.append('|');
+        if (request.items() != null) {
+            request.items().stream()
+                    .sorted(Comparator.comparing(OrderRequest.Item::productId)
+                            .thenComparingInt(OrderRequest.Item::quantity))
+                    .forEach(item -> builder.append(item.productId()).append(':').append(item.quantity()).append(';'));
+        }
+        return sha256(builder.toString());
+    }
+
+    private String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to compute request hash", ex);
+        }
     }
 
     private void recordStatusChange(Order order, OrderStatus oldStatus, OrderStatus newStatus, String reason) {
