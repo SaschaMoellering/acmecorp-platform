@@ -132,7 +132,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/orders/{id}")
-    public Mono<Void> deleteOrder(@PathVariable("id") Long id) {
+    public Mono<Map<String, Object>> deleteOrder(@PathVariable("id") Long id) {
         return gatewayService.deleteOrder(id);
     }
 
@@ -200,7 +200,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/catalog/{id}")
-    public Mono<Void> deleteProduct(@PathVariable("id") String id) {
+    public Mono<Map<String, Object>> deleteProduct(@PathVariable("id") String id) {
         return gatewayService.deleteProduct(id);
     }
 
