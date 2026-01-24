@@ -206,7 +206,7 @@ class OrdersControllerTest {
                 .andExpect(jsonPath("$.seeded").value(true))
                 .andExpect(jsonPath("$.count").value(3));
 
-        Mockito.verify(orderService).seedDemoData(Mockito.<OrderRequest>anyList());
+        Mockito.verify(orderService).seedDemoData();
     }
 
     @Test

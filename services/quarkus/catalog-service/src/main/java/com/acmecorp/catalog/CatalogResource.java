@@ -14,6 +14,7 @@ import java.util.UUID;
 public class CatalogResource {
 
     private final ProductRepository productRepository;
+    private static final java.time.Instant SEED_INSTANT = java.time.Instant.parse("2024-01-01T00:00:00Z");
 
     public CatalogResource(ProductRepository productRepository) {
         this.productRepository = productRepository;
@@ -64,13 +65,14 @@ public class CatalogResource {
     @Path("/seed")
     @Transactional
     public List<Product> seed() {
-        productRepository.deleteAll();
         List<Product> products = List.of(
                 build(UUID.fromString("11111111-1111-1111-1111-111111111111"), "ACME-STREAM-001", "Acme Streamer Pro", "HD streaming subscription with analytics dashboard", "SAAS", new java.math.BigDecimal("49.00")),
                 build(UUID.fromString("22222222-2222-2222-2222-222222222222"), "ACME-ALERT-001", "Alerting Add-on", "Real-time alerts and incidents with on-call rotation", "ADDON", new java.math.BigDecimal("19.00")),
                 build(UUID.fromString("33333333-3333-3333-3333-333333333333"), "ACME-STORAGE-010", "Secure Storage 1TB", "Encrypted cloud storage for media and backups", "STORAGE", new java.math.BigDecimal("29.00")),
                 build(UUID.fromString("44444444-4444-4444-4444-444444444444"), "ACME-AI-001", "AI Insights", "Predictive recommendations for digital storefronts", "SAAS", new java.math.BigDecimal("59.00"))
         );
+        List<UUID> ids = products.stream().map(p -> p.id).collect(java.util.stream.Collectors.toList());
+        productRepository.delete("id in ?1", ids);
         products.forEach(productRepository::persist);
         return products;
     }
@@ -102,8 +104,8 @@ public class CatalogResource {
         product.price = price;
         product.currency = "USD";
         product.active = true;
-        product.createdAt = java.time.Instant.now();
-        product.updatedAt = product.createdAt;
+        product.createdAt = SEED_INSTANT;
+        product.updatedAt = SEED_INSTANT;
         return product;
     }
 }

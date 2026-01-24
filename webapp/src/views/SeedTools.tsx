@@ -44,9 +44,8 @@ function SeedTools() {
         {error && <p style={{ marginTop: '12px', color: 'var(--color-danger, #b42318)' }}>{error}</p>}
         {result && (
           <div style={{ marginTop: '12px', color: 'var(--color-muted)' }}>
-            <div>Catalog products created: {result.productsCreated}</div>
-            <div>Orders created: {result.ordersCreated}</div>
-            <div>{result.message}</div>
+            <div>Catalog products seeded: {result.catalogSeeded}</div>
+            <div>Orders seeded: {result.ordersSeeded}</div>
           </div>
         )}
       </Card>

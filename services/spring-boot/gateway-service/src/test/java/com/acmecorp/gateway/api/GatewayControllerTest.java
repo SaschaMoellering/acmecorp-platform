@@ -207,9 +207,8 @@ class GatewayControllerTest {
     @Test
     void seedEndpointShouldTriggerServices() {
         var seed = new GatewayService.SeedResult();
-        seed.ordersCreated = 10;
-        seed.productsCreated = 5;
-        seed.message = "Seed completed";
+        seed.ordersSeeded = 10;
+        seed.catalogSeeded = 5;
 
         Mockito.when(gatewayService.seedData()).thenReturn(Mono.just(seed));
 
@@ -218,8 +217,8 @@ class GatewayControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.productsCreated").isEqualTo(5)
-                .jsonPath("$.ordersCreated").isEqualTo(10);
+                .jsonPath("$.catalogSeeded").isEqualTo(5)
+                .jsonPath("$.ordersSeeded").isEqualTo(10);
     }
 
     @Test

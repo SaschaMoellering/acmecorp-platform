@@ -41,6 +41,7 @@ public abstract class AbstractIntegrationTest {
 
         waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
         waitForGatewaySystemStatus();
+        seedDemoData();
     }
 
     private static void waitForServiceHealth(String serviceName, String url) {
@@ -192,6 +193,14 @@ public abstract class AbstractIntegrationTest {
         } catch (ConditionTimeoutException ex) {
             throw new IllegalStateException("Timed out waiting for gateway system status at " + url, ex);
         }
+    }
+
+    private static void seedDemoData() {
+        given()
+                .when()
+                .post(gatewayApiBase + "/seed")
+                .then()
+                .statusCode(200);
     }
 
     protected List<Map<String, Object>> fetchCatalogItems() {
