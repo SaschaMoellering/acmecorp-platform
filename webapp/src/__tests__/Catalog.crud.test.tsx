@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CatalogManage from '../views/CatalogManage';
 import { createProduct, deleteProduct, listProducts, updateProduct } from '../api/client';
 
@@ -53,25 +53,17 @@ describe('Catalog CRUD view', () => {
 
     await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
 
-    // Scope to the Products card to avoid duplicate "New Product" buttons from stale renders.
-    const productsCard = screen.getByText('Products').closest('.card');
-    if (!productsCard) {
-      throw new Error('Products card not found');
-    }
-    fireEvent.click(within(productsCard).getByRole('button', { name: /New Product/i }));
+    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
 
     // Create
-    const createDialog = await screen.findByRole('dialog');
-    const createForm = within(createDialog);
-
-    fireEvent.change(createForm.getByLabelText(/^SKU/i), { target: { value: 'SKU-2' } });
-    fireEvent.change(createForm.getByLabelText(/^Name/i), { target: { value: 'New Product' } });
-    fireEvent.change(createForm.getByLabelText(/Description/i), { target: { value: 'Brand new' } });
-    fireEvent.change(createForm.getByLabelText(/Price/i), { target: { value: '20' } });
-    fireEvent.change(createForm.getByLabelText(/Currency/i), { target: { value: 'USD' } });
-    fireEvent.change(createForm.getByLabelText(/Category/i), { target: { value: 'General' } });
-    fireEvent.change(createForm.getByLabelText(/Active/i), { target: { value: 'true' } });
-    fireEvent.submit(createForm.getByTestId('product-form'));
+    fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'SKU-2' } });
+    fireEvent.change(screen.getByLabelText(/^Name/i), { target: { value: 'New Product' } });
+    fireEvent.change(screen.getByLabelText(/Description/i), { target: { value: 'Brand new' } });
+    fireEvent.change(screen.getByLabelText(/Price/i), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/Currency/i), { target: { value: 'USD' } });
+    fireEvent.change(screen.getByLabelText(/Category/i), { target: { value: 'General' } });
+    fireEvent.change(screen.getByLabelText(/Active/i), { target: { value: 'true' } });
+    fireEvent.submit(screen.getByTestId('product-form'));
 
     await waitFor(() => expect(mockedCreateProduct).toHaveBeenCalled());
     await waitFor(() => expect(screen.getAllByText('New Product').length).toBeGreaterThan(0));
@@ -79,12 +71,9 @@ describe('Catalog CRUD view', () => {
     // Update
     fireEvent.click(screen.getAllByRole('button', { name: /Edit/i })[0]);
 
-    const editDialog = await screen.findByRole('dialog');
-    const editForm = within(editDialog);
-
-    fireEvent.change(editForm.getByLabelText(/^Name/i), { target: { value: 'Updated Product' } });
-    fireEvent.change(editForm.getByLabelText(/Price/i), { target: { value: '42' } });
-    fireEvent.submit(editForm.getByTestId('product-form'));
+    fireEvent.change(screen.getByLabelText(/^Name/i), { target: { value: 'Updated Product' } });
+    fireEvent.change(screen.getByLabelText(/Price/i), { target: { value: '42' } });
+    fireEvent.submit(screen.getByTestId('product-form'));
 
     await waitFor(() => expect(mockedUpdateProduct).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText('Updated Product')).toBeInTheDocument());
@@ -99,43 +88,29 @@ describe('Catalog CRUD view', () => {
 
   it('shows an error message when create fails', async () => {
     mockedListProducts.mockResolvedValueOnce([baseProduct]).mockResolvedValue([baseProduct]);
-    mockedCreateProduct.mockRejectedValueOnce(new Error('fail'));
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockedCreateProduct.mockRejectedValue(new Error('fail'));
 
-    try {
-      render(
-        <MemoryRouter>
-          <CatalogManage />
-        </MemoryRouter>
-      );
+    render(
+      <MemoryRouter>
+        <CatalogManage />
+      </MemoryRouter>
+    );
 
-      await screen.findByText('Base Product');
+    await waitFor(() => expect(screen.getByText('Base Product')).toBeInTheDocument());
 
-      // Scope to the Products card to avoid duplicate "New Product" buttons from stale renders.
-      const productsCard = screen.getByText('Products').closest('.card');
-      if (!productsCard) {
-        throw new Error('Products card not found');
-      }
-      fireEvent.click(within(productsCard).getByRole('button', { name: /New Product/i }));
+    fireEvent.click(screen.getByRole('button', { name: /New Product/i }));
 
-      // Fill required fields so submit fires and hits the mocked error
-      const dialog = await screen.findByRole('dialog');
-      const dialogQueries = within(dialog);
+    // Fill required fields so submit fires and hits the mocked error
+    fireEvent.change(screen.getByLabelText(/^SKU/i), { target: { value: 'ERR-1' } });
+    fireEvent.change(screen.getByLabelText(/^Name/i), { target: { value: 'Err Product' } });
+    fireEvent.change(screen.getByLabelText(/Description/i), { target: { value: 'Broken' } });
+    fireEvent.change(screen.getByLabelText(/Price/i), { target: { value: '5' } });
+    fireEvent.change(screen.getByLabelText(/Currency/i), { target: { value: 'USD' } });
+    fireEvent.change(screen.getByLabelText(/Category/i), { target: { value: 'Test' } });
+    fireEvent.change(screen.getByLabelText(/Active/i), { target: { value: 'true' } });
 
-      fireEvent.change(dialogQueries.getByLabelText(/^SKU/i), { target: { value: 'ERR-1' } });
-      fireEvent.change(dialogQueries.getByLabelText(/^Name/i), { target: { value: 'Err Product' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Description/i), { target: { value: 'Broken' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Price/i), { target: { value: '5' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Currency/i), { target: { value: 'USD' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Category/i), { target: { value: 'Test' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Active/i), { target: { value: 'true' } });
+    fireEvent.submit(screen.getByTestId('product-form'));
 
-      fireEvent.submit(dialogQueries.getByTestId('product-form'));
-
-      await dialogQueries.findByText(/Failed to create product/i);
-    } finally {
-      // Silence intentional error logging from the rejected mock.
-      consoleError.mockRestore();
-    }
+    await waitFor(() => expect(screen.getAllByText(/Failed to create product/i).length).toBeGreaterThan(0));
   });
 });

@@ -71,7 +71,7 @@ for entry in data:
     status = entry.get("status")
     if service:
         seen.add(str(service))
-    if not status or str(status).upper() != "UP":
+    if not status or str(status).upper() not in ("UP", "READY"):
         sys.exit(1)
 sys.exit(0 if expected.issubset(seen) else 1)
 '

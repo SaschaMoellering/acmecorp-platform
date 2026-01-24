@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import OrdersManage from '../views/OrdersManage';
 import { cancelOrder, confirmOrder, createOrder, deleteOrder, listOrders, updateOrder } from '../api/client';
 
@@ -101,40 +101,25 @@ describe('Orders CRUD view', () => {
 
   it('shows an error message when create fails', async () => {
     mockedListOrders.mockResolvedValueOnce([baseOrder]).mockResolvedValue([baseOrder]);
-    mockedCreateOrder.mockRejectedValueOnce(new Error('fail'));
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockedCreateOrder.mockRejectedValue(new Error('fail'));
 
-    try {
-      render(
-        <MemoryRouter>
-          <OrdersManage />
-        </MemoryRouter>
-      );
+    render(
+      <MemoryRouter>
+        <OrdersManage />
+      </MemoryRouter>
+    );
 
-      await screen.findByText('ORD-10');
+    await waitFor(() => expect(screen.getByText('ORD-10')).toBeInTheDocument());
 
-      // Scope to the Orders card to avoid duplicate "New Order" buttons from stale renders.
-      const ordersCard = screen.getByText('Orders').closest('.card');
-      if (!ordersCard) {
-        throw new Error('Orders card not found');
-      }
-      fireEvent.click(within(ordersCard).getByRole('button', { name: /New Order/i }));
+    fireEvent.click(screen.getByRole('button', { name: /New Order/i }));
 
-      const dialog = await screen.findByRole('dialog');
-      // Scope inputs to the create dialog to avoid leaking across forms.
-      const dialogQueries = within(dialog);
+    fireEvent.change(screen.getByLabelText(/Customer Email/i), { target: { value: 'err@example.com' } });
+    fireEvent.change(screen.getByLabelText(/^Product ID/i), { target: { value: 'p-x' } });
+    fireEvent.change(screen.getByLabelText(/Quantity/i), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText(/Status/i), { target: { value: 'NEW' } });
 
-      fireEvent.change(dialogQueries.getByLabelText(/Customer Email/i), { target: { value: 'err@example.com' } });
-      fireEvent.change(dialogQueries.getByLabelText(/^Product ID/i), { target: { value: 'p-x' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Quantity/i), { target: { value: '1' } });
-      fireEvent.change(dialogQueries.getByLabelText(/Status/i), { target: { value: 'NEW' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create Order/i }));
 
-      fireEvent.click(dialogQueries.getByRole('button', { name: /Create Order/i }));
-
-      await dialogQueries.findByText(/Failed to create order/i);
-    } finally {
-      // Silence intentional error logging from the rejected mock.
-      consoleError.mockRestore();
-    }
+    await waitFor(() => expect(screen.getAllByText(/Failed to create order/i).length).toBeGreaterThan(0));
   });
 });

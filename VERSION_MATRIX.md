@@ -8,7 +8,7 @@ This document defines the branch strategy and allowed deltas while keeping the *
 | --- | --- | --- | --- | --- | --- |
 | `main` | 21 (current baseline) | `maven:3.9.9-eclipse-temurin-21` (as in Dockerfiles) | `eclipse-temurin:21-jre` | `-server` (default Spring Boot) | Reference branch; all features validated here |
 | `java11` | 11 | `maven:3.9.9-eclipse-temurin-11` | `eclipse-temurin:11-jre` | same baseline, add compatibility flags only if compiler/jvm refuses to start | Allowed changes: Maven compiler release/toolchain, Docker `FROM`, JVM flags. No logic changes unless noted |
-| `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 (compiler + Docker + CI pins updated) |
+| `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 |
 | `java21` | 21 | `maven:3.9.9-eclipse-temurin-21` | `eclipse-temurin:21-jre` | baseline | Mirrors `main` but used for explicit comparison runs |
 | `java25` | 25 | `maven:3.9.9-eclipse-temurin-25`* | `eclipse-temurin:25-jre`* | baseline | If official Temurin 25 images are unavailable, document alternative in notes. |
 
@@ -19,6 +19,11 @@ This document defines the branch strategy and allowed deltas while keeping the *
 - **Business logic parity**: All branches must keep the same source files, DTOs, API contracts, and configuration values unless a change is explicitly noted in this table.
 - **Allowed diffs**: Only update Maven compiler/toolchain settings, Docker build/runtime images, and JVM launch flags to satisfy version compatibility. Any other change requires a justification entry in the matrix notes.
 - **Benchmark harness**: When the benchmark scripts exist, they must run identically on every branch except for the JVM they invoke.
+
+## Java enforcement
+
+- Each Java service and `integration-tests` enforces the branch Java version via `maven-enforcer-plugin` using the `java.version` property.
+- For local builds, either set `JAVA_HOME` to the branch version or use `scripts/run-build-in-jdk.sh <11|17|21|25>` to build in a containerized JDK.
 
 ## How to use
 
