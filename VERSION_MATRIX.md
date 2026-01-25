@@ -24,6 +24,7 @@ This document defines the branch strategy and allowed deltas while keeping the *
 
 - Each Java service and `integration-tests` enforces the branch Java version via `maven-enforcer-plugin` using the `java.version` property.
 - For local builds, either set `JAVA_HOME` to the branch version or use `scripts/run-build-in-jdk.sh <11|17|21|25>` to build in a containerized JDK.
+- Tests on `main`/`java21` require JDK 21, and tests on `java25` require JDK 25 (enforced by Maven).
 
 ## How to use
 
