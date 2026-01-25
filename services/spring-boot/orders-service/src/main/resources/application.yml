@@ -48,3 +48,12 @@ acmecorp:
     billing: http://billing-service:8082
     analytics: http://analytics-service:8084
     notification: http://notification-service:8083
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  jpa:
+    hibernate:
+      ddl-auto: update
