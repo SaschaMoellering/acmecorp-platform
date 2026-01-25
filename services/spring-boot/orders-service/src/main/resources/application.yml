@@ -57,3 +57,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+acmecorp:
+  services:
+    catalog: http://catalog-service:8080
+    billing: http://billing-service:8080
+    analytics: http://analytics-service:8080
+    notification: http://notification-service:8080
