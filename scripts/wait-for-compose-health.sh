@@ -111,12 +111,20 @@ check_system_status() {
 print_diagnostics() {
   echo "[diagnostics] docker compose ps/logs" >&2
   if command -v docker >/dev/null 2>&1; then
-    if [[ -f infra/local/docker-compose.yml ]]; then
-      (cd infra/local && docker compose ps) || true
-      (cd infra/local && docker compose logs --tail 200) || true
+    local script_dir compose_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ -f docker-compose.yml ]]; then
+      compose_dir="."
+    elif [[ -f infra/local/docker-compose.yml ]]; then
+      compose_dir="infra/local"
+    elif [[ -f "${script_dir}/../infra/local/docker-compose.yml" ]]; then
+      compose_dir="${script_dir}/../infra/local"
     else
-      echo "[diagnostics] infra/local/docker-compose.yml not found" >&2
+      echo "[diagnostics] docker-compose.yml not found (checked ./, infra/local/, ${script_dir}/../infra/local/)" >&2
+      return 0
     fi
+    (cd "$compose_dir" && docker compose ps) || true
+    (cd "$compose_dir" && docker compose logs --tail 200) || true
   else
     echo "[diagnostics] docker not available" >&2
   fi
