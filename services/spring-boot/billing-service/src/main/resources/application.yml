@@ -35,3 +35,12 @@ management:
 acmecorp:
   services:
     analytics: http://analytics-service:8084
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+acmecorp:
+  services:
+    analytics: http://analytics-service:8080
