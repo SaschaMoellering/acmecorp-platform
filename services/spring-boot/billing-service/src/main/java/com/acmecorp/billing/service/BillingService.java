@@ -68,7 +68,7 @@ public class BillingService {
 
     @Transactional(readOnly = true)
     public Page<Invoice> listInvoices(String customerEmail, InvoiceStatus status, Long orderId, int page, int size) {
-        Specification<Invoice> spec = Specification.where((Specification<Invoice>) null);
+        Specification<Invoice> spec = (root, query, cb) -> cb.conjunction();
         if (customerEmail != null && !customerEmail.isBlank()) {
             spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("customerEmail")), "%" + customerEmail.toLowerCase(Locale.ROOT) + "%"));
         }
