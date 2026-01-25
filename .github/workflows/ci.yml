@@ -29,16 +29,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Setup Java (Spring Boot 25)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
           cache: 'maven'
 
-      - name: Run backend tests
+      - name: Run Spring Boot tests (Java 25)
         run: |
-          for svc in services/spring-boot/* services/quarkus/*; do
+          for svc in services/spring-boot/*; do
+            if [ -d "$svc" ] && [ -f "$svc/pom.xml" ]; then
+              echo "Testing $svc"
+              (cd "$svc" && mvn -q test)
+            fi
+          done
+
+      - name: Setup Java (Quarkus 21)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: 'maven'
+
+      - name: Run Quarkus tests (Java 21)
+        run: |
+          for svc in services/quarkus/*; do
             if [ -d "$svc" ] && [ -f "$svc/pom.xml" ]; then
               echo "Testing $svc"
               (cd "$svc" && mvn -q test)
