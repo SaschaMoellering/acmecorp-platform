@@ -126,6 +126,26 @@ bash scripts/backport.sh <SHA>
 
 You can also run the GitHub Actions workflow manually (workflow_dispatch) and provide `commit_sha` (and optionally `branches`) to backport via CI.
 
+## How to run CI locally
+
+### Host-based (normal dev machine with Docker socket access)
+
+```bash
+cd infra/local
+docker compose up -d --build
+BASE_URL=http://localhost:8080 bash ../scripts/wait-for-compose-health.sh
+cd ../integration-tests
+mvn -q test
+```
+
+### In-network (restricted host → localhost access)
+
+```bash
+bash scripts/run-integration-in-network.sh
+```
+
+This runs readiness checks and integration tests from a container attached to the compose network.
+
 ## Troubleshooting
 
 - **Ports in use** – stop conflicting containers/processes if `docker compose` fails to bind 8080–8085, 5432, 6379, or 5672.
