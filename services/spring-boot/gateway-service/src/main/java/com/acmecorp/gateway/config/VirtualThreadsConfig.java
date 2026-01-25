@@ -1,6 +1,9 @@
 package com.acmecorp.gateway.config;
 
+import org.apache.coyote.ProtocolHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -18,6 +21,15 @@ public class VirtualThreadsConfig implements AsyncConfigurer {
     @Bean(destroyMethod = "shutdown")
     public ExecutorService virtualThreadExecutor() {
         return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    @Bean
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> virtualThreadTomcatCustomizer(
+            ExecutorService virtualThreadExecutor) {
+
+        return factory -> factory.addProtocolHandlerCustomizers((ProtocolHandler protocolHandler) ->
+                protocolHandler.setExecutor(virtualThreadExecutor)
+        );
     }
 
     @Override
