@@ -9,8 +9,14 @@ jobs:
     name: Branch Parity
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (full history)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure base branch 'main' is available locally
+        run: |
+          git fetch origin main:main
 
       - name: Check java branch parity
         run: bash ./scripts/check-branch-parity.sh
