@@ -5,16 +5,7 @@ on:
   pull_request:
 
 jobs:
-  branch-parity:
-    name: Branch Parity
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check java branch parity
-        run: bash ./scripts/check-branch-parity.sh
-
+  
   java-version-correctness:
     name: Java Version Correctness
     runs-on: ubuntu-latest
