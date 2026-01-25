@@ -10,6 +10,14 @@ public class VirtualThreadProbeService {
 
     @Async
     public CompletableFuture<Boolean> isRunningOnVirtualThread() {
-        return CompletableFuture.completedFuture(Thread.currentThread().isVirtual());
+        return CompletableFuture.completedFuture(isVirtualThread());
+    }
+
+    private boolean isVirtualThread() {
+        try {
+            return (Boolean) Thread.class.getMethod("isVirtual").invoke(Thread.currentThread());
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }

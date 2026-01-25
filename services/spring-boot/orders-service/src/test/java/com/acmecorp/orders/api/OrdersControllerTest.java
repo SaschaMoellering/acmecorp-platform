@@ -78,14 +78,14 @@ class OrdersControllerTest {
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "customerEmail": "demo@acme.test",
-                                  "items": [
-                                    {"productId":"SKU-1","quantity":1}
-                                  ]
-                                }
-                                """))
+                        .content(String.join("\n",
+                                "{",
+                                "  \"customerEmail\": \"demo@acme.test\",",
+                                "  \"items\": [",
+                                "    {\"productId\":\"SKU-1\",\"quantity\":1}",
+                                "  ]",
+                                "}"
+                        )))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderNumber").value("ORD-2025-00055"))
                 .andExpect(jsonPath("$.status").value("NEW"))
@@ -106,13 +106,13 @@ class OrdersControllerTest {
 
         mockMvc.perform(put("/api/orders/5")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "customerEmail": "updated@acme.test",
-                                  "items": [{"productId":"SKU-1","quantity":2}],
-                                  "status": "CONFIRMED"
-                                }
-                                """))
+                        .content(String.join("\n",
+                                "{",
+                                "  \"customerEmail\": \"updated@acme.test\",",
+                                "  \"items\": [{\"productId\":\"SKU-1\",\"quantity\":2}],",
+                                "  \"status\": \"CONFIRMED\"",
+                                "}"
+                        )))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerEmail").value("updated@acme.test"))
                 .andExpect(jsonPath("$.status").value("CONFIRMED"));
@@ -171,12 +171,12 @@ class OrdersControllerTest {
     void createOrderShouldFailValidationWhenItemsMissing() throws Exception {
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                                {
-                                  "customerEmail": "demo@acme.test",
-                                  "items": []
-                                }
-                                """))
+                        .content(String.join("\n",
+                                "{",
+                                "  \"customerEmail\": \"demo@acme.test\",",
+                                "  \"items\": []",
+                                "}"
+                        )))
                 .andExpect(status().isBadRequest());
     }
 

@@ -1,9 +1,8 @@
 package com.acmecorp.analytics.api.error;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -53,12 +52,10 @@ public class AnalyticsApiExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleStatus(ResponseStatusException ex, HttpServletRequest request) {
-        HttpStatusCode statusCode = ex.getStatusCode();
-        HttpStatus status = HttpStatus.resolve(statusCode.value());
-        HttpStatus resolved = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
-        String message = Optional.ofNullable(ex.getReason()).orElse(resolved.getReasonPhrase());
-        String errorCode = mapStatusToError(resolved);
-        return buildResponse(request, resolved, errorCode, message, null);
+        HttpStatus status = ex.getStatus();
+        String message = Optional.ofNullable(ex.getReason()).orElse(status.getReasonPhrase());
+        String errorCode = mapStatusToError(status);
+        return buildResponse(request, status, errorCode, message, null);
     }
 
     @ExceptionHandler(Exception.class)

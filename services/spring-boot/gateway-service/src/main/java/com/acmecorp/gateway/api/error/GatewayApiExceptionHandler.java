@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -66,12 +65,14 @@ public class GatewayApiExceptionHandler {
     @ExceptionHandler({MethodArgumentNotValidException.class, WebExchangeBindException.class})
     public ResponseEntity<ApiErrorResponse> handleValidation(Exception ex, ServerWebExchange exchange) {
         Map<String, String> fields = new LinkedHashMap<>();
-        if (ex instanceof MethodArgumentNotValidException validation) {
+        if (ex instanceof MethodArgumentNotValidException) {
+            MethodArgumentNotValidException validation = (MethodArgumentNotValidException) ex;
             for (FieldError error : validation.getBindingResult().getFieldErrors()) {
                 String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
                 fields.putIfAbsent(error.getField(), message);
             }
-        } else if (ex instanceof WebExchangeBindException exchangeBind) {
+        } else if (ex instanceof WebExchangeBindException) {
+            WebExchangeBindException exchangeBind = (WebExchangeBindException) ex;
             for (FieldError error : exchangeBind.getBindingResult().getFieldErrors()) {
                 String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
                 fields.putIfAbsent(error.getField(), message);
@@ -82,12 +83,10 @@ public class GatewayApiExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleStatus(ResponseStatusException ex, ServerWebExchange exchange) {
-        HttpStatusCode statusCode = ex.getStatusCode();
-        HttpStatus status = HttpStatus.resolve(statusCode.value());
-        HttpStatus resolved = status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR;
-        String message = Optional.ofNullable(ex.getReason()).orElse(resolved.getReasonPhrase());
-        String errorCode = mapStatusToError(resolved);
-        return buildResponse(exchange, resolved, errorCode, message, null);
+        HttpStatus status = ex.getStatus();
+        String message = Optional.ofNullable(ex.getReason()).orElse(status.getReasonPhrase());
+        String errorCode = mapStatusToError(status);
+        return buildResponse(exchange, status, errorCode, message, null);
     }
 
     @ExceptionHandler(Exception.class)
@@ -122,7 +121,7 @@ public class GatewayApiExceptionHandler {
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(ServerWebExchange exchange,
-                                                           HttpStatusCode status,
+                                                           HttpStatus status,
                                                            String error,
                                                            String message,
                                                            Map<String, String> fields) {
@@ -135,7 +134,7 @@ public class GatewayApiExceptionHandler {
                 exchange.getRequest().getPath().value(),
                 fields
         );
-        return ResponseEntity.status(status.value()).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     private String resolveTraceId(ServerWebExchange exchange) {

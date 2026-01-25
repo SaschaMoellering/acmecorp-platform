@@ -22,7 +22,7 @@ RUN set -eu; \
     echo "Using jar: ${JAR}"; \
     cp "${JAR}" /tmp/app.jar; \
     test -f /tmp/app.jar; \
-    java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher
+    java -Djarmode=layertools -jar /tmp/app.jar extract
 
 FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
@@ -34,10 +34,10 @@ ENV JAVA_VERSION=${JAVA_VERSION}
 RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
 RUN mkdir -p /opt/app && chown -R app:app /opt/app
 
-COPY --from=extract --chown=app:app /layers/app/dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/snapshot-dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/spring-boot-loader/ /app/
-COPY --from=extract --chown=app:app /layers/app/application/ /app/
+COPY --from=extract --chown=app:app /layers/dependencies/ /app/
+COPY --from=extract --chown=app:app /layers/snapshot-dependencies/ /app/
+COPY --from=extract --chown=app:app /layers/spring-boot-loader/ /app/
+COPY --from=extract --chown=app:app /layers/application/ /app/
 
 RUN set -eu; \
   base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \

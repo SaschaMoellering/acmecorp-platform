@@ -19,7 +19,7 @@ public class VirtualThreadsConfig implements AsyncConfigurer {
 
     @Bean(destroyMethod = "shutdown")
     public ExecutorService virtualThreadExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
+        return Executors.newCachedThreadPool();
     }
 
     @Bean
