@@ -21,8 +21,8 @@ public class ApiError {
     }
 
     public static ApiError fromException(Exception ex) {
-        if (ex instanceof MethodArgumentNotValidException validation) {
-            return new ApiError(
+        return switch (ex) {
+            case MethodArgumentNotValidException validation -> new ApiError(
                     "VALIDATION_ERROR",
                     "Validation failed",
                     HttpStatus.BAD_REQUEST,
@@ -36,13 +36,13 @@ public class ApiError {
                                     .toList()
                     )
             );
-        }
-        if (ex instanceof ResponseStatusException statusException) {
-            HttpStatus status = HttpStatus.valueOf(statusException.getStatusCode().value());
-            String message = Optional.ofNullable(statusException.getReason()).orElse(status.getReasonPhrase());
-            return new ApiError(status.name(), message, status, Map.of());
-        }
-        return new ApiError("UNEXPECTED", "Unexpected error", HttpStatus.INTERNAL_SERVER_ERROR, Map.of());
+            case ResponseStatusException statusException -> {
+                HttpStatus status = HttpStatus.valueOf(statusException.getStatusCode().value());
+                String message = Optional.ofNullable(statusException.getReason()).orElse(status.getReasonPhrase());
+                yield new ApiError(status.name(), message, status, Map.of());
+            }
+            default -> new ApiError("UNEXPECTED", "Unexpected error", HttpStatus.INTERNAL_SERVER_ERROR, Map.of());
+        };
     }
 
     public static HttpStatus toStatus(ApiError error) {

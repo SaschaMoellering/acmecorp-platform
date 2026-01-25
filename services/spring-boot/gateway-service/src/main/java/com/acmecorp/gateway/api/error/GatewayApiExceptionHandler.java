@@ -43,15 +43,15 @@ public class GatewayApiExceptionHandler {
         String body = ex.getResponseBodyAsString();
         log.warn("Downstream request failed with status {}", ex.getStatusCode().value());
         ApiErrorResponse upstream = parseUpstream(body);
-        if (upstream != null && upstream.getError() != null) {
+        if (upstream != null && upstream.error() != null) {
             ApiErrorResponse response = new ApiErrorResponse(
                     Instant.now(),
                     resolveTraceId(exchange),
                     ex.getStatusCode().value(),
-                    upstream.getError(),
-                    upstream.getMessage(),
+                    upstream.error(),
+                    upstream.message(),
                     exchange.getRequest().getPath().value(),
-                    upstream.getFields()
+                    upstream.fields()
             );
             return ResponseEntity.status(ex.getStatusCode()).body(response);
         }
@@ -66,15 +66,20 @@ public class GatewayApiExceptionHandler {
     @ExceptionHandler({MethodArgumentNotValidException.class, WebExchangeBindException.class})
     public ResponseEntity<ApiErrorResponse> handleValidation(Exception ex, ServerWebExchange exchange) {
         Map<String, String> fields = new LinkedHashMap<>();
-        if (ex instanceof MethodArgumentNotValidException validation) {
-            for (FieldError error : validation.getBindingResult().getFieldErrors()) {
-                String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
-                fields.putIfAbsent(error.getField(), message);
+        switch (ex) {
+            case MethodArgumentNotValidException validation -> {
+                for (FieldError error : validation.getBindingResult().getFieldErrors()) {
+                    String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
+                    fields.putIfAbsent(error.getField(), message);
+                }
             }
-        } else if (ex instanceof WebExchangeBindException exchangeBind) {
-            for (FieldError error : exchangeBind.getBindingResult().getFieldErrors()) {
-                String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
-                fields.putIfAbsent(error.getField(), message);
+            case WebExchangeBindException exchangeBind -> {
+                for (FieldError error : exchangeBind.getBindingResult().getFieldErrors()) {
+                    String message = Optional.ofNullable(error.getDefaultMessage()).orElse("Invalid value");
+                    fields.putIfAbsent(error.getField(), message);
+                }
+            }
+            default -> {
             }
         }
         return buildResponse(exchange, HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", validationMessage(fields), fields);
@@ -104,21 +109,12 @@ public class GatewayApiExceptionHandler {
     }
 
     private static String mapStatusToError(HttpStatus status) {
-        if (status == HttpStatus.BAD_GATEWAY
-                || status == HttpStatus.SERVICE_UNAVAILABLE
-                || status == HttpStatus.GATEWAY_TIMEOUT) {
-            return "UPSTREAM_ERROR";
-        }
-        if (status == HttpStatus.NOT_FOUND) {
-            return "NOT_FOUND";
-        }
-        if (status == HttpStatus.CONFLICT) {
-            return "CONFLICT";
-        }
-        if (status.is4xxClientError()) {
-            return "BAD_REQUEST";
-        }
-        return "INTERNAL_ERROR";
+        return switch (status) {
+            case BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT -> "UPSTREAM_ERROR";
+            case NOT_FOUND -> "NOT_FOUND";
+            case CONFLICT -> "CONFLICT";
+            default -> status.is4xxClientError() ? "BAD_REQUEST" : "INTERNAL_ERROR";
+        };
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(ServerWebExchange exchange,
