@@ -18,14 +18,11 @@ export function parsePrice(input: string): PriceParseResult {
     return { ok: false, error: PRICE_INVALID_FORMAT };
   }
 
-  const isNegative = normalized.startsWith('-');
-  const magnitude = isNegative ? normalized.slice(1) : normalized;
-
-  if (!/^\d+(\.\d+)?$/.test(magnitude)) {
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
     return { ok: false, error: PRICE_INVALID_FORMAT };
   }
 
-  const [, fraction = ''] = magnitude.split('.');
+  const [, fraction = ''] = normalized.split('.');
   if (fraction.length > 2) {
     return { ok: false, error: PRICE_PRECISION };
   }
