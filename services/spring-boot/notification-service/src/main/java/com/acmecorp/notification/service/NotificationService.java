@@ -37,11 +37,11 @@ public class NotificationService {
     @Transactional
     public void enqueue(NotificationRequest request) {
         var payload = Map.of(
-                "recipient", request.recipient(),
-                "message", request.message(),
-                "type", request.type() != null ? request.type().name() : NotificationType.GENERIC.name(),
-                "orderNumber", request.orderNumber(),
-                "invoiceNumber", request.invoiceNumber(),
+                "recipient", request.getRecipient(),
+                "message", request.getMessage(),
+                "type", request.getType() != null ? request.getType().name() : NotificationType.GENERIC.name(),
+                "orderNumber", request.getOrderNumber(),
+                "invoiceNumber", request.getInvoiceNumber(),
                 "timestamp", Instant.now().toString()
         );
         rabbitTemplate.convertAndSend("notifications-exchange", "notifications.key", payload);

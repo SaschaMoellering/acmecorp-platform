@@ -67,21 +67,19 @@ public class GatewayController {
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = OrderSummary.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "id": 42,
-                                      "orderNumber": "ORD-2025-00001",
-                                      "customerEmail": "customer@example.com",
-                                      "status": "NEW",
-                                      "totalAmount": 29.00,
-                                      "currency": "USD",
-                                      "createdAt": "2025-01-01T12:00:00Z",
-                                      "updatedAt": "2025-01-01T12:00:00Z",
-                                      "items": [
-                                        {"productId":"11111111-1111-1111-1111-111111111111","quantity":1}
-                                      ]
-                                    }
-                                    """)
+                            examples = @ExampleObject(value = "{\n"
+                                    + "  \"id\": 42,\n"
+                                    + "  \"orderNumber\": \"ORD-2025-00001\",\n"
+                                    + "  \"customerEmail\": \"customer@example.com\",\n"
+                                    + "  \"status\": \"NEW\",\n"
+                                    + "  \"totalAmount\": 29.00,\n"
+                                    + "  \"currency\": \"USD\",\n"
+                                    + "  \"createdAt\": \"2025-01-01T12:00:00Z\",\n"
+                                    + "  \"updatedAt\": \"2025-01-01T12:00:00Z\",\n"
+                                    + "  \"items\": [\n"
+                                    + "    {\"productId\":\"11111111-1111-1111-1111-111111111111\",\"quantity\":1}\n"
+                                    + "  ]\n"
+                                    + "}")
                     )
             ),
             @ApiResponse(
@@ -106,14 +104,12 @@ public class GatewayController {
                     content = @Content(
                             mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = OrderRequest.class),
-                            examples = @ExampleObject(value = """
-                                    {
-                                      "customerEmail": "customer@example.com",
-                                      "items": [
-                                        {"productId":"11111111-1111-1111-1111-111111111111","quantity":1}
-                                      ]
-                                    }
-                                    """)
+                            examples = @ExampleObject(value = "{\n"
+                                    + "  \"customerEmail\": \"customer@example.com\",\n"
+                                    + "  \"items\": [\n"
+                                    + "    {\"productId\":\"11111111-1111-1111-1111-111111111111\",\"quantity\":1}\n"
+                                    + "  ]\n"
+                                    + "}")
                     )
             ) @RequestBody OrderRequest request,
             @Parameter(

@@ -10,8 +10,8 @@
 
   <properties>
     <java.version>11</java.version>
-    <spring.boot.version>3.3.4</spring.boot.version>
-    <springdoc.version>2.6.0</springdoc.version>
+    <spring.boot.version>2.7.18</spring.boot.version>
+    <springdoc.version>1.7.0</springdoc.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
   </properties>
@@ -35,7 +35,7 @@
     </dependency>
     <dependency>
       <groupId>org.springdoc</groupId>
-      <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+      <artifactId>springdoc-openapi-webflux-ui</artifactId>
       <version>${springdoc.version}</version>
     </dependency>
     <dependency>
