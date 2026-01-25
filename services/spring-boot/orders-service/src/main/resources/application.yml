@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: orders-service
+  threads:
+    virtual:
+      enabled: true
   rabbitmq:
     host: ${RABBITMQ_HOST:rabbitmq}
     port: ${RABBITMQ_PORT:5672}
@@ -15,10 +18,13 @@ spring:
     password: ${DB_PASSWORD:acmecorp}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
   data:
     web:
       pageable:

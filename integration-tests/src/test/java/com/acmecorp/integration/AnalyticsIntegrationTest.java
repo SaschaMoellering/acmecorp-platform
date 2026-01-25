@@ -16,7 +16,9 @@ class AnalyticsIntegrationTest extends AbstractIntegrationTest {
         Map<String, Object> before = fetchAnalyticsCounters();
         long beforeCreated = longValue(before.getOrDefault("orders.created", 0L));
 
-        var productId = UUID.fromString(fetchCatalogItems().getFirst().get("id").toString());
+        var catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+        var productId = UUID.fromString(catalog.get(0).get("id").toString());
         createOrder("analytics@example.com", productId, 1);
 
         Map<String, Object> after = Awaitility.await()

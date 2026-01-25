@@ -40,27 +40,8 @@ The gateway forwards HTTP traffic to the Spring Boot services (orders, billing, 
 
 1. **Prerequisites**
    - Docker Desktop / Docker Engine + Compose plugin
-   - Java 25 / Maven (build Spring Boot services)
-   - Java 21 toolchain for `services/quarkus/catalog-service` (pinned intentionally)
+   - Java 21 / Maven (build Java services)
    - Node.js (React UI via Vite)
-
-If your shell `JAVA_HOME` points to Java 25, Maven will still build the Quarkus catalog service with Java 21 via toolchains. Example `~/.m2/toolchains.xml`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<toolchains>
-  <toolchain>
-    <type>jdk</type>
-    <provides>
-      <version>21</version>
-      <vendor>any</vendor>
-    </provides>
-    <configuration>
-      <jdkHome>/path/to/jdk-21</jdkHome>
-    </configuration>
-  </toolchain>
-</toolchains>
-```
 
 2. **Start the stack**
 
@@ -134,6 +115,16 @@ The test ensures the fixed flow cannot regresses into N+1 while developers can s
 6. Episode 6 – Catalog and Orders Management Workflows  
 7. Episode 7 – Automation, GitOps, and Helm Deployments  
 8. Episode 8 – Monitoring, Alerts, and Runbook Drills  
+
+## Backport automation
+
+Use the backport script to cherry-pick a fix from `main` into the long-lived Java branches:
+
+```bash
+bash scripts/backport.sh <SHA>
+```
+
+You can also run the GitHub Actions workflow manually (workflow_dispatch) and provide `commit_sha` (and optionally `branches`) to backport via CI.
 
 ## Troubleshooting
 

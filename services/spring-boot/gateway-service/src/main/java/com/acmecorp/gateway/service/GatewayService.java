@@ -5,9 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -48,7 +50,7 @@ public class GatewayService {
 
     public Mono<PageResponse<OrderSummary>> listOrders(int page, int size) {
         String url = UriComponentsBuilder
-                .fromUriString(ordersBaseUrl + "/api/orders")
+                .fromHttpUrl(ordersBaseUrl + "/api/orders")
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .toUriString();
@@ -58,20 +60,31 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<PageResponse<OrderSummary>>() {});
+                .bodyToMono(new ParameterizedTypeReference<PageResponse<OrderSummary>>() {})
+                .transform(mono -> requireBody(mono, "orders-service", "list orders"));
     }
 
-    public Mono<OrderSummary> createOrder(OrderRequest request) {
+    public Mono<OrderSummary> createOrder(OrderRequest request, String idempotencyKey) {
         String url = ordersBaseUrl + "/api/orders";
 
         log.debug("Creating order via Orders Service: {}", url);
 
-        return webClient.post()
+        var requestSpec = webClient.post()
                 .uri(url)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(OrderSummary.class);
+                .bodyValue(request);
+
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            requestSpec = requestSpec.header("Idempotency-Key", idempotencyKey);
+        }
+
+        return requestSpec.retrieve()
+                .bodyToMono(OrderSummary.class)
+                .transform(mono -> requireBody(mono, "orders-service", "create order"));
+    }
+
+    public Mono<OrderSummary> createOrder(OrderRequest request) {
+        return createOrder(request, null);
     }
 
     public Mono<OrderSummary> updateOrder(Long id, OrderRequest request) {
@@ -86,10 +99,11 @@ public class GatewayService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .retrieve()
-                .bodyToMono(OrderSummary.class);
+                .bodyToMono(OrderSummary.class)
+                .transform(mono -> requireBody(mono, "orders-service", "update order"));
     }
 
-    public Mono<Void> deleteOrder(Long id) {
+    public Mono<Map<String, Object>> deleteOrder(Long id) {
         String url = ordersBaseUrl + "/api/orders/{id}";
 
         log.debug("Deleting order {} via Orders Service: {}", id, url);
@@ -97,7 +111,11 @@ public class GatewayService {
         return webClient.delete()
                 .uri(url, id)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                .thenReturn(Map.of(
+                        "deleted", true,
+                        "orderId", id
+                ));
     }
 
     public Mono<OrderSummary> confirmOrder(Long id) {
@@ -108,7 +126,8 @@ public class GatewayService {
         return webClient.post()
                 .uri(url, id)
                 .retrieve()
-                .bodyToMono(OrderSummary.class);
+                .bodyToMono(OrderSummary.class)
+                .transform(mono -> requireBody(mono, "orders-service", "confirm order"));
     }
 
     public Mono<OrderSummary> cancelOrder(Long id) {
@@ -119,7 +138,8 @@ public class GatewayService {
         return webClient.post()
                 .uri(url, id)
                 .retrieve()
-                .bodyToMono(OrderSummary.class);
+                .bodyToMono(OrderSummary.class)
+                .transform(mono -> requireBody(mono, "orders-service", "cancel order"));
     }
 
     public Mono<String> proxyOrdersStatus() {
@@ -131,7 +151,8 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(String.class);
+                .bodyToMono(String.class)
+                .transform(mono -> requireBody(mono, "orders-service", "orders status"));
     }
 
     public Mono<List<OrderSummary>> latestOrders() {
@@ -142,10 +163,15 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<OrderSummary>>() {});
+                .bodyToMono(new ParameterizedTypeReference<List<OrderSummary>>() {})
+                .transform(mono -> requireBody(mono, "orders-service", "latest orders"));
     }
 
     public Mono<OrderWithInvoice> orderDetails(Long id) {
+        return orderDetails(id, false);
+    }
+
+    public Mono<OrderWithInvoice> orderDetails(Long id, boolean includeHistory) {
         // Order details from Orders Service
         String orderUrl = ordersBaseUrl + "/api/orders/{id}";
         // Invoices for that order from Billing Service (assumed endpoint)
@@ -157,20 +183,40 @@ public class GatewayService {
         Mono<OrderSummary> orderMono = webClient.get()
                 .uri(orderUrl, id)
                 .retrieve()
-                .bodyToMono(OrderSummary.class);
+                .bodyToMono(OrderSummary.class)
+                .transform(mono -> requireBody(mono, "orders-service", "fetch order details"));
 
         Mono<List<InvoiceSummary>> invoicesMono = webClient.get()
                 .uri(invoiceUrl, id)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<PageResponse<InvoiceSummary>>() {})
+                .defaultIfEmpty(new PageResponse<>())
                 .map(page -> {
                     List<InvoiceSummary> content = page != null ? page.content : null;
                     return content != null ? content : new ArrayList<InvoiceSummary>();
                 })
                 .onErrorReturn(new ArrayList<InvoiceSummary>());
 
-        return Mono.zip(orderMono, invoicesMono)
-                .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
+        if (!includeHistory) {
+            return Mono.zip(orderMono, invoicesMono)
+                    .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2()));
+        }
+
+        Mono<List<Map<String, Object>>> historyMono = orderHistory(id)
+                .onErrorReturn(new ArrayList<>());
+
+        return Mono.zip(orderMono, invoicesMono, historyMono)
+                .map(tuple -> new OrderWithInvoice(tuple.getT1(), tuple.getT2(), tuple.getT3()));
+    }
+
+    public Mono<List<Map<String, Object>>> orderHistory(Long id) {
+        String url = ordersBaseUrl + "/api/orders/{id}/history";
+        log.debug("Fetching order history {} via Orders Service: {}", id, url);
+        return webClient.get()
+                .uri(url, id)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+                .transform(mono -> requireBody(mono, "orders-service", "fetch order history"));
     }
 
     // -------------------------------------------------------------------------
@@ -179,7 +225,7 @@ public class GatewayService {
 
     public Mono<List<ProductSummary>> catalog(String category, String search) {
         UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(catalogBaseUrl + "/api/catalog");
+                .fromHttpUrl(catalogBaseUrl + "/api/catalog");
 
         if (category != null && !category.isBlank()) {
             builder.queryParam("category", category);
@@ -194,7 +240,8 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {});
+                .bodyToMono(new ParameterizedTypeReference<List<ProductSummary>>() {})
+                .transform(mono -> requireBody(mono, "catalog-service", "list products"));
     }
 
     public Mono<ProductSummary> getProduct(String id) {
@@ -205,7 +252,8 @@ public class GatewayService {
         return webClient.get()
                 .uri(url, id)
                 .retrieve()
-                .bodyToMono(ProductSummary.class);
+                .bodyToMono(ProductSummary.class)
+                .transform(mono -> requireBody(mono, "catalog-service", "fetch product"));
     }
 
     public Mono<String> proxyCatalogRaw() {
@@ -216,7 +264,8 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(String.class);
+                .bodyToMono(String.class)
+                .transform(mono -> requireBody(mono, "catalog-service", "proxy catalog"));
     }
 
     public Mono<ProductSummary> createProduct(ProductRequest request) {
@@ -229,7 +278,8 @@ public class GatewayService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
-                .bodyToMono(ProductSummary.class);
+                .bodyToMono(ProductSummary.class)
+                .transform(mono -> requireBody(mono, "catalog-service", "create product"));
     }
 
     public Mono<ProductSummary> updateProduct(String id, ProductRequest request) {
@@ -242,10 +292,11 @@ public class GatewayService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
                 .retrieve()
-                .bodyToMono(ProductSummary.class);
+                .bodyToMono(ProductSummary.class)
+                .transform(mono -> requireBody(mono, "catalog-service", "update product"));
     }
 
-    public Mono<Void> deleteProduct(String id) {
+    public Mono<Map<String, Object>> deleteProduct(String id) {
         String url = catalogBaseUrl + "/api/catalog/{id}";
 
         log.debug("Deleting product {} via Catalog Service: {}", id, url);
@@ -253,7 +304,11 @@ public class GatewayService {
         return webClient.delete()
                 .uri(url, id)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                .thenReturn(Map.of(
+                        "deleted", true,
+                        "productId", id
+                ));
     }
 
     // -------------------------------------------------------------------------
@@ -268,7 +323,8 @@ public class GatewayService {
         return webClient.get()
                 .uri(url)
                 .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {});
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Long>>() {})
+                .transform(mono -> requireBody(mono, "analytics-service", "analytics counters"));
     }
 
     // -------------------------------------------------------------------------
@@ -293,9 +349,9 @@ public class GatewayService {
     }
 
     private Mono<SystemStatus> fetchSystemStatus(ServiceDescriptor descriptor) {
-        String url = descriptor.baseUrl() + descriptor.healthPath();
+        String url = descriptor.baseUrl + descriptor.healthPath;
 
-        log.debug("Fetching system status for {}: {}", descriptor.name(), url);
+        log.debug("Fetching system status for {}: {}", descriptor.name, url);
 
         return webClient.get()
                 .uri(url)
@@ -303,15 +359,19 @@ public class GatewayService {
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .map(health -> {
                     Object status = health.getOrDefault("status", "UNKNOWN");
-                    return new SystemStatus(descriptor.name(), String.valueOf(status), health);
+                    SystemStatus s = new SystemStatus();
+                    s.service = descriptor.name;
+                    s.status = String.valueOf(status);
+                    s.details = health;
+                    return s;
                 })
                 .onErrorResume(ex -> {
-                    log.warn("Failed to fetch health for {}: {}", descriptor.name(), ex.getMessage());
-                    return Mono.just(new SystemStatus(
-                            descriptor.name(),
-                            "DOWN",
-                            Map.of("error", ex.getMessage())
-                    ));
+                    log.warn("Failed to fetch health for {}: {}", descriptor.name, ex.getMessage());
+                    SystemStatus s = new SystemStatus();
+                    s.service = descriptor.name;
+                    s.status = "DOWN";
+                    s.details = Map.of("error", ex.getMessage());
+                    return Mono.just(s);
                 });
     }
 
@@ -323,18 +383,8 @@ public class GatewayService {
         String ordersSeedUrl = ordersBaseUrl + "/api/orders/seed";
         String catalogSeedUrl = catalogBaseUrl + "/api/catalog/seed";
 
-        log.debug("Seeding orders via Orders Service: {}", ordersSeedUrl);
         log.debug("Seeding catalog via Catalog Service: {}", catalogSeedUrl);
-
-        Mono<Integer> ordersSeed = webClient.post()
-                .uri(ordersSeedUrl)
-                .retrieve()
-                .bodyToMono(OrdersSeedResponse.class)
-                .map(resp -> resp != null ? resp.count() : 0)
-                .onErrorResume(ex -> {
-                    log.warn("Failed to seed orders: {}", ex.getMessage());
-                    return Mono.just(0);
-                });
+        log.debug("Seeding orders via Orders Service: {}", ordersSeedUrl);
 
         Mono<Integer> catalogSeed = webClient.post()
                 .uri(catalogSeedUrl)
@@ -346,8 +396,24 @@ public class GatewayService {
                     return Mono.just(0);
                 });
 
-        return Mono.zip(ordersSeed, catalogSeed)
-                .map(tuple -> new SeedResult(tuple.getT1(), tuple.getT2(), "Seed completed"));
+        Mono<Integer> ordersSeed = webClient.post()
+                .uri(ordersSeedUrl)
+                .retrieve()
+                .bodyToMono(OrdersSeedResponse.class)
+                .map(resp -> resp != null ? resp.count : 0)
+                .onErrorResume(ex -> {
+                    log.warn("Failed to seed orders: {}", ex.getMessage());
+                    return Mono.just(0);
+                });
+
+        return catalogSeed.flatMap(catalogCount ->
+                ordersSeed.map(orderCount -> {
+                    SeedResult result = new SeedResult();
+                    result.catalogSeeded = catalogCount;
+                    result.ordersSeeded = orderCount;
+                    return result;
+                })
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -355,16 +421,13 @@ public class GatewayService {
     // -------------------------------------------------------------------------
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record PageResponse<T>(
-            List<T> content,
-            int page,
-            int size,
-            long totalElements,
-            int totalPages,
-            // FIX: use Boolean (wrapper) instead of primitive boolean so that null is allowed
-            // (Orders Service may return "last": null or omit it)
-            Boolean last
-    ) {
+    public static class PageResponse<T> {
+        public List<T> content;
+        public int page;
+        public int size;
+        public long totalElements;
+        public int totalPages;
+        public boolean last;
     }
 
     /**
@@ -384,7 +447,24 @@ public class GatewayService {
     public static class InvoiceSummary extends java.util.HashMap<String, Object> {
     }
 
-    public record OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
+    public static class OrderWithInvoice {
+        public OrderSummary order;
+        public List<InvoiceSummary> invoices;
+        public List<Map<String, Object>> history;
+
+        public OrderWithInvoice() {
+        }
+
+        public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices) {
+            this.order = order;
+            this.invoices = invoices;
+        }
+
+        public OrderWithInvoice(OrderSummary order, List<InvoiceSummary> invoices, List<Map<String, Object>> history) {
+            this.order = order;
+            this.invoices = invoices;
+            this.history = history;
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -395,16 +475,32 @@ public class GatewayService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record OrdersSeedResponse(int count, boolean seeded) {
+    public static class OrdersSeedResponse {
+        public int count;
+        public boolean seeded;
     }
 
-    public record SystemStatus(String service, String status, Map<String, Object> details) {
+    public static class SystemStatus {
+        public String service;
+        public String status;
+        public Map<String, Object> details;
     }
 
-    public record SeedResult(int ordersCreated, int productsCreated, String message) {
+    public static class SeedResult {
+        public int catalogSeeded;
+        public int ordersSeeded;
     }
 
-    private record ServiceDescriptor(String name, String baseUrl, String healthPath) {
+    private static class ServiceDescriptor {
+        final String name;
+        final String baseUrl;
+        final String healthPath;
+
+        ServiceDescriptor(String name, String baseUrl, String healthPath) {
+            this.name = name;
+            this.baseUrl = baseUrl;
+            this.healthPath = healthPath;
+        }
     }
 
     private Map<String, Object> normalizeOrderUpdatePayload(OrderRequest request) {
@@ -433,5 +529,12 @@ public class GatewayService {
         }
 
         return body;
+    }
+
+    private <T> Mono<T> requireBody(Mono<T> mono, String serviceName, String operation) {
+        return mono.switchIfEmpty(Mono.error(new ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                serviceName + " returned empty response for " + operation
+        )));
     }
 }

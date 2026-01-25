@@ -3,10 +3,11 @@ node_modules/
 webapp/node_modules/
 dist/
 build/
+*.attach_pid*
 
 # Java / Maven
 target/
-**/target/
+services/spring-boot/billing-service/target/*
 *.log
 
 # IDEs

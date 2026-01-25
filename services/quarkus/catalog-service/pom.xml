@@ -12,9 +12,9 @@
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.version>3.15.0</quarkus.platform.version>
     <maven.surefire.plugin.version>3.1.2</maven.surefire.plugin.version>
-    <maven.compiler.release>21</maven.compiler.release>
-    <maven.compiler.source>21</maven.compiler.source>
-    <maven.compiler.target>21</maven.compiler.target>
+    <java.version>25</java.version>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <quarkus.package.jar.type>uber-jar</quarkus.package.jar.type>
   </properties>
@@ -102,9 +102,31 @@
         <version>${maven.surefire.plugin.version}</version>
         <configuration>
           <systemPropertyVariables>
+            <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
             <com.arjuna.ats.arjuna.common.CoreEnvironmentBean.processImplementationClassName>com.arjuna.ats.internal.arjuna.utils.UuidProcessId</com.arjuna.ats.arjuna.common.CoreEnvironmentBean.processImplementationClassName>
           </systemPropertyVariables>
         </configuration>
+      </plugin>
+    
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>enforce-java</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>${java.version}</version>
+                </requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
