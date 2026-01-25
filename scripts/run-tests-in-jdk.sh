@@ -2,6 +2,7 @@
 set -euo pipefail
 
 # Run tests in a containerized workspace copied to /tmp so host repo stays clean.
+# If a local JDK is available (e.g. SDKMAN), set USE_LOCAL_JAVA=1 to use it.
 
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <11|17|21|25>" >&2
@@ -23,6 +24,34 @@ cache_volume="acmecorp-m2-cache-${version}"
 workspace_dir="/tmp/workspace"
 copy_reports="${COPY_TEST_REPORTS:-}"
 artifacts_root="${repo_root}/artifacts/test-reports/jdk${version}"
+
+use_local="${USE_LOCAL_JAVA:-}"
+sdkman_home="${SDKMAN_DIR:-$HOME/.sdkman}"
+sdkman_java="${sdkman_home}/candidates/java/${version}.0.0-tem"
+if [[ -z "${use_local}" ]]; then
+  if [[ -n "${JAVA_HOME:-}" ]]; then
+    use_local="1"
+  elif [[ -d "${sdkman_java}" ]]; then
+    use_local="1"
+  elif [[ -d "/usr/lib/jvm/java-${version}-openjdk-amd64" ]]; then
+    use_local="1"
+  fi
+fi
+
+if [[ "${use_local}" == "1" ]]; then
+  if [[ -d "${sdkman_java}" ]]; then
+    export JAVA_HOME="${sdkman_java}"
+  elif [[ -d "/usr/lib/jvm/java-${version}-openjdk-amd64" ]]; then
+    export JAVA_HOME="/usr/lib/jvm/java-${version}-openjdk-amd64"
+  fi
+  if [[ -n "${JAVA_HOME:-}" ]]; then
+    export PATH="${JAVA_HOME}/bin:${PATH}"
+  fi
+  echo "Using local Java at ${JAVA_HOME:-<auto>}"
+  java -version
+  (cd "${repo_root}" && make test-backend)
+  exit 0
+fi
 
 docker volume create "${cache_volume}" >/dev/null
 
