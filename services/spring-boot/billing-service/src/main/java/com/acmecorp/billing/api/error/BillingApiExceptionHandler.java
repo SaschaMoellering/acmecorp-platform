@@ -75,21 +75,12 @@ public class BillingApiExceptionHandler {
     }
 
     private static String mapStatusToError(HttpStatus status) {
-        if (status == HttpStatus.BAD_GATEWAY
-                || status == HttpStatus.SERVICE_UNAVAILABLE
-                || status == HttpStatus.GATEWAY_TIMEOUT) {
-            return "UPSTREAM_ERROR";
-        }
-        if (status == HttpStatus.NOT_FOUND) {
-            return "NOT_FOUND";
-        }
-        if (status == HttpStatus.CONFLICT) {
-            return "CONFLICT";
-        }
-        if (status.is4xxClientError()) {
-            return "BAD_REQUEST";
-        }
-        return "INTERNAL_ERROR";
+        return switch (status) {
+            case BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT -> "UPSTREAM_ERROR";
+            case NOT_FOUND -> "NOT_FOUND";
+            case CONFLICT -> "CONFLICT";
+            default -> status.is4xxClientError() ? "BAD_REQUEST" : "INTERNAL_ERROR";
+        };
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(HttpServletRequest request,
