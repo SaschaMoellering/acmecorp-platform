@@ -10,7 +10,7 @@ This document defines the branch strategy and allowed deltas while keeping the *
 | `java11` | 11 | `maven:3.9.9-eclipse-temurin-11` | `eclipse-temurin:11-jre` | same baseline, add compatibility flags only if compiler/jvm refuses to start | Allowed changes: Maven compiler release/toolchain, Docker `FROM`, JVM flags. No logic changes unless noted |
 | `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 |
 | `java21` | 21 | `maven:3.9.9-eclipse-temurin-21` | `eclipse-temurin:21-jre` | baseline | Mirrors `main` but used for explicit comparison runs |
-| `java25` | 25 | `maven:3.9.9-eclipse-temurin-25`* | `eclipse-temurin:25-jre`* | baseline | If official Temurin 25 images are unavailable, document alternative in notes. |
+| `java25` | 25 | `maven:3.9.9-eclipse-temurin-25`* | `eclipse-temurin:25-jre`* | baseline | Spring Boot services may adopt Java 25 language features for demo purposes (records, pattern-matching switch). Quarkus catalog remains on Java 21. |
 
 \* If the JVM version is not yet published, note the closest compatible image (e.g., `openjdk:25-jdk`).
 
@@ -41,3 +41,13 @@ bench/run-matrix.sh
 ```
 
 Update this file whenever a new Java branch or special override is introduced.
+
+## Java 25 language feature deltas (Spring Boot services only)
+
+These changes are allowed on `java25` to showcase modern Java while keeping behavior stable:
+
+- **Records for DTOs**: Error/response DTOs in Spring Boot services use `record` for immutability and concise models.
+- **Pattern matching switch**: Exception mapping and payload normalization use `switch` with type patterns/guards.
+- **Guarded list handling**: Payload normalization uses pattern matching for list vs null cases.
+
+Quarkus (`catalog-service`) remains on Java 21 and does not adopt these deltas.

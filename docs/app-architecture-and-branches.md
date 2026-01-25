@@ -174,7 +174,7 @@ All three backing services have TCP-based liveness/readiness probes in the base 
     - Defined in `values.yaml`.
     - Projected into Secrets referenced by the respective Deployments.
   - Non-sensitive config (database name, hostnames, ports) lives in ConfigMaps or `values.yaml`.
-  - All demo credentials are overrideable via Helm values.
+- All demo credentials are overrideable via Helm values.
 
 ---
 
@@ -185,3 +185,48 @@ All three backing services have TCP-based liveness/readiness probes in the base 
 - The current focus is:
   - Make all services “scrapable” and observable.
   - Provide a basis for future deep-dive episodes on JVM metrics, tracing, and EKS Auto Mode behavior.
+
+---
+
+### Java 25 showcase (Spring Boot services)
+
+The `java25` branch keeps service behavior intact while demonstrating modern Java language features in the Spring Boot services. The Quarkus catalog service remains on Java 21.
+
+Highlights:
+
+- **Pattern‑matching `switch` for error mapping** (cleaner branching and safer typing)
+
+```java
+return switch (ex) {
+    case MethodArgumentNotValidException validation -> new ApiError(...);
+    case ResponseStatusException statusException -> new ApiError(...);
+    default -> new ApiError("UNEXPECTED", "Unexpected error", HttpStatus.INTERNAL_SERVER_ERROR, Map.of());
+};
+```
+
+- **`record` DTOs for immutable responses** (less boilerplate, clearer intent)
+
+```java
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record ApiErrorResponse(Instant timestamp,
+                               String traceId,
+                               int status,
+                               String error,
+                               String message,
+                               String path,
+                               Map<String, String> fields) {
+}
+```
+
+- **Pattern matching with guards for payload normalization** (expressive handling of lists vs nulls)
+
+```java
+switch (items) {
+    case List itemList when !itemList.isEmpty() -> body.put("items", itemList);
+    case null -> { /* fallback to productId/quantity */ }
+    case List ignored -> { /* empty list fallback */ }
+    default -> { /* defensive fallback */ }
+}
+```
+
+These changes are intentionally scoped to show the language evolution without changing runtime behavior.
