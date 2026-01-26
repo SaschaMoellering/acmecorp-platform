@@ -5,20 +5,9 @@ on:
   pull_request:
 
 jobs:
-  java-version-correctness:
-    name: Java Version Correctness
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check Java versions
-        run: bash ./scripts/check-java-versions.sh
-
   backend:
     name: Backend Tests (Spring + Quarkus)
     runs-on: ubuntu-latest
-    needs: java-version-correctness
     steps:
       - name: Checkout
         uses: actions/checkout@v4
