@@ -51,4 +51,4 @@ RUN set -eu; \
 
 USER app
 EXPOSE 8080
-ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.JarLauncher"]
