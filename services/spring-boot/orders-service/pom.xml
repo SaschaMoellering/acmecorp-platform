@@ -13,6 +13,7 @@
     <spring.boot.version>3.3.4</spring.boot.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
+    <native.maven.plugin.version>0.10.2</native.maven.plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -85,13 +86,46 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>org.graalvm.buildtools</groupId>
+        <artifactId>native-maven-plugin</artifactId>
+        <version>${native.maven.plugin.version}</version>
+        <extensions>true</extensions>
+        <executions>
+          <execution>
+            <id>build-native</id>
+            <goals>
+              <goal>compile-no-fork</goal>
+            </goals>
+            <phase>package</phase>
+          </execution>
+        </executions>
+        <configuration>
+          <fallback>false</fallback>
+          <verbose>true</verbose>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <version>${spring.boot.version}</version>
+        <configuration>
+          <excludes>
+            <exclude>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+            </exclude>
+          </excludes>
+        </configuration>
         <executions>
           <execution>
             <goals>
               <goal>repackage</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>process-aot</id>
+            <goals>
+              <goal>process-aot</goal>
             </goals>
           </execution>
         </executions>
