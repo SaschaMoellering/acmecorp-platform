@@ -130,4 +130,18 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>skip-on-pre21-jdk</id>
+      <activation>
+        <jdk>[,21)</jdk>
+      </activation>
+      <properties>
+        <maven.compiler.skip>true</maven.compiler.skip>
+        <maven.test.skip>true</maven.test.skip>
+        <enforcer.skip>true</enforcer.skip>
+      </properties>
+    </profile>
+  </profiles>
 </project>
