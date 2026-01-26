@@ -268,14 +268,17 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected JsonPath createOrder(String customerEmail, UUID productId, int quantity) {
-        String body = """
-                {
-                  "customerEmail": "%s",
-                  "items": [
-                    {"productId":"%s","quantity":%d}
-                  ]
-                }
-                """.formatted(customerEmail, productId, quantity);
+        String body = String.format(
+                "{\n" +
+                        "  \"customerEmail\": \"%s\",\n" +
+                        "  \"items\": [\n" +
+                        "    {\"productId\":\"%s\",\"quantity\":%d}\n" +
+                        "  ]\n" +
+                        "}",
+                customerEmail,
+                productId,
+                quantity
+        );
 
         return given()
                 .contentType(ContentType.JSON)

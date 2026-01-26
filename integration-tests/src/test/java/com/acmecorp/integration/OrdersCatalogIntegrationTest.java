@@ -41,12 +41,10 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void creatingOrderWithEmptyItemsShouldFailValidation() {
-        String body = """
-                {
-                  "customerEmail": "invalid@example.com",
-                  "items": []
-                }
-                """;
+        String body = "{\n" +
+                "  \"customerEmail\": \"invalid@example.com\",\n" +
+                "  \"items\": []\n" +
+                "}";
 
         given()
                 .contentType(ContentType.JSON)
@@ -80,14 +78,15 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
         Map<String, Object> first = catalog.get(0);
         UUID productId = UUID.fromString(first.get("id").toString());
 
-        String body = """
-                {
-                  "customerEmail": "idempotent@example.com",
-                  "items": [
-                    {"productId":"%s","quantity":1}
-                  ]
-                }
-                """.formatted(productId);
+        String body = String.format(
+                "{\n" +
+                        "  \"customerEmail\": \"idempotent@example.com\",\n" +
+                        "  \"items\": [\n" +
+                        "    {\"productId\":\"%s\",\"quantity\":1}\n" +
+                        "  ]\n" +
+                        "}",
+                productId
+        );
 
         String key = "idem-" + java.util.UUID.randomUUID();
 
@@ -117,14 +116,15 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(secondId).isEqualTo(firstId);
 
-        String differentBody = """
-                {
-                  "customerEmail": "idempotent@example.com",
-                  "items": [
-                    {"productId":"%s","quantity":2}
-                  ]
-                }
-                """.formatted(productId);
+        String differentBody = String.format(
+                "{\n" +
+                        "  \"customerEmail\": \"idempotent@example.com\",\n" +
+                        "  \"items\": [\n" +
+                        "    {\"productId\":\"%s\",\"quantity\":2}\n" +
+                        "  ]\n" +
+                        "}",
+                productId
+        );
 
         given()
                 .contentType(ContentType.JSON)
