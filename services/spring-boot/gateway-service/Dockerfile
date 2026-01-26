@@ -1,54 +1,30 @@
 ARG JAVA_VERSION=21
 ARG APP_NAME=app
-ARG JAR_PATTERN=${APP_NAME}-*.jar
 
-FROM maven:3.9-eclipse-temurin-${JAVA_VERSION} AS build
+# Use GraalVM for native compilation
+FROM ghcr.io/graalvm/graalvm-community:21 AS build
 WORKDIR /workspace
-ARG JAR_PATTERN
+
+# Install native-image
+RUN gu install native-image
+
+# Copy Maven files
 COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests dependency:resolve dependency:resolve-plugins
+
+# Copy source and build native image
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests package
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -Pnative native:compile -DskipTests
 
-FROM eclipse-temurin:${JAVA_VERSION}-jre AS extract
-WORKDIR /layers
-
-COPY --from=build /workspace/target/ /tmp/target/
-
-RUN set -eu; \
-    echo "== target listing =="; ls -lah /tmp/target; \
-    echo "== jar candidates =="; ls -1 /tmp/target/*.jar; \
-    JAR="$(ls -1 /tmp/target/*.jar | grep -v '\.jar\.original$' | head -n1)"; \
-    echo "Using jar: ${JAR}"; \
-    cp "${JAR}" /tmp/app.jar; \
-    test -f /tmp/app.jar; \
-    java -Djarmode=tools -jar /tmp/app.jar extract --layers --launcher
-
-FROM eclipse-temurin:${JAVA_VERSION}-jre
+# Runtime stage with minimal base image
+FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
+
 ARG APP_NAME=app
-ARG JAVA_VERSION=21
 ENV APP_NAME=${APP_NAME}
-ENV JAVA_VERSION=${JAVA_VERSION}
 
-RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
-RUN mkdir -p /opt/app && chown -R app:app /opt/app
+# Copy the native executable
+COPY --from=build --chown=nonroot:nonroot /workspace/target/gateway-service /app/app
 
-COPY --from=extract --chown=app:app /layers/app/dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/snapshot-dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/spring-boot-loader/ /app/
-COPY --from=extract --chown=app:app /layers/app/application/ /app/
-
-RUN set -eu; \
-  base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
-  extra=''; \
-  case "${JAVA_VERSION}" in \
-    25) extra='-XX:+UseCompactObjectHeaders' ;; \
-    *) extra='' ;; \
-  esac; \
-  printf '%s %s\n' "${base}" "${extra}" > /opt/app/jvm.options; \
-  chown app:app /opt/app/jvm.options
-
-USER app
 EXPOSE 8080
-ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["/app/app"]

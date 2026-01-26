@@ -1,30 +1,29 @@
 ARG APP_NAME=app
 
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+# Use GraalVM for native compilation
+FROM ghcr.io/graalvm/graalvm-community:21 AS build
 WORKDIR /workspace
-COPY pom.xml ./
-RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar dependency:resolve dependency:resolve-plugins
-COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar package
 
-FROM eclipse-temurin:21-jre
+# Install native-image
+RUN gu install native-image
+
+# Copy Maven files
+COPY pom.xml ./
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests dependency:resolve dependency:resolve-plugins
+
+# Copy source and build native image
+COPY src ./src
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dnative package
+
+# Runtime stage with minimal base image
+FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
 
 ARG APP_NAME=app
 ENV APP_NAME=${APP_NAME}
 
-RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app && mkdir -p /app && chown -R app:app /app
-RUN mkdir -p /opt/app && chown -R app:app /opt/app
+# Copy the native executable
+COPY --from=build --chown=nonroot:nonroot /workspace/target/catalog-service-1.0.0-SNAPSHOT-runner /app/app
 
-COPY --from=build --chown=app:app /workspace/target/quarkus-app/ /app/quarkus-app/
-COPY --from=build --chown=app:app /workspace/target/quarkus-artifact.properties /app/
-
-RUN set -eu; \
-  base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
-  printf '%s\n' "${base}" > /opt/app/jvm.options; \
-  chown app:app /opt/app/jvm.options
-
-USER app
 EXPOSE 8080
-
-ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) -jar /app/quarkus-app/quarkus-run.jar"]
+ENTRYPOINT ["/app/app"]
