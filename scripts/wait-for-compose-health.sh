@@ -8,6 +8,13 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 
+ROOT_DIR="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1
+  pwd
+)"
+COMPOSE_DIR="${COMPOSE_DIR:-$ROOT_DIR/infra/local}"
+COMPOSE_FILE="${COMPOSE_FILE:-$COMPOSE_DIR/docker-compose.yml}"
+
 # scheme://host[:port] (drop path) from BASE_URL
 ORIGIN="$(
   python3 -c '
@@ -111,11 +118,11 @@ check_system_status() {
 print_diagnostics() {
   echo "[diagnostics] docker compose ps/logs" >&2
   if command -v docker >/dev/null 2>&1; then
-    if [[ -f infra/local/docker-compose.yml ]]; then
-      (cd infra/local && docker compose ps) || true
-      (cd infra/local && docker compose logs --tail 200) || true
+    if [[ -f "$COMPOSE_FILE" ]]; then
+      (cd "$COMPOSE_DIR" && docker compose ps) || true
+      (cd "$COMPOSE_DIR" && docker compose logs --tail 200) || true
     else
-      echo "[diagnostics] infra/local/docker-compose.yml not found" >&2
+      echo "[diagnostics] $COMPOSE_FILE not found" >&2
     fi
   else
     echo "[diagnostics] docker not available" >&2
