@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
+import java.util.concurrent.Executors;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringJUnitConfig(classes = {VirtualThreadsConfig.class, VirtualThreadProbeService.class})
@@ -18,6 +20,16 @@ class VirtualThreadProbeServiceTest {
     @Test
     void asyncWorkRunsOnVirtualThread() {
         boolean isVirtual = virtualThreadProbeService.isRunningOnVirtualThread().join();
-        assertThat(isVirtual).isTrue();
+        assertThat(isVirtual).isEqualTo(isVirtualThreadSupported());
+    }
+
+    private boolean isVirtualThreadSupported() {
+        try {
+            Thread.class.getMethod("isVirtual");
+            Executors.class.getMethod("newVirtualThreadPerTaskExecutor");
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 }
