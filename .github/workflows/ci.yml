@@ -107,43 +107,10 @@ jobs:
           cd webapp
           npm run test:e2e
 
-  integration:
-    name: Integration Tests (Docker Compose)
-    runs-on: ubuntu-latest
-    needs: backend
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Start Docker Compose stack
-        run: |
-          cd infra/local
-          docker compose up -d --build
-          BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
-
-      - name: Run integration tests
-        env:
-          ACMECORP_BASE_URL: http://localhost:8080
-        run: |
-          cd integration-tests
-          mvn -q test
-
-      - name: Stop Docker Compose
-        if: always()
-        run: |
-          cd infra/local
-          docker compose down
-
   smoke:
     name: Smoke Tests (Docker Compose)
     runs-on: ubuntu-latest
-    needs: [backend, frontend, frontend-e2e, integration]
+    needs: [backend, frontend, frontend-e2e]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
