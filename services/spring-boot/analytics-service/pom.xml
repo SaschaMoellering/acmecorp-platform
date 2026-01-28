@@ -59,6 +59,39 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>buildpacks</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+            <configuration>
+              <image>
+                <name>unicorn-store-spring:latest</name>
+                <buildpacks>
+                  <buildpack>docker.io/paketobuildpacks/adoptium:12.3.0</buildpack>
+                  <buildpack>paketobuildpacks/java:20.6.0</buildpack>
+                  <buildpack>paketobuildpacks/syft:2.7.0</buildpack>
+                  <buildpack>paketobuildpacks/spring-boot:5.32.0</buildpack>
+                  <buildpack>paketobuildpacks/executable-jar:6.12.0</buildpack>
+                </buildpacks>
+                <env>
+                  <SPRING_DATASOURCE_URL>${env.SPRING_DATASOURCE_URL}</SPRING_DATASOURCE_URL>
+                  <SPRING_DATASOURCE_PASSWORD>${env.SPRING_DATASOURCE_PASSWORD}</SPRING_DATASOURCE_PASSWORD>
+                  <BP_JVM_VERSION>21</BP_JVM_VERSION>
+                  <BP_JVM_CDS_ENABLED>true</BP_JVM_CDS_ENABLED>
+                  <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
+                </env>
+              </image>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
       <plugin>
