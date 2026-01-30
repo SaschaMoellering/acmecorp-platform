@@ -14,7 +14,7 @@ spring_services=(
 build_spring_service() {
   local service="$1"
   echo "==> Building AppCDS image for ${service}"
-  (cd "${repo_root}/${service}" && mvn clean spring-boot:build-image -Pappcds -Dspring-boot.build-image.network=host)
+  (cd "${repo_root}/${service}" && mkdir -p .tmp && mvn clean spring-boot:build-image -Pappcds -Dspring-boot.build-image.network=host)
 }
 
 export -f build_spring_service
@@ -31,4 +31,4 @@ else
 fi
 
 echo "==> Building AppCDS Docker image for Quarkus catalog-service"
-(cd "${repo_root}/services/quarkus/catalog-service" && docker build --network=host -t local-catalog-service -f Dockerfile .)
+(cd "${repo_root}/services/quarkus/catalog-service" && mkdir -p .tmp && docker build --network=host -t local-catalog-service -f Dockerfile .)
