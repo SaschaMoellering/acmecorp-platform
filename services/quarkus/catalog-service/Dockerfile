@@ -12,7 +12,6 @@ WORKDIR /app
 
 ARG APP_NAME=app
 ENV APP_NAME=${APP_NAME}
-ENV ENABLE_CDS=true
 
 RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app && mkdir -p /app && chown -R app:app /app
 RUN mkdir -p /opt/app && chown -R app:app /opt/app
@@ -25,23 +24,6 @@ RUN set -eu; \
   printf '%s\n' "${base}" > /opt/app/jvm.options; \
   chown app:app /opt/app/jvm.options
 
-# Create CDS-enabled startup script
-RUN set -eu; \
-  printf '%s\n' \
-    '#!/bin/sh' \
-    'if [ "${ENABLE_CDS}" = "true" ] && [ -f "/app/target/quarkus-app/app-cds.jsa" ]; then' \
-    '  echo "Starting Quarkus with AppCDS enabled"' \
-    '  cd /app/target/quarkus-app' \
-    '  exec java $(cat /opt/app/jvm.options) -XX:SharedArchiveFile=app-cds.jsa -jar quarkus-run.jar' \
-    'else' \
-    '  echo "Starting Quarkus without CDS"' \
-    '  exec java $(cat /opt/app/jvm.options) -jar /app/target/quarkus-app/quarkus-run.jar' \
-    'fi' \
-    > /opt/app/start.sh; \
-  chmod +x /opt/app/start.sh; \
-  chown app:app /opt/app/start.sh
-
 USER app
 EXPOSE 8080
-
-ENTRYPOINT ["/opt/app/start.sh"]
+ENTRYPOINT ["sh", "-c", "cd /app/target/quarkus-app && exec java $(cat /opt/app/jvm.options) -XX:SharedArchiveFile=app-cds.jsa -jar quarkus-run.jar"]
