@@ -27,19 +27,17 @@ RUN set -eu; \
 
 # Create CDS-enabled startup script
 RUN set -eu; \
-  cat > /opt/app/start.sh << 'EOF'
-#!/bin/sh
-if [ "${ENABLE_CDS}" = "true" ] && [ -f "/app/target/quarkus-app/app-cds.jsa" ]; then
-  echo "Starting Quarkus with AppCDS enabled"
-  cd /app/target/quarkus-app
-  exec java $(cat /opt/app/jvm.options) -XX:SharedArchiveFile=app-cds.jsa -jar quarkus-run.jar
-else
-  echo "Starting Quarkus without CDS"
-  exec java $(cat /opt/app/jvm.options) -jar /app/target/quarkus-app/quarkus-run.jar
-fi
-EOF
-
-RUN set -eu; \
+  printf '%s\n' \
+    '#!/bin/sh' \
+    'if [ "${ENABLE_CDS}" = "true" ] && [ -f "/app/target/quarkus-app/app-cds.jsa" ]; then' \
+    '  echo "Starting Quarkus with AppCDS enabled"' \
+    '  cd /app/target/quarkus-app' \
+    '  exec java $(cat /opt/app/jvm.options) -XX:SharedArchiveFile=app-cds.jsa -jar quarkus-run.jar' \
+    'else' \
+    '  echo "Starting Quarkus without CDS"' \
+    '  exec java $(cat /opt/app/jvm.options) -jar /app/target/quarkus-app/quarkus-run.jar' \
+    'fi' \
+    > /opt/app/start.sh; \
   chmod +x /opt/app/start.sh; \
   chown app:app /opt/app/start.sh
 
