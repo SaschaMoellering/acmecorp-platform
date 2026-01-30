@@ -29,6 +29,7 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: 'maven'
+          cache: 'maven'
 
       - name: Run backend tests
         run: |
@@ -123,8 +124,9 @@ jobs:
 
       - name: Start Docker Compose stack
         run: |
+          PARALLEL=2 bash ./scripts/build-appcds-images.sh
           cd infra/local
-          docker compose up -d --build
+          docker compose up -d
           BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
 
       - name: Run integration tests
@@ -150,6 +152,7 @@ jobs:
 
       - name: Start Docker Compose
         run: |
+          PARALLEL=2 bash ./scripts/build-appcds-images.sh
           cd infra/local
           docker compose up -d
           BASE_URL=http://localhost:8080 bash ../../scripts/wait-for-compose-health.sh
