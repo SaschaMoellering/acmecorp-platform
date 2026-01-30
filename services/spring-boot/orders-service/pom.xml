@@ -96,6 +96,7 @@
                   <BP_SPRING_PROFILES>${buildpack.profiles}</BP_SPRING_PROFILES>
                   <BPL_SPRING_PROFILES>${buildpack.profiles}</BPL_SPRING_PROFILES>
                   <SPRING_PROFILES_ACTIVE>${buildpack.profiles}</SPRING_PROFILES_ACTIVE>
+                  <BP_DISABLE_SBOM>true</BP_DISABLE_SBOM>
                   <BP_JVM_VERSION>21</BP_JVM_VERSION>
                   <BP_JVM_CDS_ENABLED>true</BP_JVM_CDS_ENABLED>
                   <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
