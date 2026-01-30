@@ -7,6 +7,8 @@ DEFAULT_INTERVAL_SECONDS=2
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # scheme://host[:port] (drop path) from BASE_URL
 ORIGIN="$(
@@ -111,11 +113,11 @@ check_system_status() {
 print_diagnostics() {
   echo "[diagnostics] docker compose ps/logs" >&2
   if command -v docker >/dev/null 2>&1; then
-    if [[ -f infra/local/docker-compose.yml ]]; then
-      (cd infra/local && docker compose ps) || true
-      (cd infra/local && docker compose logs --tail 200) || true
+    if [[ -f "${REPO_ROOT}/infra/local/docker-compose.yml" ]]; then
+      (cd "${REPO_ROOT}/infra/local" && docker compose ps) || true
+      (cd "${REPO_ROOT}/infra/local" && docker compose logs --tail 200) || true
     else
-      echo "[diagnostics] infra/local/docker-compose.yml not found" >&2
+      echo "[diagnostics] ${REPO_ROOT}/infra/local/docker-compose.yml not found" >&2
     fi
   else
     echo "[diagnostics] docker not available" >&2
