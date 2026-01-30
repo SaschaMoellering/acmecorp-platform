@@ -70,7 +70,7 @@
             <artifactId>spring-boot-maven-plugin</artifactId>
             <configuration>
               <image>
-                <name>unicorn-store-spring:latest</name>
+                <name>${project.artifactId}:latest</name>
                 <buildpacks>
                   <buildpack>docker.io/paketobuildpacks/adoptium:12.3.0</buildpack>
                   <buildpack>paketobuildpacks/java:20.6.0</buildpack>
