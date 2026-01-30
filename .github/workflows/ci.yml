@@ -29,8 +29,7 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: 'maven'
-          cache: 'maven'
-
+          
       - name: Run backend tests
         run: |
           for svc in services/spring-boot/* services/quarkus/*; do
