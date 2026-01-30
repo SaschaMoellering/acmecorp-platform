@@ -7,6 +7,7 @@ import com.acmecorp.orders.web.OrderResponse;
 import com.acmecorp.orders.web.OrderStatusHistoryResponse;
 import com.acmecorp.orders.web.PageResponse;
 import jakarta.validation.Valid;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
 @RestController
+@Profile("!buildpack")
 @RequestMapping("/api/orders")
 public class OrdersController {
 

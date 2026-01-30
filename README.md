@@ -84,6 +84,27 @@ The UI uses `VITE_API_BASE_URL` (default `http://localhost:8080`). Adjust that e
 
 Other services expose their native endpoints (`/api/orders/*`, `/api/catalog/*`, etc.) for deeper debugging.
 
+## Spring Boot Buildpacks (CDS/AOT Training)
+
+- Runtime behavior is unchanged: docker-compose still expects Postgres/Redis/RabbitMQ for the Spring Boot services.
+- Buildpack training for CDS/AOT runs the app inside the builder image, so Spring Boot services use the `buildpack` profile to avoid requiring external DB/Redis during training.
+
+Default build command (per service):
+
+```bash
+cd services/spring-boot/<service-name>
+mvn clean spring-boot:build-image -Pappcds
+```
+
+Override the profile for training (requires DB/Redis during the training run):
+
+```bash
+cd services/spring-boot/<service-name>
+mvn clean spring-boot:build-image -Pappcds -Dbuildpack.profiles=default
+```
+
+Guardrails: if the `buildpack` profile is active outside buildpacks, the app fails fast unless the `CNB_STACK_ID` marker is present.
+
 ## Observability
 
 - Deploy the Prometheus/Grafana stack referenced under `infra/observability/k8s/` (`ServiceMonitor` YAMLs) once you have `kube-prometheus-stack`.

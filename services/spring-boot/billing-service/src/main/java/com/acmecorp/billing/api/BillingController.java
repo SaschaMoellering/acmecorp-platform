@@ -7,6 +7,7 @@ import com.acmecorp.billing.web.InvoiceResponse;
 import com.acmecorp.billing.web.PaymentRequest;
 import com.acmecorp.billing.web.PageResponse;
 import jakarta.validation.Valid;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
+@Profile("!buildpack")
 @RequestMapping("/api/billing")
 public class BillingController {
 

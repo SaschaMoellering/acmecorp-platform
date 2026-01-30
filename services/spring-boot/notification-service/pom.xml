@@ -11,6 +11,7 @@
   <properties>
     <java.version>21</java.version>
     <spring.boot.version>3.3.4</spring.boot.version>
+    <buildpack.profiles>buildpack</buildpack.profiles>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
   </properties>
@@ -59,8 +60,63 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>appcds</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+            <configuration>
+              <image>
+                <name>${project.artifactId}:latest</name>
+                <buildpacks>
+                  <buildpack>docker.io/paketobuildpacks/adoptium:12.3.0</buildpack>
+                  <buildpack>paketobuildpacks/java:20.6.0</buildpack>
+                  <buildpack>paketobuildpacks/syft:2.7.0</buildpack>
+                  <buildpack>paketobuildpacks/spring-boot:5.32.0</buildpack>
+                  <buildpack>paketobuildpacks/executable-jar:6.12.0</buildpack>
+                </buildpacks>
+                <env>
+                  <SPRING_DATASOURCE_URL>${env.SPRING_DATASOURCE_URL}</SPRING_DATASOURCE_URL>
+                  <SPRING_DATASOURCE_PASSWORD>${env.SPRING_DATASOURCE_PASSWORD}</SPRING_DATASOURCE_PASSWORD>
+                  <BP_SPRING_PROFILES>${buildpack.profiles}</BP_SPRING_PROFILES>
+                  <BPL_SPRING_PROFILES>${buildpack.profiles}</BPL_SPRING_PROFILES>
+                  <SPRING_PROFILES_ACTIVE>${buildpack.profiles}</SPRING_PROFILES_ACTIVE>
+                  <BP_JVM_VERSION>21</BP_JVM_VERSION>
+                  <BP_JVM_CDS_ENABLED>true</BP_JVM_CDS_ENABLED>
+                  <BP_SPRING_AOT_ENABLED>true</BP_SPRING_AOT_ENABLED>
+                </env>
+              </image>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>ensure-tmpdir</id>
+            <phase>validate</phase>
+            <configuration>
+              <target>
+                <mkdir dir="${project.basedir}/.tmp" />
+              </target>
+            </configuration>
+            <goals>
+              <goal>run</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>

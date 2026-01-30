@@ -10,6 +10,7 @@ import com.acmecorp.billing.repository.PaymentRepository;
 import com.acmecorp.billing.web.InvoiceRequest;
 import com.acmecorp.billing.web.InvoiceResponse;
 import com.acmecorp.billing.web.PaymentRequest;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
+@Profile("!buildpack")
 public class BillingService {
 
     private final InvoiceRepository invoiceRepository;
