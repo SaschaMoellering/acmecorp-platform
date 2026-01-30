@@ -7,6 +7,7 @@ import com.acmecorp.notification.web.NotificationRequest;
 import com.acmecorp.notification.web.NotificationResponse;
 import com.acmecorp.notification.web.PageResponse;
 import jakarta.validation.Valid;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
+@Profile("!buildpack")
 @RequestMapping("/api/notification")
 public class NotificationController {
 

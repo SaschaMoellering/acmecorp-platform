@@ -8,6 +8,7 @@ import com.acmecorp.notification.repository.NotificationRepository;
 import com.acmecorp.notification.web.NotificationRequest;
 import com.acmecorp.notification.web.NotificationResponse;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -20,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @Service
+@Profile("!buildpack")
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;

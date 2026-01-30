@@ -1,0 +1,13 @@
+spring:
+  config:
+    activate:
+      on-profile: buildpack
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+management:
+  endpoint:
+    health:
+      validate-group-membership: false

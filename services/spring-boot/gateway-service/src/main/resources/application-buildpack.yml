@@ -1,0 +1,9 @@
+spring:
+  config:
+    activate:
+      on-profile: buildpack
+
+management:
+  endpoint:
+    health:
+      validate-group-membership: false

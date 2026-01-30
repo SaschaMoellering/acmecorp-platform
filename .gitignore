@@ -9,6 +9,8 @@ build/
 target/
 services/spring-boot/billing-service/target/*
 *.log
+.tmp/
+**/.tmp/
 
 # IDEs
 .idea/

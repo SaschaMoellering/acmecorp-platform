@@ -130,4 +130,15 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>appcds</id>
+      <properties>
+        <quarkus.package.jar.type>fast-jar</quarkus.package.jar.type>
+        <quarkus.package.jar.appcds.enabled>true</quarkus.package.jar.appcds.enabled>
+        <quarkus.profile>appcds</quarkus.profile>
+      </properties>
+    </profile>
+  </profiles>
 </project>

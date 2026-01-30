@@ -2,11 +2,13 @@ package com.acmecorp.notification.messaging;
 
 import com.acmecorp.notification.service.NotificationService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
 @Component
+@Profile("!buildpack")
 public class NotificationListener {
 
     private final NotificationService notificationService;

@@ -46,10 +46,8 @@ services:
       retries: 12
 
   orders-service:
-    build:
-      context: ../../services/spring-boot/orders-service
-      dockerfile: Dockerfile
-    image: local-orders-service
+    image: orders-service:latest
+    pull_policy: never
     container_name: local-orders-service-1
     environment:
       APP_NAME: orders-service
@@ -82,10 +80,8 @@ services:
     restart: unless-stopped
 
   billing-service:
-    build:
-      context: ../../services/spring-boot/billing-service
-      dockerfile: Dockerfile
-    image: local-billing-service
+    image: billing-service:latest
+    pull_policy: never
     container_name: local-billing-service-1
     environment:
       APP_NAME: billing-service
@@ -114,10 +110,8 @@ services:
     restart: unless-stopped
 
   notification-service:
-    build:
-      context: ../../services/spring-boot/notification-service
-      dockerfile: Dockerfile
-    image: local-notification-service
+    image: notification-service:latest
+    pull_policy: never
     container_name: local-notification-service-1
     environment:
       APP_NAME: notification-service
@@ -146,10 +140,8 @@ services:
     restart: unless-stopped
 
   analytics-service:
-    build:
-      context: ../../services/spring-boot/analytics-service
-      dockerfile: Dockerfile
-    image: local-analytics-service
+    image: analytics-service:latest
+    pull_policy: never
     container_name: local-analytics-service-1
     environment:
       APP_NAME: analytics-service
@@ -209,10 +201,8 @@ services:
     restart: unless-stopped
 
   gateway-service:
-    build:
-      context: ../../services/spring-boot/gateway-service
-      dockerfile: Dockerfile
-    image: local-gateway-service
+    image: gateway-service:latest
+    pull_policy: never
     container_name: local-gateway-service-1
     environment:
       APP_NAME: gateway-service
