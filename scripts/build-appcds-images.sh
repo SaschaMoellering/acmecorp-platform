@@ -23,7 +23,7 @@ export repo_root
 parallel="${PARALLEL:-1}"
 if [ "${parallel}" -gt 1 ] && command -v xargs >/dev/null 2>&1; then
   printf '%s\n' "${spring_services[@]}" \
-    | xargs -n1 -P "${parallel}" -I {} bash -lc 'build_spring_service "$@"' _ {}
+    | xargs -P "${parallel}" -I {} bash -lc 'build_spring_service "$@"' _ {}
 else
   for service in "${spring_services[@]}"; do
     build_spring_service "${service}"
