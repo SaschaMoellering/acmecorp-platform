@@ -5,7 +5,7 @@ WORKDIR /app
 COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar dependency:resolve dependency:resolve-plugins
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.profile=appcds -Dquarkus.package.jar.type=fast-jar -Dquarkus.package.jar.appcds.enabled=true package
+RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Pappcds package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
