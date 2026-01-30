@@ -74,7 +74,6 @@
                 <buildpacks>
                   <buildpack>docker.io/paketobuildpacks/adoptium:12.3.0</buildpack>
                   <buildpack>paketobuildpacks/java:20.6.0</buildpack>
-                  <buildpack>paketobuildpacks/syft:2.7.0</buildpack>
                   <buildpack>paketobuildpacks/spring-boot:5.32.0</buildpack>
                   <buildpack>paketobuildpacks/executable-jar:6.12.0</buildpack>
                 </buildpacks>
