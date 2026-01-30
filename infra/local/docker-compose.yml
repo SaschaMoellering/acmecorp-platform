@@ -178,7 +178,7 @@ services:
     environment:
       APP_NAME: catalog-service
       QUARKUS_PROFILE: docker
-      QUARKUS_HTTP_PORT: "8085"
+      QUARKUS_HTTP_PORT: "8080"
       QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/acmecorp
       QUARKUS_DATASOURCE_USERNAME: acmecorp
       QUARKUS_DATASOURCE_PASSWORD: acmecorp
@@ -197,7 +197,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8085:8085"
+      - "8085:8080"
     restart: unless-stopped
 
   gateway-service:
@@ -209,7 +209,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SERVER_PORT: "8080"
       ORDERS_BASE_URL: http://orders-service:8080
-      CATALOG_BASE_URL: http://catalog-service:8085
+      CATALOG_BASE_URL: http://catalog-service:8080
       BILLING_BASE_URL: http://billing-service:8080
       NOTIFICATION_BASE_URL: http://notification-service:8080
       ANALYTICS_BASE_URL: http://analytics-service:8080
