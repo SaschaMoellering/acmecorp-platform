@@ -134,12 +134,6 @@
   <profiles>
     <profile>
       <id>appcds</id>
-      <dependencies>
-        <dependency>
-          <groupId>io.quarkus</groupId>
-          <artifactId>quarkus-jdbc-h2</artifactId>
-        </dependency>
-      </dependencies>
       <properties>
         <quarkus.package.jar.type>fast-jar</quarkus.package.jar.type>
         <quarkus.package.jar.appcds.enabled>true</quarkus.package.jar.appcds.enabled>
