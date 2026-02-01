@@ -19,7 +19,16 @@ From the repo root:
 
 ```bash
 cd infra/local
-docker-compose up --build
+docker compose up --build
+```
+
+By default, local compose builds use JVM Dockerfiles and run serially (see
+`infra/local/.env`) to avoid host freezes from native-image builds. To build
+native images explicitly:
+
+```bash
+cd infra/local
+docker compose -f docker-compose.yml -f docker-compose.native.yml build
 ```
 
 This will start:
@@ -66,7 +75,8 @@ UI quick tour (replace with real screenshots):
 
 1. Start the local stack:
    ```bash
-   cd infra/local && docker-compose up -d
+   bash scripts/compose-build-safe.sh
+   cd infra/local && docker compose up -d
    ```
 2. Run integration tests:
    ```bash
@@ -201,25 +211,26 @@ into Grafana (via "Import dashboard") to get a quick platform-wide view.
 
 - Backend tests: run `mvn test` inside each service directory under `services/spring-boot/*` or `services/quarkus/catalog-service`.
 - Frontend tests: run `npm test` in `webapp`.
-- Local smoke (docker-compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
+- Local smoke (compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
 
 ## Testing quick reference
 
 - Backend (Spring Boot + Quarkus): `make test-backend`
 - Frontend (Vitest): `cd webapp && npm install && npm test`
 - Frontend CRUD form specs (Vitest): `cd webapp && npm test -- --runInBand OrderFormDialog ProductFormDialog`
-- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker-compose up -d` first). Use `npm run test:e2e -- --grep \"manage catalog\"` to target the CRUD + seed flow.
+- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker compose up -d` first). Use `npm run test:e2e -- --grep \"manage catalog\"` to target the CRUD + seed flow.
 - Integration tests (stack running):  
-  1) `cd infra/local && docker-compose up -d`  
+  1) `bash scripts/compose-build-safe.sh && cd infra/local && docker compose up -d`  
   2) `cd integration-tests && mvn test` (optionally set `ACMECORP_BASE_URL`, default `http://localhost:8080`)  
-  3) `cd infra/local && docker-compose down`
+  3) `cd infra/local && docker compose down`
 - Smoke tests (stack running): `BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh`
 
-### Integration tests via docker-compose (step-by-step)
+### Integration tests via docker compose (step-by-step)
 ```bash
 # start the platform
+bash scripts/compose-build-safe.sh
 cd infra/local
-docker-compose up -d
+docker compose up -d
 
 # run the integration suite
 cd ../..
@@ -228,7 +239,7 @@ mvn test   # or ACMECORP_BASE_URL=http://localhost:8080 mvn test
 
 # optional: stop the stack when finished
 cd ../infra/local
-docker-compose down
+docker compose down
 ```
 
 ## Makefile shortcuts and CI

@@ -47,8 +47,9 @@ Because host port access is blocked in this environment, health checks were exec
 ## How to Run Locally
 
 ```bash
+bash scripts/compose-build-safe.sh
 cd infra/local
-docker compose up -d --build
+docker compose up -d
 ./validate-health.sh
 ```
 

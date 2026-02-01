@@ -50,6 +50,30 @@ cd infra/local
 docker compose up --build
 ```
 
+Local compose builds default to JVM images and run serially (see `.env` and
+`infra/local/.env`) to avoid host freezes during native-image builds.
+
+Recommended local build path:
+
+```bash
+bash scripts/compose-build-safe.sh
+cd infra/local
+docker compose up -d
+```
+
+To build native images explicitly (slow but safe/serial):
+
+```bash
+cd infra/local
+docker compose -f docker-compose.yml -f docker-compose.native.yml build
+```
+
+Or use the helper for a serial, one-by-one native build:
+
+```bash
+bash scripts/compose-build-native.sh
+```
+
 3. **Access the platform**
 
 ```text
@@ -131,8 +155,9 @@ You can also run the GitHub Actions workflow manually (workflow_dispatch) and pr
 ### Host-based (normal dev machine with Docker socket access)
 
 ```bash
+bash scripts/compose-build-safe.sh
 cd infra/local
-docker compose up -d --build
+docker compose up -d
 BASE_URL=http://localhost:8080 bash ../scripts/wait-for-compose-health.sh
 cd ../integration-tests
 mvn -q test
