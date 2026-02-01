@@ -9,6 +9,23 @@ cd infra/local
 docker compose up -d --build
 ```
 
+Default builds use JVM Dockerfiles to keep local iteration fast and safe. Compose
+loads `infra/local/.env`, which sets `COMPOSE_PARALLEL_LIMIT=1` so builds stay
+serial and avoid host freezes during native-image compilation.
+
+Recommended build helper (from repo root):
+
+```bash
+bash scripts/compose-build-safe.sh
+```
+
+To build native images explicitly (slow but safe/serial):
+
+```bash
+cd infra/local
+docker compose -f docker-compose.yml -f docker-compose.native.yml build
+```
+
 ## Clean rebuild (no cache)
 
 Use this when Docker BuildKit cache mounts need to be cleared (e.g., Maven cache under `/root/.m2`).

@@ -1,0 +1,30 @@
+services:
+  orders-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-orders-service-native
+
+  billing-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-billing-service-native
+
+  notification-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-notification-service-native
+
+  analytics-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-analytics-service-native
+
+  catalog-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-catalog-service-native
+
+  gateway-service:
+    build:
+      dockerfile: Dockerfile
+    image: local-gateway-service-native

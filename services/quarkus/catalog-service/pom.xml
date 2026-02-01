@@ -84,25 +84,12 @@
   <profiles>
     <profile>
       <id>native</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.graalvm.buildtools</groupId>
-            <artifactId>native-maven-plugin</artifactId>
-            <version>0.11.3</version>
-            <extensions>true</extensions>
-            <executions>
-              <execution>
-                <id>build-native</id>
-                <phase>package</phase>
-                <goals>
-                  <goal>compile-no-fork</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
+      <properties>
+        <quarkus.native.enabled>true</quarkus.native.enabled>
+        <quarkus.native.sources-only>false</quarkus.native.sources-only>
+        <quarkus.native.output-directory>/project/target</quarkus.native.output-directory>
+        <quarkus.native.output-name>catalog-service-runner</quarkus.native.output-name>
+      </properties>
     </profile>
   </profiles>
 

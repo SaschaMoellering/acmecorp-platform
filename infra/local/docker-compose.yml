@@ -48,7 +48,8 @@ services:
   orders-service:
     build:
       context: ../../services/spring-boot/orders-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-orders-service
     container_name: local-orders-service-1
     environment:
@@ -84,7 +85,8 @@ services:
   billing-service:
     build:
       context: ../../services/spring-boot/billing-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-billing-service
     container_name: local-billing-service-1
     environment:
@@ -116,7 +118,8 @@ services:
   notification-service:
     build:
       context: ../../services/spring-boot/notification-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-notification-service
     container_name: local-notification-service-1
     environment:
@@ -148,7 +151,8 @@ services:
   analytics-service:
     build:
       context: ../../services/spring-boot/analytics-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-analytics-service
     container_name: local-analytics-service-1
     environment:
@@ -180,7 +184,8 @@ services:
   catalog-service:
     build:
       context: ../../services/quarkus/catalog-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-catalog-service
     container_name: local-catalog-service-1
     environment:
@@ -211,7 +216,8 @@ services:
   gateway-service:
     build:
       context: ../../services/spring-boot/gateway-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.jvm
+      network: host
     image: local-gateway-service
     container_name: local-gateway-service-1
     environment:

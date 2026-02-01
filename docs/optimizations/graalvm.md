@@ -38,7 +38,7 @@ GraalVM Native Image compiles Java applications ahead-of-time into native execut
 ### Spring Boot Services
 ```bash
 # Build native image
-mvn -Pnative native:compile -DskipTests
+mvn -Pnative clean package -DskipTests
 
 # Docker build
 docker build -t service-name:native .
@@ -47,7 +47,7 @@ docker build -t service-name:native .
 ### Quarkus Service
 ```bash
 # Build native image
-mvn -Dnative package -DskipTests
+mvn -Pnative package -DskipTests
 
 # Docker build
 docker build -t catalog-service:native .
@@ -117,7 +117,7 @@ All services maintain their health endpoints in native mode:
 native-image --version
 
 # Verbose build output
-mvn -Pnative native:compile -DskipTests -X
+mvn -Pnative clean package -DskipTests -X
 ```
 
 ### Runtime Issues
@@ -158,5 +158,5 @@ If you encounter reflection errors:
 mvn spring-boot:run
 
 # Native build (slower, production-ready)
-mvn -Pnative native:compile -DskipTests
+mvn -Pnative clean package -DskipTests
 ```

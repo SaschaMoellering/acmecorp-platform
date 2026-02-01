@@ -11,7 +11,7 @@ Default: `http://localhost:8080`.
 
 ## Local run (same as CI)
 
-1. `cd infra/local && docker compose up -d --build`
+1. `bash scripts/compose-build-safe.sh && cd infra/local && docker compose up -d`
 2. `bash scripts/wait-for-compose-health.sh`
 3. `cd integration-tests && mvn -Dacmecorp.baseUrl=http://localhost:8080 test`
 4. `cd infra/local && docker compose down`

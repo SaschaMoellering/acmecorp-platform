@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_DIR="${COMPOSE_DIR:-$ROOT_DIR/infra/local}"
 COMPOSE_FILE="${COMPOSE_FILE:-$COMPOSE_DIR/docker-compose.yml}"
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
 
 # Let users override, but default to the internal DNS name + port from compose network
 GATEWAY_URL="${GATEWAY_URL:-http://gateway-service:8080}"

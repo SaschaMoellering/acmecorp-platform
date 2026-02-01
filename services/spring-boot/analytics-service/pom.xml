@@ -2,6 +2,12 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.3.4</version>
+    <relativePath/>
+  </parent>
   <groupId>com.acmecorp</groupId>
   <artifactId>analytics-service</artifactId>
   <version>1.0.0-SNAPSHOT</version>
@@ -13,20 +19,8 @@
     <spring.boot.version>3.3.4</spring.boot.version>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
-    <native.maven.plugin.version>0.10.2</native.maven.plugin.version>
+    <native.maven.plugin.version>0.11.3</native.maven.plugin.version>
   </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring.boot.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -96,7 +90,7 @@
           <plugin>
             <groupId>org.graalvm.buildtools</groupId>
             <artifactId>native-maven-plugin</artifactId>
-            <version>0.11.3</version>
+            <version>${native.maven.plugin.version}</version>
             <extensions>true</extensions>
             <executions>
               <execution>
@@ -107,6 +101,15 @@
                 </goals>
               </execution>
             </executions>
+            <configuration>
+              <metadataRepository>
+                <enabled>true</enabled>
+              </metadataRepository>
+              <requiredVersion>21</requiredVersion>
+              <skipNativeImageVersionCheck>true</skipNativeImageVersionCheck>
+              <fallback>false</fallback>
+              <verbose>true</verbose>
+            </configuration>
           </plugin>
         </plugins>
       </build>
@@ -123,6 +126,7 @@
           <parameters>true</parameters>
           <source>${java.version}</source>
           <target>${java.version}</target>
+          <skipNativeImageVersionCheck>true</skipNativeImageVersionCheck>
         </configuration>
       </plugin>
       <plugin>
@@ -130,9 +134,19 @@
         <artifactId>native-maven-plugin</artifactId>
         <version>${native.maven.plugin.version}</version>
         <extensions>true</extensions>
+        <executions>
+          <execution>
+            <id>build-native</id>
+            <goals>
+              <goal>compile-no-fork</goal>
+            </goals>
+            <phase>package</phase>
+          </execution>
+        </executions>
         <configuration>
           <fallback>false</fallback>
           <verbose>true</verbose>
+          <skipNativeImageVersionCheck>true</skipNativeImageVersionCheck>
         </configuration>
       </plugin>
       <plugin>

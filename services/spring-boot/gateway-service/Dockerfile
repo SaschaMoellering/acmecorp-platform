@@ -1,37 +1,29 @@
-ARG JAVA_VERSION=21
-ARG APP_NAME=app
+FROM quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21 AS build-aot
 
-# Use GraalVM for native compilation
-FROM quay.io/quarkus/ubi-quarkus-mandrel-builder-image:jdk-21 AS build
 USER root
 RUN microdnf install -y unzip zip
 
 USER 1001
-RUN \
-    curl -s "https://get.sdkman.io" | bash; \
-    bash -c "source $HOME/.sdkman/bin/sdkman-init.sh; \
-    sdk install maven;"
+RUN     curl -s "https://get.sdkman.io" | bash;     bash -c "source $HOME/.sdkman/bin/sdkman-init.sh;     sdk install maven;"
 
-WORKDIR /workspace
+WORKDIR /project
 
-# Copy Maven files
-COPY pom.xml .
+COPY ./pom.xml ./pom.xml
+COPY src ./src/
 
-# Copy source and build native image
+ENV MAVEN_OPTS='-Xmx8g'
+RUN bash -c "source $HOME/.sdkman/bin/sdkman-init.sh && mvn -Dmaven.test.skip=true clean package -Pnative"
 
-COPY src ./src
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023
+RUN yum install -y shadow-utils
 
-RUN bash -c "source $HOME/.sdkman/bin/sdkman-init.sh && mvn -DskipTests -ntp clean package -Pnative"
+RUN groupadd --system spring -g 1000
+RUN adduser spring -u 1000 -g 1000
 
-# Runtime stage with minimal base image
-FROM gcr.io/distroless/base-debian12:nonroot
-WORKDIR /app
+COPY --from=build-aot /project/target/gateway-service /
 
-ARG APP_NAME=app
-ENV APP_NAME=${APP_NAME}
-
-# Copy the native executable
-COPY --from=build --chown=nonroot:nonroot /workspace/target/gateway-service /app/app
+USER 1000:1000
 
 EXPOSE 8080
-ENTRYPOINT ["/app/app"]
+
+CMD ["./gateway-service", "-Dserver.port=8080"]
