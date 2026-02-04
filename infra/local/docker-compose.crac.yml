@@ -1,1 +1,57 @@
-# Docker Compose override for CRaC-enabled Spring Boot services\n# Usage: docker compose -f docker-compose.yml -f docker-compose.crac.yml up\n\nversion: '3.8'\n\nservices:\n  # Spring Boot services with CRaC support\n  gateway-service:\n    image: gateway-service:crac\n    privileged: true\n    environment:\n      - CRAC_MODE=restore\n      - CRAC_CHECKPOINT_DIR=/opt/crac\n    volumes:\n      - crac-gateway:/opt/crac\n\n  orders-service:\n    image: orders-service:crac\n    privileged: true\n    environment:\n      - CRAC_MODE=restore\n      - CRAC_CHECKPOINT_DIR=/opt/crac\n    volumes:\n      - crac-orders:/opt/crac\n\n  billing-service:\n    image: billing-service:crac\n    privileged: true\n    environment:\n      - CRAC_MODE=restore\n      - CRAC_CHECKPOINT_DIR=/opt/crac\n    volumes:\n      - crac-billing:/opt/crac\n\n  notification-service:\n    image: notification-service:crac\n    privileged: true\n    environment:\n      - CRAC_MODE=restore\n      - CRAC_CHECKPOINT_DIR=/opt/crac\n    volumes:\n      - crac-notification:/opt/crac\n\n  analytics-service:\n    image: analytics-service:crac\n    privileged: true\n    environment:\n      - CRAC_MODE=restore\n      - CRAC_CHECKPOINT_DIR=/opt/crac\n    volumes:\n      - crac-analytics:/opt/crac\n\n  # Quarkus services remain unchanged (no CRaC support)\n  # catalog-service: uses standard configuration from main compose file\n\nvolumes:\n  crac-gateway:\n    external: true\n  crac-orders:\n    external: true\n  crac-billing:\n    external: true\n  crac-notification:\n    external: true\n  crac-analytics:\n    external: true
+# Docker Compose override for CRaC-enabled Spring Boot services.
+# Usage:
+#   docker compose -f infra/local/docker-compose.yml -f infra/local/docker-compose.crac.yml <command>
+
+services:
+  gateway-service:
+    privileged: false
+    environment:
+      CRAC_ENABLED: "true"
+      CRAC_CHECKPOINT_DIR: /opt/crac/gateway-service
+      CRAC_HEALTH_PORT: "8080"
+      CRAC_HEALTH_PATH: /actuator/health
+    volumes:
+      - crac-data:/opt/crac
+
+  orders-service:
+    privileged: false
+    environment:
+      CRAC_ENABLED: "true"
+      CRAC_CHECKPOINT_DIR: /opt/crac/orders-service
+      CRAC_HEALTH_PORT: "8080"
+      CRAC_HEALTH_PATH: /actuator/health
+    volumes:
+      - crac-data:/opt/crac
+
+  billing-service:
+    privileged: false
+    environment:
+      CRAC_ENABLED: "true"
+      CRAC_CHECKPOINT_DIR: /opt/crac/billing-service
+      CRAC_HEALTH_PORT: "8080"
+      CRAC_HEALTH_PATH: /actuator/health
+    volumes:
+      - crac-data:/opt/crac
+
+  notification-service:
+    privileged: false
+    environment:
+      CRAC_ENABLED: "true"
+      CRAC_CHECKPOINT_DIR: /opt/crac/notification-service
+      CRAC_HEALTH_PORT: "8080"
+      CRAC_HEALTH_PATH: /actuator/health
+    volumes:
+      - crac-data:/opt/crac
+
+  analytics-service:
+    privileged: false
+    environment:
+      CRAC_ENABLED: "true"
+      CRAC_CHECKPOINT_DIR: /opt/crac/analytics-service
+      CRAC_HEALTH_PORT: "8080"
+      CRAC_HEALTH_PATH: /actuator/health
+    volumes:
+      - crac-data:/opt/crac
+
+volumes:
+  crac-data:
