@@ -3,7 +3,6 @@ name: acmecorp-local
 services:
   postgres:
     image: postgres:16
-    container_name: acmecorp-postgres
     environment:
       POSTGRES_DB: acmecorp
       POSTGRES_USER: acmecorp
@@ -17,6 +16,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    networks:
+      default:
+        aliases:
+          - postgres
+          - acmecorp-postgres
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -47,8 +51,8 @@ services:
 
   orders-service:
     build:
-      context: ../../services/spring-boot/orders-service
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/spring-boot/orders-service/Dockerfile
     image: local-orders-service
     container_name: local-orders-service-1
     environment:
@@ -83,8 +87,8 @@ services:
 
   billing-service:
     build:
-      context: ../../services/spring-boot/billing-service
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/spring-boot/billing-service/Dockerfile
     image: local-billing-service
     container_name: local-billing-service-1
     environment:
@@ -115,8 +119,8 @@ services:
 
   notification-service:
     build:
-      context: ../../services/spring-boot/notification-service
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/spring-boot/notification-service/Dockerfile
     image: local-notification-service
     container_name: local-notification-service-1
     environment:
@@ -147,8 +151,8 @@ services:
 
   analytics-service:
     build:
-      context: ../../services/spring-boot/analytics-service
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/spring-boot/analytics-service/Dockerfile
     image: local-analytics-service
     container_name: local-analytics-service-1
     environment:
@@ -210,8 +214,8 @@ services:
 
   gateway-service:
     build:
-      context: ../../services/spring-boot/gateway-service
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: services/spring-boot/gateway-service/Dockerfile
     image: local-gateway-service
     container_name: local-gateway-service-1
     environment:
