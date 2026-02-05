@@ -43,6 +43,10 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
@@ -63,6 +67,40 @@
           <version>1.5.0</version>
         </dependency>
       </dependencies>
+    </profile>
+    <profile>
+      <id>bench-startup</id>
+      <properties>
+        <bench.startup>false</bench.startup>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.3.0</version>
+            <executions>
+              <execution>
+                <id>bench-startup-gateway</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>bash</executable>
+                  <workingDirectory>${maven.multiModuleProjectDirectory}</workingDirectory>
+                  <environmentVariables>
+                    <BENCH_STARTUP>${bench.startup}</BENCH_STARTUP>
+                  </environmentVariables>
+                  <arguments>
+                    <argument>${maven.multiModuleProjectDirectory}/scripts/bench-startup-gateway.sh</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 
