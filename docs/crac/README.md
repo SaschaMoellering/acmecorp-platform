@@ -113,7 +113,7 @@ CRaC restore reports two explicit metrics plus a derived one:
 - **restore_ready_ms**: time-to-HTTP-200 for `/actuator/health` via the netns helper probe. This includes post-restore work and probe cadence/overhead.
 - **post_restore_ms**: `restore_ready_ms - restore_jvm_ms` when both are present. This estimates the time between JVM restart completion and readiness.
 
-For more accurate `restore_ready_ms`, use `PROBE_MODE=loop` and set `RESTORE_POLL_INTERVAL_SECONDS=0.2` (or `0.1`). The polling cadence directly affects the reported restore_ready_ms resolution.
+For more accurate `restore_ready_ms`, use `PROBE_MODE=loop` and set `RESTORE_POLL_INTERVAL_SECONDS=0.05` (or `0.1`). The polling cadence directly affects the reported restore_ready_ms resolution. If `RESTORE_DEBUG_HTTP=1` is set, the restore logs include probe errors (e.g. 503/timeout) to explain post_restore_ms.
 
 > Note: `docker compose up` does **not** rebuild images. Use the rebuild + recreate sequence below when testing startup changes, and set `COMPOSE_BAKE=false` to avoid building unrelated images.
 
