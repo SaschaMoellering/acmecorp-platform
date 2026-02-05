@@ -179,3 +179,7 @@ If stuck, rerun with:
 ```bash
 CRAC_DEBUG=1 scripts/crac-demo.sh matrix
 ```
+
+## Restore Behavior Analysis
+
+See `docs/crac/restore-readiness.md` for a focused explanation of restore_jvm_ms vs restore_ready_ms, and why analytics-service has higher post_restore_ms.

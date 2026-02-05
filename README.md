@@ -92,6 +92,10 @@ Other services expose their native endpoints (`/api/orders/*`, `/api/catalog/*`,
 - The Quarkus catalog service exposes `/q/metrics`.
 - Grafana sees metrics via the service monitors that scrape the above endpoints every 15s.
 
+## CRaC Restore Notes
+
+- See `docs/crac/restore-readiness.md` for the CRaC restore behavior and readiness semantics analysis.
+
 ## Database Performance: Hibernate N+1
 
 - **Demo endpoint**: `GET /api/orders/demo/nplus1?limit=N` runs `OrderService.listOrdersNPlusOneDemo(limit)` which fetches orders via `orderRepository.findAll(...)` and maps `OrderResponse.from(order)` without preloading `items`. This produces the classic 1 (orders) + N (items) queries.
