@@ -105,6 +105,16 @@ We track three different startup measurements and they are **not** expected to m
 
 **Why they differ:** polling cadence, readiness group availability, network/port binding, and any warmup steps can shift these measurements independently.
 
+## Measurement Semantics (Restore Timing)
+
+CRaC restore reports two explicit metrics plus a derived one:
+
+- **restore_jvm_ms**: parsed from the Spring CRaC log marker (`restored JVM running for XX ms`). This reflects JVM + Spring lifecycle restart time.
+- **restore_ready_ms**: time-to-HTTP-200 for `/actuator/health` via the netns helper probe. This includes post-restore work and probe cadence/overhead.
+- **post_restore_ms**: `restore_ready_ms - restore_jvm_ms` when both are present. This estimates the time between JVM restart completion and readiness.
+
+For more accurate `restore_ready_ms`, use `PROBE_MODE=loop` and set `RESTORE_POLL_INTERVAL_SECONDS=0.2` (or `0.1`). The polling cadence directly affects the reported restore_ready_ms resolution.
+
 > Note: `docker compose up` does **not** rebuild images. Use the rebuild + recreate sequence below when testing startup changes, and set `COMPOSE_BAKE=false` to avoid building unrelated images.
 
 ### How to run the benchmark helper
