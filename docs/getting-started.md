@@ -1,108 +1,146 @@
 # AcmeCorp Platform – Getting Started
 
-This guide shows how to run the AcmeCorp platform locally with Docker Compose,
-and how to deploy it to Kubernetes (and later to EKS with Helm).
+This guide shows how to run the AcmeCorp platform locally with Docker Compose and how to deploy it to Kubernetes (and later to Amazon EKS using Helm).
+
+The guide is written as a **hands-on runbook**: every section can be executed independently and is suitable for workshops, demos, and video recordings.
+
+---
 
 ## 1. Prerequisites
 
-- Docker / Docker Compose
-- Java 21 (for local builds)
-- Maven 3.9+
-- Node.js (if you add or run the React UI)
-- kubectl + a local Kubernetes cluster (kind, k3d, or Minikube) for K8s
-- Helm 3 for Helm deployment
-- (Optional) Prometheus Operator / kube-prometheus-stack
+### Required
+
+* **Docker Engine + Docker Compose v2** (Docker plugin)
+* **Java 21** (for local builds and tests)
+* **Maven 3.9+**
+* **Node.js 18+** (only required if you build or run the React UI)
+* **kubectl** plus a local Kubernetes cluster (kind, k3d, or Minikube)
+* **Helm 3**
+
+### Optional
+
+* **GNU Make** (for convenience targets like `make up`, `make smoke-local`)
+* **kube-prometheus-stack** (for observability)
+
+---
 
 ## 2. Run Everything Locally with Docker Compose
 
-From the repo root:
+From the repository root:
 
 ```bash
 cd infra/local
-docker-compose up --build
+docker compose up --build
 ```
 
-This will start:
+This starts the full local stack:
 
-- PostgreSQL (`localhost:5432`)
-- Redis (`localhost:6379`)
-- RabbitMQ (`localhost:5672`, UI on `http://localhost:15672`)
-- orders-service (`http://localhost:8081`)
-- billing-service (`http://localhost:8082`)
-- notification-service (`http://localhost:8083`)
-- analytics-service (`http://localhost:8084`)
-- catalog-service (Quarkus, `http://localhost:8085`)
-- gateway-service (`http://localhost:8080`)
+### Infrastructure
 
-Example calls:
+* PostgreSQL (`localhost:5432`)
+* Redis (`localhost:6379`)
+* RabbitMQ (`localhost:5672`, Management UI: `http://localhost:15672`)
+
+### Backend Services
+
+* orders-service (`http://localhost:8081`)
+* billing-service (`http://localhost:8082`)
+* notification-service (`http://localhost:8083`)
+* analytics-service (`http://localhost:8084`)
+* catalog-service (Quarkus, `http://localhost:8085`)
+* gateway-service (`http://localhost:8080`)
+
+> **Note**
+> In real deployments, **only the gateway-service is accessed externally**.
+> Individual services are exposed locally **for debugging and development only**.
+
+### Example API Calls (via Gateway)
 
 ```bash
 curl http://localhost:8080/api/gateway/orders
 curl http://localhost:8080/api/gateway/catalog
 curl http://localhost:8080/api/gateway/analytics/counters
 curl http://localhost:8080/api/gateway/system/status
+```
 
-curl http://localhost:8083/api/notification/send?recipient=test@example.com&message=hello
-curl http://localhost:8084/api/analytics/track?event=page-view
+### Direct Service Calls (local debugging only)
 
+```bash
+curl "http://localhost:8083/api/notification/send?recipient=test@example.com&message=hello"
+curl "http://localhost:8084/api/analytics/track?event=page-view"
+```
+
+### Create Sample Data
+
+```bash
 # create a catalog product
 curl -X POST http://localhost:8080/api/gateway/catalog \
   -H "Content-Type: application/json" \
   -d '{"sku":"SKU-CLI-01","name":"CLI Created","description":"from docs","price":42,"currency":"USD","category":"DOCS","active":true}'
 
-# create then confirm an order
+# create and confirm an order
 curl -X POST http://localhost:8080/api/gateway/orders \
   -H "Content-Type: application/json" \
   -d '{"customerEmail":"docs@example.com","items":[{"productId":"11111111-1111-1111-1111-111111111111","quantity":1}]}'
-curl -X POST http://localhost:8080/api/gateway/orders/1/confirm
 
-UI quick tour (replace with real screenshots):
-- Dashboard: [UI screenshot: dashboard-kpis.png]
-- Manage Catalog (/catalog/manage): [UI screenshot: catalog-manage.png]
-- Manage Orders (/orders/manage): [UI screenshot: orders-manage.png]
+curl -X POST http://localhost:8080/api/gateway/orders/1/confirm
 ```
 
-### Integration tests for local deployment
+---
 
-1. Start the local stack:
-   ```bash
-   cd infra/local && docker-compose up -d
-   ```
-2. Run integration tests:
-   ```bash
-   cd integration-tests && mvn test
-   ```
-   Optionally set `ACMECORP_BASE_URL` to override the default `http://localhost:8080`.
+## 3. Integration Tests (Local Stack)
 
-These tests exercise real flows such as catalog → orders → analytics and verify system status via the gateway.
+Integration tests run against a **real, running stack**.
 
-Note: catalog-service now always builds as a Quarkus uber-jar (`*-runner.jar`) for Docker compatibility.
+### Steps
 
-## 3. Kubernetes Deployment (Base Manifests)
+```bash
+# start the stack
+cd infra/local
+docker compose up -d
 
-Ensure you have a cluster configured in `kubectl`:
+# run integration tests
+cd ../../integration-tests
+mvn test
+
+# optional cleanup
+cd ../infra/local
+docker compose down
+```
+
+* Default base URL: `http://localhost:8080`
+* Override with:
+
+```bash
+ACMECORP_BASE_URL=http://localhost:8080 mvn test
+```
+
+> **Note**
+> Integration tests assume a **clean database state**.
+> If tests fail unexpectedly, ensure no leftover containers are running.
+
+---
+
+## 4. Kubernetes Deployment (Base Manifests)
+
+Ensure your cluster context is configured:
 
 ```bash
 kubectl config current-context
 ```
 
-Deploy the base manifests:
+Apply the base manifests:
 
 ```bash
 kubectl apply -k infra/k8s/base
 ```
 
-This will create:
+This creates:
 
-- Namespace `acmecorp`
-- Deployments + Services for:
-  - orders-service
-  - billing-service
-  - notification-service
-  - analytics-service
-  - catalog-service
-  - gateway-service (type `LoadBalancer`)
-- An Ingress `gateway-ingress` routed to `gateway-service`
+* Namespace `acmecorp`
+* Deployments and Services for all backend services
+* `gateway-service` (ClusterIP)
+* Ingress `gateway-ingress` routing external traffic to the gateway
 
 Check resources:
 
@@ -112,128 +150,230 @@ kubectl get svc -n acmecorp
 kubectl get ingress -n acmecorp
 ```
 
-If you use nginx ingress and `/etc/hosts` entry like:
+### Local Ingress Access (example)
 
 ```text
 127.0.0.1 acmecorp.local
 ```
 
-You can access the gateway at:
-
 ```bash
 curl http://acmecorp.local/api/gateway/orders
 ```
 
-### Frontend (webapp) API base URL & Helm creds
+---
 
-The React SPA reads `VITE_API_BASE_URL` (default `http://localhost:8080`). Set it to the ingress host when running in Kubernetes:
+## 5. Frontend Configuration
+
+The React SPA reads the API base URL from `VITE_API_BASE_URL`.
+
+* Default: `http://localhost:8080`
+* Kubernetes (Ingress):
 
 ```bash
 VITE_API_BASE_URL=http://acmecorp.local npm run dev
 ```
 
-or bake it into a ConfigMap/ENV when serving the built assets.
+For production, the API base URL should be injected **at build time** rather than runtime.
 
-Helm chart credentials:
-- Postgres/RabbitMQ credentials are provided via Secrets (defaults in `values.yaml`, override with your own).
-- Non-sensitive DB settings (DB name, host, ports) are in ConfigMaps/values.
-Adjust them with a values override file when installing/upgrading Helm.
+---
 
-## 4. Helm Deployment
+## 6. Helm Deployment
 
-The Helm chart bundles all services under one release.
-
-Install into `acmecorp` namespace:
+Install the full platform as a single Helm release:
 
 ```bash
 helm install acmecorp charts/acmecorp-platform -n acmecorp --create-namespace
 ```
 
-To override images or disable some services, create a `values-local.yaml` and use:
+Override defaults using a custom values file:
 
 ```bash
-helm upgrade --install acmecorp charts/acmecorp-platform -n acmecorp -f values-local.yaml
+helm upgrade --install acmecorp charts/acmecorp-platform \
+  -n acmecorp -f values-local.yaml
 ```
 
-## 5. Observability Setup (Prometheus & Grafana)
+* Secrets (DB, RabbitMQ credentials) are stored in Kubernetes Secrets
+* Non-sensitive configuration is stored in ConfigMaps and `values.yaml`
 
-Install `kube-prometheus-stack` (example with Helm):
+---
+
+## 7. Observability (Prometheus & Grafana)
+
+Install the Prometheus stack:
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 
-helm upgrade --install monitoring prometheus-community/kube-prometheus-stack   -n monitoring --create-namespace
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  -n monitoring --create-namespace
 ```
 
-Then apply the ServiceMonitor resources for AcmeCorp:
+Apply AcmeCorp ServiceMonitors:
 
 ```bash
 kubectl apply -f infra/observability/k8s/
 ```
 
-Grafana (once port-forwarded or exposed) will then see metrics for:
+Grafana dashboards:
 
-- JVM memory & CPU (Spring Boot + Quarkus)
-- HTTP request rates & latency
-- Gateway traffic
+* JVM memory and CPU (Spring Boot + Quarkus)
+* HTTP latency and request rates
+* Gateway traffic overview
 
-You can import the dashboard JSON under:
+Import:
 
-- `infra/observability/grafana/acmecorp-jvm-http-overview.json`
+* `infra/observability/grafana/acmecorp-jvm-http-overview.json`
 
-into Grafana (via "Import dashboard") to get a quick platform-wide view.
+> **Note (Quarkus)**
+> Ensure Prometheus export is enabled:
+> `quarkus.micrometer.export.prometheus.enabled=true`
 
-## Seed Data Tool
+---
 
-- API: `POST /api/gateway/seed` triggers deterministic catalog + orders demo content by calling the downstream services.
-- UI: `Tools > Seed Data` in the webapp. Click **Load Demo Data** to pre-fill the dashboards and management pages.
-- Deterministic IDs for the seeded catalog (UUIDs ending with repeating digits) keep the orders-service happy when you create test orders manually.
+## 8. Seed Data Tool
 
-## 6. Next Steps
+* API: `POST /api/gateway/seed`
+* UI: **Tools → Seed Data → Load Demo Data**
 
-- Integrate the React UI and point it at the gateway-service
-- Extend analytics to track more events
-- Configure alerts in Prometheus / Grafana
-- Use this repo as the foundation for the video episodes and live demos
+The seed tool:
 
-## Tests and smoke checks
+* Creates deterministic catalog items and orders
+* Uses fixed UUID patterns for predictable testing
+* Is ideal for demos, dashboards, and workshops
 
-- Backend tests: run `mvn test` inside each service directory under `services/spring-boot/*` or `services/quarkus/catalog-service`.
-- Frontend tests: run `npm test` in `webapp`.
-- Local smoke (docker-compose up): run `make smoke-local` (or `./scripts/smoke-local.sh`) to curl the gateway endpoints.
+---
 
-## Testing quick reference
+## 9. Tests and Smoke Checks
 
-- Backend (Spring Boot + Quarkus): `make test-backend`
-- Frontend (Vitest): `cd webapp && npm install && npm test`
-- Frontend CRUD form specs (Vitest): `cd webapp && npm test -- --runInBand OrderFormDialog ProductFormDialog`
-- Frontend E2E (Playwright): `cd webapp && npm run test:e2e` (start the webapp dev server on 5173 and backend via `docker-compose up -d` first). Use `npm run test:e2e -- --grep \"manage catalog\"` to target the CRUD + seed flow.
-- Integration tests (stack running):  
-  1) `cd infra/local && docker-compose up -d`  
-  2) `cd integration-tests && mvn test` (optionally set `ACMECORP_BASE_URL`, default `http://localhost:8080`)  
-  3) `cd infra/local && docker-compose down`
-- Smoke tests (stack running): `BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh`
+### Backend
 
-### Integration tests via docker-compose (step-by-step)
 ```bash
-# start the platform
-cd infra/local
-docker-compose up -d
-
-# run the integration suite
-cd ../..
-cd integration-tests
-mvn test   # or ACMECORP_BASE_URL=http://localhost:8080 mvn test
-
-# optional: stop the stack when finished
-cd ../infra/local
-docker-compose down
+make test-backend
 ```
 
-## Makefile shortcuts and CI
+### Frontend
 
-- Run everything locally: `make test-all`
-- Only backend or frontend: `make test-backend` or `make test-frontend`
-- Local smoke with compose: `make up`, then `make smoke-local`, finish with `make down`
-- GitHub Actions runs backend tests, frontend tests, and smoke tests on every push and pull request
+```bash
+cd webapp
+npm install
+npm test
+```
+
+### Frontend E2E (Playwright)
+
+```bash
+npm run test:e2e
+npm run test:e2e -- --grep "manage catalog"
+```
+
+### Smoke Tests
+
+```bash
+BASE_URL=http://localhost:8080 ./scripts/smoke-local.sh
+```
+
+---
+
+## 10. Next Steps
+
+* Integrate additional UI features
+* Extend analytics event coverage
+* Add alerting rules to Grafana / Prometheus
+* Use this repository as the backbone for video episodes and live demos
+
+---
+
+# Appendix A – Troubleshooting
+
+## Docker / Compose
+
+**Problem:** `docker-compose: command not found`
+**Fix:** Use Docker Compose v2:
+
+```bash
+docker compose version
+```
+
+---
+
+## Ports Already in Use
+
+**Problem:** Containers fail to start due to port conflicts
+**Fix:** Stop existing containers:
+
+```bash
+docker ps
+docker stop <container>
+```
+
+---
+
+## Gateway Returns 502 / 503
+
+**Cause:** Downstream service not ready
+**Fix:**
+
+```bash
+docker compose ps
+docker compose logs gateway-service
+```
+
+Wait until all services report healthy.
+
+---
+
+## Integration Tests Failing
+
+**Cause:** Dirty database state or leftover containers
+**Fix:**
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+---
+
+## Kubernetes: No External Access
+
+**Cause:** Ingress controller not installed
+**Fix:** Install nginx, Traefik, or your preferred ingress controller.
+
+---
+
+## Grafana Shows No Metrics
+
+**Checklist:**
+
+* Are ServiceMonitors applied?
+* Is Prometheus scraping the `actuator/prometheus` endpoints?
+* Are the pods running in the expected namespace?
+
+---
+
+## Quarkus Service Missing Metrics
+
+Ensure:
+
+```properties
+quarkus.micrometer.export.prometheus.enabled=true
+```
+
+---
+
+## RabbitMQ UI Not Reachable
+
+```bash
+http://localhost:15672
+# default credentials: guest / guest
+```
+
+---
+
+## Reset Everything (Local)
+
+```bash
+docker compose down -v
+docker system prune -f
+```
