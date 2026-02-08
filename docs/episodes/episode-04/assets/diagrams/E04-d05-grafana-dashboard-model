@@ -1,0 +1,11 @@
+```mermaid
+flowchart LR
+
+classDef observe fill:#F3E8FF,stroke:#7C3AED,stroke-width:1.5px,color:#2E1065;
+
+Signals[Metrics & Logs]:::observe
+Dashboard[Dashboard]:::observe
+Focus[Focus & Investigation]:::observe
+
+Signals --> Dashboard --> Focus
+```

@@ -99,7 +99,7 @@ This course deliberately sits between those two extremes.
 
 > **What makes this course different**
 
-This is not a framework tutorial.
+This is not a framework tutorial, if you want to dive into Spring Boot or Quarkus, there are much better courses elsewhere. As a matter of fact, actually I expect you to have solid knowledge about Spring Boot and Java.
 
 We are not here to learn APIs in isolation.
 
@@ -107,7 +107,7 @@ Instead, we look at how systems actually behave at runtime.
 
 We look at how architecture decisions show up later as startup delays, memory pressure, or operational complexity.
 
-And we do that using a realistic reference system.
+And we do that using a realistic reference system that is easy to understand but implements a meaningful set of features.
 
 ---
 
@@ -115,14 +115,14 @@ And we do that using a realistic reference system.
 
 Throughout the course, we use a system called the AcmeCorp Platform.
 
-It’s intentionally boring in its business domain — orders, catalog, notifications.
+It’s intentionally boring in its business domain — orders, catalog, billing & payments, analytics, notifications, and a gateway service.
 
 That’s a deliberate choice.
 
 A boring domain allows us to focus on what really matters:
 architecture, performance, observability, and operations.
 
-This is not a toy demo.
+It is important to understand that this is not a toy demo.
 It’s a platform designed to behave like real systems behave.
 
 ---

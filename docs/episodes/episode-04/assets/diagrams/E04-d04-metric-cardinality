@@ -1,0 +1,11 @@
+```mermaid
+flowchart TB
+
+classDef observe fill:#F3E8FF,stroke:#7C3AED,stroke-width:1.5px,color:#2E1065;
+
+Metric[Metric]:::observe
+Labels[Labels]:::observe
+Series[Time Series Explosion]:::observe
+
+Metric --> Labels --> Series
+```

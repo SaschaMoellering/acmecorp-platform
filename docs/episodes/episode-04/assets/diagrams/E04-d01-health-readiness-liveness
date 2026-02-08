@@ -1,0 +1,17 @@
+```mermaid
+flowchart TB
+
+%% === AcmeCorp Diagram Style Standard ===
+classDef service fill:#DCFCE7,stroke:#16A34A,stroke-width:1.5px,color:#052E16;
+classDef infra fill:#FEF3C7,stroke:#F59E0B,stroke-width:1.5px,color:#3B1F00;
+classDef signal fill:#F3E8FF,stroke:#7C3AED,stroke-width:1.5px,color:#2E1065;
+
+Service[Service Instance]:::service
+LB[Load Balancer / Kubernetes]:::infra
+
+Liveness[Liveness Probe - process alive]:::signal
+Readiness[Readiness Probe - can accept traffic]:::signal
+
+Service --> Liveness --> LB
+Service --> Readiness --> LB
+```

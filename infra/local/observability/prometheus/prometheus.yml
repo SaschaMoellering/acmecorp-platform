@@ -1,0 +1,54 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: acmecorp-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["gateway-service:8080"]
+        labels:
+          application: gateway-service
+
+  - job_name: acmecorp-orders
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["orders-service:8080"]
+        labels:
+          application: orders-service
+
+  - job_name: acmecorp-billing
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["billing-service:8080"]
+        labels:
+          application: billing-service
+
+  - job_name: acmecorp-notification
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["notification-service:8080"]
+        labels:
+          application: notification-service
+
+  - job_name: acmecorp-analytics
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["analytics-service:8080"]
+        labels:
+          application: analytics-service
+
+  - job_name: acmecorp-catalog
+    metrics_path: /q/metrics
+    static_configs:
+      - targets: ["catalog-service:8080"]
+        labels:
+          application: catalog-service

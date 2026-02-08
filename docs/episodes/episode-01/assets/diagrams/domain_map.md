@@ -1,31 +1,30 @@
 ```mermaid
-graph TD
-  U[End User / Client Apps]
-  EXT[External Systems <br> Payment, Email/SMS, ERP]
+flowchart LR
 
-  subgraph AcmeCorp Platform
-    GW[Gateway]
-    ORD[Orders]
-    CAT[Catalog]
-    BIL[Billing]
-    NOTIF[Notifications]
-    ANA[Analytics]
-  end
+%% === AcmeCorp Diagram Style Standard ===
+classDef client fill:#F3F4F6,stroke:#9CA3AF,stroke-width:1px,color:#111827;
+classDef gateway fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#0F172A;
+classDef service fill:#DCFCE7,stroke:#16A34A,stroke-width:1.5px,color:#052E16;
 
-  U -->|HTTPS| GW
-  GW --> ORD
-  GW --> CAT
-  GW --> BIL
-  GW --> NOTIF
+%% === Domain capabilities (left) ===
+Browse[Browse Catalog]:::client
+Buy[Place Order]:::client
+Pay[Pay]:::client
+Notify[Receive Notifications]:::client
+Measure[Measure & Analyze]:::client
 
-  ORD -->|Order Events| NOTIF
-  ORD -->|Order Events| ANA
+%% === Implementation as services (right) ===
+Gateway[Gateway Service]:::gateway
+Catalog[Catalog Service]:::service
+Orders[Orders Service]:::service
+Billing[Billing Service]:::service
+Notifications[Notifications Service]:::service
+Analytics[Analytics Service]:::service
 
-  BIL -->|Payment/Invoice Calls| EXT
-  NOTIF -->|Email/SMS| EXT
-
-  classDef edge fill:#e3f2fd,stroke:#1e88e5
-  classDef svc fill:#fff3e0,stroke:#fb8c00
-  class GW edge
-  class ORD,CAT,BIL,NOTIF,ANA svc
+%% === Mapping ===
+Browse --> Gateway --> Catalog
+Buy --> Gateway --> Orders
+Pay --> Gateway --> Billing
+Notify --> Gateway --> Notifications
+Measure --> Gateway --> Analytics
 ```
