@@ -231,6 +231,36 @@ Import:
 
 ---
 
+## 7a. Local Observability (Prometheus, Grafana, Alertmanager)
+
+Bring up the local observability stack alongside the platform:
+
+```bash
+docker compose -f infra/local/docker-compose.yml -f infra/local/docker-compose.observability.yml up --build
+```
+
+UIs:
+
+- Prometheus: http://localhost:9090
+- Alertmanager: http://localhost:9093
+- Grafana: http://localhost:3000 (admin/admin)
+
+Demo alert trigger (ServiceDown):
+
+```bash
+docker compose stop billing-service
+```
+
+Quarkus metrics path for catalog-service is `/q/metrics`.
+
+Quick verification (from host):
+
+```bash
+curl -s http://localhost:8085/q/metrics | head -n 5
+```
+
+---
+
 ## 8. Seed Data Tool
 
 * API: `POST /api/gateway/seed`

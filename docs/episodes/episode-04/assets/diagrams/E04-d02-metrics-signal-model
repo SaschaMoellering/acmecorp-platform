@@ -1,0 +1,11 @@
+```mermaid
+flowchart TB
+
+classDef observe fill:#F3E8FF,stroke:#7C3AED,stroke-width:1.5px,color:#2E1065;
+classDef service fill:#DCFCE7,stroke:#16A34A,stroke-width:1.5px,color:#052E16;
+
+Prom[Prometheus]:::observe
+Service[Orders Service\n/actuator/prometheus]:::service
+
+Prom -->|scrape| Service
+```

@@ -1,0 +1,35 @@
+groups:
+  - name: acmecorp-alerts
+    rules:
+      - alert: AcmeCorpServiceDown
+        expr: up{job=~"acmecorp-.*"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service down: {{ $labels.application }}"
+          description: "{{ $labels.application }} has been unreachable for 30s."
+
+      - alert: GatewayHigh5xxRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{application="gateway-service",status=~"5.."}[2m]))
+            /
+            sum(rate(http_server_requests_seconds_count{application="gateway-service"}[2m]))
+          ) > 0.02
+        for: 2m
+        labels:
+          severity: warning
+          application: gateway-service
+        annotations:
+          summary: "Gateway 5xx rate > 2%"
+          description: "Gateway 5xx ratio is above 2% for 2m."
+
+      - alert: JvmThreadsHigh
+        expr: max by (application) (jvm_threads_live_threads{application=~".+"}) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM thread count ({{ $labels.application }})"
+          description: "Live threads > 300 for 5m in {{ $labels.application }}."
