@@ -38,3 +38,19 @@ services:
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  k6:
+    image: grafana/k6:0.49.0
+    container_name: acmecorp-k6
+    profiles:
+      - load
+    environment:
+      BASE_URL: http://gateway-service:8080
+      RATE: "2"
+      DURATION: "30m"
+    volumes:
+      - ./loadtests:/scripts:ro
+    command: ["run", "/scripts/k6-unicorn.js"]
+    depends_on:
+      - gateway-service
+    restart: "no"
