@@ -179,7 +179,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Heap memory used per application. Uses area=\"heap\" if present (Micrometer standard).",
+      "description": "Heap memory used per application (Micrometer JVM memory with area=heap).",
       "fieldConfig": {
         "defaults": {
           "unit": "bytes"
@@ -195,12 +195,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (application) (jvm_memory_used_bytes{application=~\"$application:regex\"})",
+          "expr": "sum by (application) (jvm_memory_used_bytes{application=~\"$application\", area=\"heap\"})",
           "legendFormat": "{{application}}",
           "refId": "A"
         }
       ],
-      "title": "JVM Heap Used (by application)",
+      "title": "JVM Heap Used",
       "type": "timeseries"
     },
     {
@@ -224,7 +224,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "max by (application) ({__name__=~\"jvm_threads_live.*\", application=~\"$application:regex\"})",
+          "expr": "max by (application) (jvm_threads_live_threads{application=~\"$application\"})",
           "legendFormat": "{{application}}",
           "refId": "A"
         }
