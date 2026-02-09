@@ -5,6 +5,17 @@ Target dashboard: `infra/local/observability/grafana/dashboards/acmecorp-platfor
 Note: Grafana dashboards in this repo reference the Prometheus datasource by UID `prometheus`. Ensure provisioning sets the datasource UID explicitly.
 Note: The Application variable uses regex matchers, so its All-value must be `.*` (Grafana’s default $__all can break regex expressions).
 Note: The gateway 5xx panel uses `or vector(0)` so it renders 0% when no 5xx series exist.
+Note: Dashboards are provisioned from `infra/local/observability/grafana/dashboards/`.
+
+## Templating Contract
+If a Grafana variable is Multi-value or Include All, use a regex matcher in PromQL: `label=~"$var"`.
+Do not use `label="$var"` because All=`.*` and multi-select will produce no data.
+
+Example (correct):
+`jvm_memory_used_bytes{application=~"$application"}`
+
+Example (incorrect):
+`jvm_memory_used_bytes{application="$application"}`
 
 ## What I checked
 - Dashboard JSON location and contents.
@@ -94,8 +105,86 @@ Run these PromQL queries directly:
   - `histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="gateway-service"}[5m])))`
   - `sum(rate(http_server_requests_seconds_sum{application="gateway-service"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application="gateway-service"}[5m])), 1e-9)`
 - JVM metrics:
-  - `jvm_memory_used_bytes{application=~"$application",area="heap"}`
-  - `jvm_threads_live_threads{application=~"$application"}`
+  - `sum by (application) (jvm_memory_used_bytes{application=~"$application",area="heap"})`
+  - `max by (application) (jvm_threads_live_threads{application=~"$application"})`
+
+## Why JVM aggregation is required
+Micrometer JVM metrics include labels like `area`, `id`, and `state`. Panels that plot raw series per application will produce multiple series (one per label value), which can make overview panels show “No data” when they expect a single series per application. Aggregating by `application` (or `application, area/state`) produces stable, readable panels.
+
+## JVM metrics verification (local Compose)
+Use the repo script to query Prometheus from inside the Compose network:
+
+```bash
+scripts/observability/verify-metrics.sh
+```
+
+Expected outcomes:
+- `count(jvm_.*)` should be greater than 0.
+- `count(jvm_.*, application="gateway-service")` should be greater than 0.
+- Example series should show an `application` label on JVM and process metrics.
+
+Prometheus API checks (no UI):
+- `http://prometheus:9090/api/v1/query?query=count({__name__=~"jvm_.*"})`
+- `http://prometheus:9090/api/v1/query?query=count({__name__=~"jvm_.*",application="gateway-service"})`
+- `http://prometheus:9090/api/v1/series?match[]={__name__=~"jvm_.*"}`
+- `http://prometheus:9090/api/v1/query?query=count(http_server_requests_seconds_count{application="gateway-service"})`
+
+## Gateway traffic breakdown checks
+Use these queries to validate the breakdown dashboard panels:
+- RPS by method: `sum by (method) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- RPS by uri: `sum by (uri) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- RPS by route (if available): `sum by (route) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- Error rate by method + uri: `sum by (method, uri, status) (rate(http_server_requests_seconds_count{application="gateway-service",status=~"4..|5.."}[5m]))`
+- Error rate by method + route: `sum by (method, route, status) (rate(http_server_requests_seconds_count{application="gateway-service",status=~"4..|5.."}[5m]))`
+- p95 latency by uri: `histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application="gateway-service"}[5m])))`
+- avg latency by uri (fallback): `sum by (uri) (rate(http_server_requests_seconds_sum{application="gateway-service"}[5m])) / clamp_min(sum by (uri) (rate(http_server_requests_seconds_count{application="gateway-service"}[5m])), 1e-9)`
+
+## JVM panel checks (local Compose)
+Run these in Explore to confirm which JVM metrics exist:
+- `{__name__=~"jvm_.*", application=~".+"}`
+- `sum by (application) (jvm_memory_used_bytes{application=~"$application",area="heap"})`
+- `max by (application) (jvm_threads_live_threads{application=~"$application"})`
+
+## JVM GC breakdown checks
+Validate GC dashboard panels with:
+- Pause buckets present: `sum by (le, application) (rate(jvm_gc_pause_seconds_bucket{application=~"$application"}[5m]))`
+- Pause count: `sum by (application) (rate(jvm_gc_pause_seconds_count{application=~"$application"}[5m]))`
+- Pause sum: `sum by (application) (rate(jvm_gc_pause_seconds_sum{application=~"$application"}[5m]))`
+- Allocation rate (if present): `sum by (application) (rate(jvm_gc_memory_allocated_bytes_total{application=~"$application"}[5m]))`
+- Promotion rate (if present): `sum by (application) (rate(jvm_gc_memory_promoted_bytes_total{application=~"$application"}[5m]))`
+
+## JVM thread + memory breakdown checks
+Validate thread + memory dashboard panels with:
+- Live/daemon/peak: `max by (application) (jvm_threads_live_threads{application=~"$application"})`, `max by (application) (jvm_threads_daemon_threads{application=~"$application"})`, `max by (application) (jvm_threads_peak_threads{application=~"$application"})`
+- Thread states: `sum by (application, state) (jvm_threads_states_threads{application=~"$application"})`
+- Heap vs non-heap: `sum by (application, area) (jvm_memory_used_bytes{application=~"$application"})`
+- Top pools: `topk(10, sum by (application, id) (jvm_memory_used_bytes{application=~"$application"}))`
+- Heap committed/max: `sum by (application) (jvm_memory_committed_bytes{application=~"$application",area="heap"})`, `sum by (application) (jvm_memory_max_bytes{application=~"$application",area="heap"})`
+- Buffers (if present): `sum by (application) (jvm_buffer_memory_used_bytes{application=~"$application"})`, `sum by (application) (jvm_buffer_total_capacity_bytes{application=~"$application"})`
+
+## Minimal validation checklist
+1. Set Application = All; confirm JVM Heap and Threads panels render.
+2. Select 2 applications; confirm panels render both.
+3. Select 1 application; confirm panels render only that app.
+
+## Quick Explore queries
+- `jvm_memory_used_bytes{application=~"$application"}`
+- `jvm_threads_live_threads{application=~"$application"}`
+- `jvm_gc_pause_seconds_count{application=~"$application"}`
+
+Optional Prometheus API probes (no UI required):
+- `curl -s http://localhost:9090/api/v1/label/__name__/values | jq -r '.data[]' | grep '^jvm_'`
+- `curl -s "http://localhost:9090/api/v1/series?match[]=http_server_requests_seconds_count{application=\"gateway-service\"}" | jq -r '.data[0]'`
+
+## Gateway traffic breakdown checks
+Use these queries to validate the new dashboard panels:
+- RPS by method: `sum by (method) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- RPS by uri: `sum by (uri) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- RPS by route (if available): `sum by (route) (rate(http_server_requests_seconds_count{application="gateway-service"}[1m]))`
+- Error rate by method + uri: `sum by (method, uri, status) (rate(http_server_requests_seconds_count{application="gateway-service",status=~"4..|5.."}[5m]))`
+- Error rate by method + route: `sum by (method, route, status) (rate(http_server_requests_seconds_count{application="gateway-service",status=~"4..|5.."}[5m]))`
+- p95 latency by uri: `histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application="gateway-service"}[5m])))`
+- avg latency by uri (fallback): `sum by (uri) (rate(http_server_requests_seconds_sum{application="gateway-service"}[5m])) / clamp_min(sum by (uri) (rate(http_server_requests_seconds_count{application="gateway-service"}[5m])), 1e-9)`
 
 ## TODOs / Assumptions
 - **Assumption:** Spring Boot Micrometer exposes `http_server_requests_seconds_*` with label `status` (standard default). If your environment uses `status_code` or `outcome`, update the 5xx filter accordingly.
