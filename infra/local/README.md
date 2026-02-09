@@ -32,3 +32,38 @@ docker compose up -d
 ```bash
 ./validate-health.sh
 ```
+
+## Load tests (k6)
+
+The `k6` service is behind the `load` profile, so it only appears when the profile is enabled.
+
+```bash
+# From repo root
+docker compose \
+  -f infra/local/docker-compose.yml \
+  -f infra/local/docker-compose.observability.yml \
+  --profile load \
+  config --services | sort
+```
+
+Run a one-off load test:
+
+```bash
+# From repo root
+docker compose \
+  -f infra/local/docker-compose.yml \
+  -f infra/local/docker-compose.observability.yml \
+  --profile load \
+  run --rm k6
+```
+
+Run and exit when the k6 container finishes:
+
+```bash
+# From repo root
+docker compose \
+  -f infra/local/docker-compose.yml \
+  -f infra/local/docker-compose.observability.yml \
+  --profile load \
+  up --abort-on-container-exit k6
+```
