@@ -58,11 +58,6 @@ Each service owns its data and its behavior.
 
 This setup allows us to explore real production problems such as startup ordering, dependency graphs, readiness, and failure propagation.
 
----
-
-## High-level architecture
-
-**[SHOW: E01-D01-system-overview.md]**
 
 At a high level, this is a classic microservices architecture.
 
@@ -125,15 +120,38 @@ This separation is intentional.
 
 Microservices are not the goal of this platform.
 
-They are a tool to surface system behavior.
+I’m not trying to prove that microservices are the “right” architecture. And I’m definitely not trying to build some overly complex distributed system just to make it look modern.
 
-We intentionally keep:
+That’s not the point.
 
-* the number of services manageable
-* responsibilities clear
-* communication explicit
+In this platform, microservices are simply a tool.
 
-This allows us to reason about startup time, memory usage, readiness, and failure propagation without drowning in complexity.
+They help us expose behavior that you just don’t see in a monolith. Network calls. Startup sequencing. Readiness dependencies. Failure propagation. Resource consumption across boundaries.
+
+But we keep it intentionally small.
+
+Only a handful of services. Each with a clear responsibility. No artificial splitting. No “because we can” decomposition.
+
+If a service owns something, it really owns it.
+
+And communication between services is explicit. You can follow the calls. You can trace the flow. When something is slow, you can reason about why.
+
+That’s the important part.
+
+This platform isn’t about distributed complexity. It’s about understanding system behavior.
+
+How long does it take to start?
+What actually consumes memory?
+What happens when one service isn’t ready?
+How does failure ripple through the system?
+
+If we added too many services, we’d just create noise.
+
+So instead, we keep the system controlled — small enough to understand, but realistic enough to behave like a production system.
+
+Microservices aren’t the objective.
+
+They’re just the setup that lets us study how real Java cloud systems behave under real conditions.
 
 ---
 
@@ -141,21 +159,85 @@ This allows us to reason about startup time, memory usage, readiness, and failur
 
 **[SHOW: tech-stack]**
 
-The backend uses a mix of **Spring Boot** and **Quarkus**.
+Now let’s quickly walk through the overall tech stack, so you understand how everything fits together.
 
-This is intentional.
+Think of it in layers.
 
-It allows us to compare runtime characteristics within the same system:
+At the top, we have the client layer.
 
-* JVM startup behavior
-* memory footprint
-* framework trade-offs
+That’s the React frontend.
+It talks to the system over HTTP using JSON APIs.
 
-The frontend is built with **React**.
+Nothing exotic there. Just clean HTTPS communication into the backend.
 
-It is deliberately not treated as a backend service.
+Now directly behind that sits the edge layer.
 
-This mirrors real-world deployments where static assets are typically served via object storage or CDNs.
+We have a gateway built with Spring WebFlux.
+
+All external traffic goes through that gateway. It handles routing, aggregation, and acts as the single entry point into the system.
+
+So from the outside, the platform looks like one system.
+
+Internally, it’s multiple services.
+
+Behind the gateway, we move into the service layer.
+
+This is where we mix Spring Boot and Quarkus services.
+
+Some services are implemented in Spring Boot.
+Others in Quarkus.
+
+Same domain. Same infrastructure. Different runtime behavior.
+
+That allows us to compare startup time, memory footprint, and framework trade-offs inside a controlled environment.
+
+Then below that, we have the platform layer.
+
+All services run in containers — Docker images.
+
+Those containers are orchestrated either by Kubernetes — typically EKS in the cloud — or Docker Compose when we run locally.
+
+So the environment stays conceptually consistent between local and cloud.
+
+Finally, we have the data and messaging layer.
+
+Postgres as the primary relational database.
+RabbitMQ for asynchronous messaging.
+Redis for caching and fast data access patterns.
+
+Both Spring Boot and Quarkus services talk to these infrastructure components.
+
+And that’s important.
+
+Because real systems are not just HTTP calls.
+
+They involve persistence, messaging, caching, and network boundaries.
+
+If you look at the flow end-to-end, it’s straightforward:
+
+React sends HTTPS requests →
+Gateway receives them →
+Gateway routes to Spring Boot or Quarkus services →
+Services interact with Postgres, RabbitMQ, and Redis →
+Everything runs in containers →
+Containers are orchestrated locally or in Kubernetes.
+
+It’s not overly complicated.
+
+But it’s realistic.
+
+And that realism is what allows us to study behavior that actually matters in production.
+
+Startup sequencing.
+Dependency readiness.
+Database connection pressure.
+Message backlog behavior.
+Memory consumption across services.
+
+The stack is modern, but intentionally grounded.
+
+Just enough moving parts to behave like a real cloud system —
+without turning into an academic distributed systems experiment.
 
 ---
 
@@ -163,60 +245,97 @@ This mirrors real-world deployments where static assets are typically served via
 
 **[SHOW: E01-D04-repo-mapping.md]**
 
-The repository structure mirrors the architecture.
+If you look at the repository, you’ll notice something pretty quickly.
+
+The structure mirrors the architecture.
+
+That’s not accidental.
 
 Each service lives in its own module.
+Not just logically separated — physically separated.
 
-Infrastructure, scripts, and tooling are explicit.
+So when you open the repository, the boundaries are visible immediately. You don’t have to guess where one responsibility ends and another begins.
 
-Nothing is hidden behind build magic or conventions.
+The same applies to infrastructure.
 
-This makes later episodes easier to follow and experiments easier to reason about.
+Deployment files, Docker definitions, Kubernetes manifests, scripts, benchmarking tools — they’re all explicit.
 
----
+Nothing is buried inside some opaque build plugin.
+Nothing depends on hidden conventions you’re supposed to “just know.”
 
-## Code walkthrough – making the structure tangible
+If something happens in the system, you can trace it from the code to the container to the orchestration layer.
 
-**[SHOW: IntelliJ IDEA – project root]**
+That’s important for what we’re doing here.
 
-Before we move on, let’s briefly open the codebase.
+Because later in the course, we’ll run experiments.
 
-The goal here is not to understand implementation details.
+And when we do that, we need clarity.
 
-The goal is to connect the diagrams to real files and directories.
+If the structure were messy, or if half the behavior were hidden behind build magic, every experiment would become a debugging session.
 
----
+Instead, the repository is designed to make reasoning easy.
 
-## Gateway service as the entry point
+Clear modules.
+Clear infrastructure.
+Clear tooling.
 
-**[SHOW: IntelliJ – `services/gateway-service`]**
+So when we change something, we know exactly what we changed.
 
-The gateway has a very focused responsibility.
-
-You will typically find:
-
-* routing configuration
-* API definitions
-* centralized error handling
-* cross-cutting concerns like metrics and logging
-
-We will return to this service in much more detail in Episode 3.
+And when the system behaves differently, we can understand why.
 
 ---
 
-## Backend services follow the same pattern
+Gateway service as the entry point
 
-**[SHOW: IntelliJ – `services/orders-service`]**
+[SHOW: IntelliJ – services/gateway-service]
 
-Each backend service follows the same structural pattern.
+Let’s start with the gateway.
 
-This consistency is intentional.
+You can see it sits in its own module. Nothing surprising here.
 
-It reduces cognitive load and makes cross-service reasoning easier.
+If you open it, you’ll mostly find routing, API definitions, and some cross-cutting stuff like logging and metrics.
 
-We are not interested in clever variations here.
+What you won’t find is business logic.
 
-We are interested in predictable structure.
+That’s deliberate.
+
+The gateway’s job is to sit at the edge.
+It routes requests.
+It applies common concerns.
+And then it gets out of the way.
+
+We’ll spend much more time here in Episode 3.
+For now, just notice how focused it is.
+
+Backend services follow the same pattern
+
+[SHOW: IntelliJ – services/orders-service]
+
+Now let’s open one of the backend services — say, the orders service.
+
+If you’ve worked with Spring or Quarkus before, this will look pretty familiar.
+
+Controllers.
+Services.
+Domain model.
+Persistence.
+
+Nothing exotic.
+
+And that’s the point.
+
+Every backend service follows the same structure.
+
+We’re not trying to be creative with folder layouts.
+We’re trying to be predictable.
+
+When you move between services, you shouldn’t have to re-orient yourself.
+
+You should be able to focus on behavior — not on figuring out where things are.
+
+That consistency becomes really helpful later, especially when we start measuring things or introducing failure scenarios.
+
+Because when something behaves differently, you want to know it’s due to the system — not because every service is structured differently.
 
 ---
 
@@ -224,41 +343,67 @@ We are interested in predictable structure.
 
 **[SHOW: E01-D01-system-overview.md – DB, MQ, cache included]**
 
-Infrastructure components are first-class citizens.
+Infrastructure components are first-class citizens in this platform.
 
-Databases, message brokers, and caches influence:
+They’re not just “things in the background.”
 
-* startup behavior
-* readiness
-* failure modes
-* performance
+The database, the message broker, the cache — they all influence how the system behaves.
 
-That is why we model them explicitly from day one.
+They affect startup time.
+They affect readiness.
+They influence failure modes.
+And of course, they impact performance.
 
----
+If Postgres isn’t ready, services behave differently.
+If RabbitMQ is slow, you’ll see backpressure.
+If Redis is unavailable, certain flows degrade.
 
-## What we are not doing yet
+These aren’t edge cases — they’re normal production behavior.
 
-In this episode, we are deliberately not:
+That’s why we model these components explicitly from day one.
 
-* setting up local development
-* deploying to Kubernetes or the cloud
-* optimizing anything
+They’re part of the system. Not external details.
 
-First we establish structure.
+What we are not doing yet
 
-Optimization and tuning come later.
+Now, just as important — what we’re not doing in this episode.
 
----
+We’re not setting up local development in detail yet.
+We’re not deploying anything to Kubernetes or the cloud.
+And we’re definitely not optimizing.
 
-## Closing – setting expectations
+No tuning. No performance experiments. No benchmarking.
 
-**[SHOW: E01-D01-system-overview.md – zoomed out]**
+Right now, we’re just establishing structure.
 
-At this point, you should have a clear mental model of the AcmeCorp Platform.
+Because optimization without structure is just chaos.
 
-You do not need to remember every service name.
+First we understand the system.
 
-What matters is understanding the *shape* of the system and where responsibilities live.
+Then we run it.
 
-In the next episode, we will make this system run locally and see this architecture in action.
+Then we measure it.
+
+And only after that do we start tuning.
+
+Closing – setting expectations
+
+[SHOW: E01-D01-system-overview.md – zoomed out]
+
+So at this point, you should have a clear mental model of the AcmeCorp Platform.
+
+You don’t need to remember every service name.
+
+You don’t need to memorize every technology.
+
+What matters is that you understand the shape of the system.
+
+Where the entry point is.
+Where responsibilities live.
+How components interact.
+
+That mental model is what we’ll build on in the next episodes.
+
+In the next episode, we’ll actually run the system locally — and you’ll see this architecture move from diagrams into something that behaves.
+
+That’s when it starts to get interesting.

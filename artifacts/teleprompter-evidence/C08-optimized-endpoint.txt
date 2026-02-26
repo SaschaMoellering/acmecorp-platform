@@ -1,0 +1,2 @@
+status=200
+body_file=C08-optimized-endpoint.json

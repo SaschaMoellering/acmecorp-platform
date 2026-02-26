@@ -1,0 +1,4 @@
+24:        format_sql: true
+25:    show-sql: true
+36:    org.hibernate.SQL: DEBUG
+37:    org.hibernate.orm.jdbc.bind: TRACE
