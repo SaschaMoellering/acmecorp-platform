@@ -179,7 +179,7 @@ This makes service dependencies explicit and configurable.
 
 Billing, Notification, and Analytics follow the same pattern.
 
-They run on ports 8082, 8083, and 8084.
+They all run on port 8080
 
 All of them:
 

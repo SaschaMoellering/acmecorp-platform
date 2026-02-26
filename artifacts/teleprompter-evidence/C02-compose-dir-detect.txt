@@ -1,0 +1,7 @@
+Script compose references:
+143:cd infra/local
+144:docker compose logs -f orders-service | grep -i "select"
+
+Compose file candidates:
+docker-compose.observability.yml
+docker-compose.yml

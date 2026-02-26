@@ -1,0 +1,10 @@
+NAME                           IMAGE                        COMMAND                  SERVICE                CREATED          STATUS                    PORTS
+acmecorp-postgres              postgres:16                  "docker-entrypoint.s…"   postgres               13 seconds ago   Up 12 seconds (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+acmecorp-rabbitmq              rabbitmq:3-management        "docker-entrypoint.s…"   rabbitmq               13 seconds ago   Up 12 seconds (healthy)   4369/tcp, 5671/tcp, 0.0.0.0:5672->5672/tcp, [::]:5672->5672/tcp, 15671/tcp, 15691-15692/tcp, 25672/tcp, 0.0.0.0:15672->15672/tcp, [::]:15672->15672/tcp
+acmecorp-redis                 redis:7                      "docker-entrypoint.s…"   redis                  13 seconds ago   Up 12 seconds (healthy)   0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp
+local-analytics-service-1      local-analytics-service      "sh -c 'exec java $(…"   analytics-service      13 seconds ago   Up 1 second               0.0.0.0:8084->8080/tcp, [::]:8084->8080/tcp
+local-billing-service-1        local-billing-service        "sh -c 'exec java $(…"   billing-service        13 seconds ago   Up 1 second               0.0.0.0:8082->8080/tcp, [::]:8082->8080/tcp
+local-catalog-service-1        local-catalog-service        "sh -c 'exec java $(…"   catalog-service        13 seconds ago   Up 1 second               0.0.0.0:8085->8080/tcp, [::]:8085->8080/tcp
+local-gateway-service-1        local-gateway-service        "sh -c 'exec java $(…"   gateway-service        12 seconds ago   Up Less than a second     0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+local-notification-service-1   local-notification-service   "sh -c 'exec java $(…"   notification-service   13 seconds ago   Up 1 second               0.0.0.0:8083->8080/tcp, [::]:8083->8080/tcp
+local-orders-service-1         local-orders-service         "sh -c 'exec java $(…"   orders-service         13 seconds ago   Up 1 second               0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp

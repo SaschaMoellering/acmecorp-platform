@@ -1,0 +1,9 @@
+N+1 endpoint timings (limit=50):
+run1 total=0.074253s code=200
+run2 total=0.068980s code=200
+run3 total=0.064515s code=200
+
+Optimized endpoint timings (/latest):
+run1 total=0.017355s code=200
+run2 total=0.015767s code=200
+run3 total=0.015682s code=200
