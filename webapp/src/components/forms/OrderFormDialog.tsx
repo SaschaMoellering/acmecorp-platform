@@ -44,6 +44,7 @@ function validate(values: OrderFormValues) {
 function OrderFormDialog({ title, open, mode, initialValues, loading, error, onClose, onSubmit }: Props) {
   const [values, setValues] = useState<OrderFormValues>(initialValues ?? defaults);
   const [errors, setErrors] = useState<string[]>([]);
+  const formId = `order-form-${mode}`;
 
   useEffect(() => {
     if (open) {
@@ -73,13 +74,13 @@ function OrderFormDialog({ title, open, mode, initialValues, loading, error, onC
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" form="order-form" className="btn btn-primary" disabled={loading}>
+          <button type="submit" form={formId} className="btn btn-primary" disabled={loading}>
             {loading ? 'Saving...' : mode === 'create' ? 'Create Order' : 'Update Order'}
           </button>
         </>
       }
     >
-      <form id="order-form" data-testid="order-form" className="grid" onSubmit={handleSubmit}>
+      <form id={formId} data-testid={`order-form-${mode}`} noValidate className="grid" onSubmit={handleSubmit}>
         <label className="form-field">
           <span>Customer Email</span>
           <input

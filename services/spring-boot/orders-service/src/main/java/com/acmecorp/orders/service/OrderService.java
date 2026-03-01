@@ -100,7 +100,7 @@ public class OrderService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
         Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
-        preloadItems(ordersPage.getContent());
+        //preloadItems(ordersPage.getContent());
         return ordersPage;
     }
 
@@ -208,7 +208,10 @@ public class OrderService {
     @Transactional
     public void deleteOrder(Long id) {
         Order order = getOrder(id);
+        historyRepository.deleteByOrderId(id);
+        idempotencyRepository.deleteByOrderId(id);
         orderRepository.delete(order);
+        orderRepository.flush();
         analyticsClient.track("orders.deleted", Map.of("orderId", order.getId(), "orderNumber", order.getOrderNumber()));
     }
 
