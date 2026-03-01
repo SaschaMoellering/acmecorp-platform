@@ -10,7 +10,7 @@ describe('OrderFormDialog', () => {
       <OrderFormDialog title="Create Order" open mode="create" onClose={() => {}} onSubmit={onSubmit} />
     );
 
-    fireEvent.submit(screen.getByTestId('order-form'));
+    fireEvent.click(screen.getByRole('button', { name: /Create Order/i }));
 
     await waitFor(() => expect(screen.getByText(/valid customer email/i)).toBeInTheDocument());
     expect(onSubmit).not.toHaveBeenCalled();
@@ -28,7 +28,7 @@ describe('OrderFormDialog', () => {
     fireEvent.change(screen.getByLabelText(/Quantity/i), { target: { value: '1' } });
     fireEvent.change(screen.getByLabelText(/Status/i), { target: { value: 'NEW' } });
 
-    fireEvent.submit(screen.getByTestId('order-form'));
+    fireEvent.click(screen.getByRole('button', { name: /Create Order/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
   });

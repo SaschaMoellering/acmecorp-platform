@@ -93,7 +93,8 @@ export type ApiError = Error & {
   path?: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const configuredApiBase = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
+const API_BASE = configuredApiBase.replace(/\/+$/, '');
 
 async function handle<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
