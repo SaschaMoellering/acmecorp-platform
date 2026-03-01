@@ -1,15 +1,10 @@
 package com.acmecorp.catalog;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "products")
