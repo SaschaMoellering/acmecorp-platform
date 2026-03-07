@@ -58,7 +58,12 @@ COPY --from=extract --chown=app:app /layers/app/spring-boot-loader/ /app/
 COPY --from=extract --chown=app:app /layers/app/application/ /app/
 
 # Copy CDS archive if it exists
-COPY --from=cds-gen --chown=app:app /tmp/app.jsa /opt/app/app.jsa 2>/dev/null || echo "No CDS archive to copy"
+RUN --mount=type=bind,from=cds-gen,source=/tmp,target=/tmp/cds \
+    if [ -f /tmp/cds/app.jsa ]; then \
+        cp /tmp/cds/app.jsa /opt/app/app.jsa && chown app:app /opt/app/app.jsa; \
+    else \
+        echo "No CDS archive to copy"; \
+    fi
 
 RUN set -eu; \
   base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
@@ -82,8 +87,8 @@ else
   exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher
 fi
 EOF
-  chmod +x /opt/app/start.sh; \
-  chown app:app /opt/app/start.sh
+
+RUN chmod +x /opt/app/start.sh && chown app:app /opt/app/start.sh
 
 USER app
 EXPOSE 8080
