@@ -2,6 +2,8 @@ package com.acmecorp.orders.api;
 
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
+import com.acmecorp.orders.startup.StartupTimeline;
+import com.acmecorp.orders.startup.StartupTimeline;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
 import com.acmecorp.orders.web.OrderStatusHistoryResponse;
@@ -24,9 +26,11 @@ import java.util.stream.Collectors;
 public class OrdersController {
 
     private final OrderService orderService;
+    private final StartupTimeline startupTimeline;
 
-    public OrdersController(OrderService orderService) {
+    public OrdersController(OrderService orderService, StartupTimeline startupTimeline) {
         this.orderService = orderService;
+        this.startupTimeline = startupTimeline;
     }
 
     @GetMapping("/status")
@@ -35,6 +39,11 @@ public class OrdersController {
                 "service", "orders-service",
                 "status", "OK"
         );
+    }
+
+    @GetMapping("/startup")
+    public Map<String, Object> startup() {
+        return startupTimeline.snapshot();
     }
 
     @PostMapping
