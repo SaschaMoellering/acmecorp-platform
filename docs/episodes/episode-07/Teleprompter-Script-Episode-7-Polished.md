@@ -92,11 +92,19 @@ done
 
 Raw outputs are written to:
 - `bench/results/<branch>/<timestamp>/summary.md`
+- `bench/results/<branch>/<timestamp>/orders-startup.json`
 - `bench/results/<branch>/<timestamp>/load.json`
 - `bench/results/<branch>/<timestamp>/containers.json`
 - `bench/results/<timestamp>/matrix-summary.md`
 
-Once those five runs are complete for each branch, we report medians only.
+Once those 1 runs are complete, we report medians only.
+
+Measured medians from the latest rerun set:
+- Java 11: readiness 9.88s, orders-service main to ready 16065 ms, orders-service memory 560.7 MiB, throughput 1009.4 req/s
+- Java 17: readiness 11.28s, orders-service main to ready 19496 ms, orders-service memory 444.2 MiB, throughput 727.2 req/s
+- Java 21: readiness 10.47s, orders-service main to ready 17342 ms, orders-service memory 434.8 MiB, throughput 703.0 req/s
+
+The important distinction is that readiness is measured externally at the gateway, while the orders-service main to ready value is measured inside the service from `main()` to `ApplicationReadyEvent`.
 
 ---
 
