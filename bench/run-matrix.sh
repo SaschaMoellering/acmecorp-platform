@@ -4,17 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_ROOT="$ROOT_DIR/bench/results"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
-HEALTH_URL="http://localhost:8080/api/gateway/status"
-LOAD_URL="http://localhost:8080/api/gateway/orders"
+HEALTH_URL="${HEALTH_URL:-http://localhost:8080/api/gateway/status}"
+LOAD_URL="${LOAD_URL:-http://localhost:8080/api/gateway/orders}"
 
 WARMUP="${WARMUP:-60}"
 DURATION="${DURATION:-120}"
 CONCURRENCY="${CONCURRENCY:-25}"
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-120}"
+HEALTH_POLL_INTERVAL_SECONDS="${HEALTH_POLL_INTERVAL_SECONDS:-0.10}"
 
 LOAD_READY_URL="${LOAD_READY_URL:-$LOAD_URL}"
 LOAD_READY_TIMEOUT_SECONDS="${LOAD_READY_TIMEOUT_SECONDS:-120}"
 LOAD_READY_CODES="${LOAD_READY_CODES:-200}"
+ORDERS_STARTUP_URL="${ORDERS_STARTUP_URL:-http://localhost:8081/api/orders/startup}"
 
 MATRIX_FAIL_FAST="${MATRIX_FAIL_FAST:-0}"
 COMPOSE_QUIET="${COMPOSE_QUIET:-1}"
@@ -128,19 +130,20 @@ build_branch_hybrid() {
 wait_for_health() {
   local url="$1"
   local timeout="$2"
-  local start_ts
-  start_ts="$(date +%s)"
+  local start_ms
+  start_ms="$(date +%s%3N)"
+  local timeout_ms=$((timeout * 1000))
 
   echo "Waiting for health endpoint ($url) up to ${timeout}s..." >&2
   while true; do
     if curl -fsS "$url" >/dev/null 2>&1; then
-      echo "$(date +%s)"
+      echo "$(date +%s%3N)"
       return 0
     fi
-    if [[ "$(date +%s)" -ge $((start_ts + timeout)) ]]; then
+    if [[ "$(date +%s%3N)" -ge $((start_ms + timeout_ms)) ]]; then
       return 1
     fi
-    sleep 2
+    sleep "$HEALTH_POLL_INTERVAL_SECONDS"
   done
 }
 
@@ -148,8 +151,9 @@ wait_for_http_codes() {
   local url="$1"
   local timeout="$2"
   local codes_csv="$3"
-  local start_ts
-  start_ts="$(date +%s)"
+  local start_ms
+  start_ms="$(date +%s%3N)"
+  local timeout_ms=$((timeout * 1000))
 
   local codes
   codes="$(echo "$codes_csv" | tr ',' ' ' | xargs)"
@@ -167,11 +171,11 @@ wait_for_http_codes() {
       done
     fi
 
-    if [[ "$(date +%s)" -ge $((start_ts + timeout)) ]]; then
+    if [[ "$(date +%s%3N)" -ge $((start_ms + timeout_ms)) ]]; then
       echo "Timeout waiting for $url (last http_code=${code:-na})" >&2
       return 1
     fi
-    sleep 2
+    sleep "$HEALTH_POLL_INTERVAL_SECONDS"
   done
 }
 
@@ -210,7 +214,18 @@ for branch in "${branches[@]}"; do
   fi
 
   echo "---------- Benchmarking branch: $branch ----------" >&2
-  git checkout "$branch" >/dev/null 2>&1 || true
+  if ! git checkout "$branch" >/dev/null 2>&1; then
+    echo "failed to checkout branch '$branch'" >&2
+    echo "current branch remains: $(git rev-parse --abbrev-ref HEAD)" >&2
+    echo "benchmark matrix requires a clean worktree or a separate git worktree per branch" >&2
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+  fi
+
+  current_branch="$(git rev-parse --abbrev-ref HEAD)"
+  if [[ "$current_branch" != "$branch" ]]; then
+    echo "expected branch '$branch' but current branch is '$current_branch'" >&2
+    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+  fi
 
   branch_dir="$RESULT_ROOT/$branch/$timestamp"
   mkdir -p "$branch_dir"
@@ -227,7 +242,7 @@ for branch in "${branches[@]}"; do
   ensure_compose_down
   compose_up_build
 
-  start_ts="$(date +%s)"
+  start_ts="$(date +%s%3N)"
   if ! ready_ts="$(wait_for_health "$HEALTH_URL" "$HEALTH_TIMEOUT_SECONDS")"; then
     echo "health endpoint did not become ready for $branch" >&2
     dump_compose_debug
@@ -242,7 +257,12 @@ for branch in "${branches[@]}"; do
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
-  startup_seconds=$((ready_ts - start_ts))
+  startup_ms=$((ready_ts - start_ts))
+  startup_seconds="$(awk "BEGIN { printf \"%.3f\", ${startup_ms}/1000 }")"
+  startup_trace_file="$branch_dir/orders-startup.json"
+  if ! curl -fsS "$ORDERS_STARTUP_URL" >"$startup_trace_file"; then
+    echo "{\"error\":\"startup instrumentation unavailable\",\"url\":\"$ORDERS_STARTUP_URL\"}" >"$startup_trace_file"
+  fi
 
   echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}" >&2
   load_stdout="$branch_dir/load.stdout.txt"
@@ -338,6 +358,8 @@ PY
 # Benchmark results for $branch
 
 - Startup: ${startup_seconds}s
+- Startup raw: ${startup_ms} ms
+- Orders startup trace: [orders-startup.json](orders-startup.json)
 - Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
 - Memory snapshot: ${mem_summary}
 - Load metrics: [load.json](load.json)
