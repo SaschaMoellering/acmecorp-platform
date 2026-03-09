@@ -9,10 +9,10 @@ This directory contains helper scripts to run a lightweight benchmark for the cu
 
 ## Scripts
 
-- `run-once.sh`: builds and starts the local compose stack, waits for gateway health, captures startup time + container RSS memory via `collect.sh`, and writes results into `bench/results/<timestamp>/summary.*`.
+- `run-once.sh`: builds and starts the local compose stack, waits for the configured health URL, captures startup time with millisecond precision plus container RSS memory via `collect.sh`, and writes results into `bench/results/<timestamp>/summary.*`.
 - `collect.sh`: helper that gathers memory usage from the gateway, orders, and catalog containers (using `docker stats`) and saves a JSON array to the provided results directory.
 - `loadtest.sh`: executes a warmup + measurement load run against the gateway using the first available tool (prefer `wrk`, fall back to `hey`). It outputs JSON with requests/sec and latency percentiles.
-- `run-matrix.sh`: iterates the Java variant branches, packages the code, runs the compose stack, invokes `loadtest.sh`, collects metrics, and emits per-branch + matrix summaries (see section below).
+- `run-matrix.sh`: iterates the Java variant branches, packages the code, runs the compose stack, times readiness with millisecond precision, captures `orders-service` startup milestones from `/api/orders/startup`, invokes `loadtest.sh`, collects metrics, and emits per-branch + matrix summaries (see section below).
 
 ## Use
 
@@ -21,6 +21,14 @@ bash bench/run-once.sh
 ```
 
 Results will be under `bench/results/<timestamp>/`. Each run produces `summary.json`, `summary.md`, and `containers.json`.
+
+Both scripts accept `HEALTH_URL`, `HEALTH_TIMEOUT_SECONDS`, `HEALTH_POLL_INTERVAL_SECONDS`, and `ORDERS_STARTUP_URL` environment variables. The default metric remains application-level readiness via the gateway, so dependency startup and service-to-service connectivity are part of the measured time unless you point `HEALTH_URL` at a more direct endpoint.
+
+The in-process `orders-service` trace records:
+- `applicationStartedSinceJvmStartMillis`
+- `applicationReadySinceJvmStartMillis`
+
+Those values are measured inside the service from `main()` to Spring lifecycle events, so they are useful for separating JVM-plus-Spring bootstrap from the broader compose/network readiness measurement.
 
 ```bash
 bash bench/run-matrix.sh
