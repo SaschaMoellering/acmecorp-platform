@@ -3,7 +3,6 @@ package com.acmecorp.orders.api;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
 import com.acmecorp.orders.startup.StartupTimeline;
-import com.acmecorp.orders.startup.StartupTimeline;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
 import com.acmecorp.orders.web.OrderStatusHistoryResponse;
