@@ -72,16 +72,31 @@ Already, we can see differences in startup time. But startup is just one metric.
 
 Startup time is the first thing users notice. In containerized environments with autoscaling, every second of startup time matters.
 
-Looking at our measurements:
-- Java 11: ~3.5 seconds
-- Java 17: ~3.0 seconds  
-- Java 21: ~2.5 seconds
+The current repository snapshot does not include validated median startup numbers for this episode yet, so we should not present fixed values here.
 
-Java 21 starts 30% faster than Java 11. That's a full second saved on every container start. In an autoscaling environment where you might start dozens of containers per minute during a traffic spike, that adds up quickly.
+Here is the exact rerun workflow for startup measurements:
 
-Why is Java 21 faster? Several reasons. Better class loading, improved JIT compilation, optimized garbage collection, and years of incremental improvements to the JVM startup path.
+```bash
+# 1) Ensure local tracking branches exist (one-time setup)
+git branch java11 origin/java11
+git branch java17 origin/java17
+git branch java21 origin/java21
 
-This isn't a single feature—it's the cumulative effect of hundreds of performance improvements across multiple releases.
+# 2) Run 5 cold starts per Java version
+for branch in java11 java17 java21; do
+  for run in 1 2 3 4 5; do
+    ONLY_BRANCH="$branch" WARMUP=60 DURATION=120 CONCURRENCY=25 bash bench/run-matrix.sh
+  done
+done
+```
+
+Raw outputs are written to:
+- `bench/results/<branch>/<timestamp>/summary.md`
+- `bench/results/<branch>/<timestamp>/load.json`
+- `bench/results/<branch>/<timestamp>/containers.json`
+- `bench/results/<timestamp>/matrix-summary.md`
+
+Once those five runs are complete for each branch, we report medians only.
 
 ---
 
@@ -97,16 +112,9 @@ docker stats orders-service-java17
 docker stats orders-service-java21
 ```
 
-Looking at the memory usage after startup and warmup:
-- Java 11: ~450 MB heap + ~150 MB non-heap = ~600 MB total
-- Java 17: ~400 MB heap + ~130 MB non-heap = ~530 MB total
-- Java 21: ~350 MB heap + ~110 MB non-heap = ~460 MB total
+Memory numbers in this script must come from the same benchmark rerun output set. Until those measured files are present, we keep this section qualitative only.
 
-Java 21 uses 23% less memory than Java 11 for the same workload. That's 140 MB saved per container. If you're running 100 containers, that's 14 GB of memory you don't need to provision.
-
-Why is Java 21 more memory-efficient? Compact object headers, better string deduplication, improved garbage collector algorithms, and more efficient internal data structures.
-
-Again, this isn't one feature—it's the result of continuous optimization work across multiple releases.
+After rerunning, use `containers.json` from each run and report median memory snapshots per Java version.
 
 ---
 
@@ -125,24 +133,7 @@ Now let me generate some load using k6.
 k6 run --vus 50 --duration 60s load-test.js
 ```
 
-While the load test runs, watch the GC logs. We're looking at GC pause times and frequency.
-
-For Java 11 with G1GC:
-- Average GC pause: ~15ms
-- GC frequency: ~every 2 seconds
-- Total GC time: ~5% of runtime
-
-For Java 17 with G1GC:
-- Average GC pause: ~10ms
-- GC frequency: ~every 3 seconds
-- Total GC time: ~3% of runtime
-
-For Java 21 with G1GC:
-- Average GC pause: ~8ms
-- GC frequency: ~every 4 seconds
-- Total GC time: ~2% of runtime
-
-Java 21 spends half as much time in garbage collection as Java 11. That means more CPU time available for actual application work. This directly translates to higher throughput and lower latency.
+While the load test runs, watch the GC logs. We only report GC pause and frequency numbers when we have saved logs for each Java version from the same benchmark session.
 
 ---
 
@@ -151,22 +142,13 @@ Java 21 spends half as much time in garbage collection as Java 11. That means mo
 Let me run a proper throughput benchmark. I'll use the same load test script but measure requests per second at different concurrency levels.
 
 ```bash
-# Java 11
-k6 run --vus 100 --duration 120s load-test.js
-# Result: ~2,500 req/s
-
-# Java 17  
-k6 run --vus 100 --duration 120s load-test.js
-# Result: ~2,800 req/s
-
-# Java 21
-k6 run --vus 100 --duration 120s load-test.js
-# Result: ~3,100 req/s
+# Throughput and latency are already captured by bench/run-matrix.sh.
+# Use load.json from each run and report medians:
+# - requests_per_sec
+# - p50 / p95 / p99 latency
 ```
 
-Java 21 handles 24% more requests per second than Java 11 with the same hardware. That's a significant throughput improvement without changing any application code.
-
-This improvement comes from better JIT compilation, more efficient garbage collection, improved lock contention handling, and optimized internal JVM operations.
+We do not state fixed throughput deltas in this script until those medians are computed from measured `load.json` files.
 
 ---
 
@@ -180,7 +162,7 @@ Let me show you the difference. First, let me check the thread count for the ord
 docker exec orders-service-java11 jcmd 1 Thread.print | grep "java.lang.Thread.State" | wc -l
 ```
 
-We see around 200 platform threads. Each platform thread consumes about 1 MB of stack space, so that's 200 MB just for thread stacks.
+Record the actual platform-thread count from this command in the run notes; do not assume a fixed value.
 
 Now let me enable virtual threads in Java 21. I'll add this to application.yml:
 
@@ -197,7 +179,7 @@ Rebuild and run the service, then check the thread count again.
 docker exec orders-service-java21 jcmd 1 Thread.print | grep "java.lang.Thread.State" | wc -l
 ```
 
-We see around 20 platform threads, but the application is handling the same load. The rest are virtual threads, which are much lighter weight. Virtual threads don't have their own stack—they share carrier threads.
+Record the actual platform-thread count after enabling virtual threads; do not assume a fixed value.
 
 This means we can handle more concurrent requests with less memory and less context switching overhead. For I/O-bound workloads, this is a massive improvement.
 
@@ -207,17 +189,7 @@ This means we can handle more concurrent requests with less memory and less cont
 
 Let's translate these improvements into real-world impact. Assume you're running 100 containers of the orders-service in production.
 
-With Java 11:
-- Memory: 100 containers × 600 MB = 60 GB
-- Throughput: 2,500 req/s per container = 250,000 req/s total
-
-With Java 21:
-- Memory: 100 containers × 460 MB = 46 GB
-- Throughput: 3,100 req/s per container = 310,000 req/s total
-
-By upgrading to Java 21, you save 14 GB of memory and gain 60,000 req/s of capacity. That's 24% more throughput with 23% less memory.
-
-Or, you could reduce your container count from 100 to 81 and maintain the same throughput while saving 19 containers worth of resources. At cloud pricing, that's real money saved every month.
+Translate real-world impact only after medians are computed from measured startup, memory, and throughput outputs for Java 11, 17, and 21.
 
 ---
 
@@ -231,7 +203,7 @@ Upgrading from Java 17 to Java 21 is even easier. The main changes are new featu
 
 The real cost is testing. You need to verify that your application behaves correctly on the new JVM. You need to test performance under load. You need to validate that third-party libraries work as expected.
 
-But the performance gains are not theoretical—they're measurable and significant. Faster startup, lower memory usage, better garbage collection, and higher throughput. These improvements compound over time.
+When the rerun data is complete, we can present measured startup, memory, GC, and throughput deltas with confidence.
 
 ---
 
@@ -253,7 +225,7 @@ JVM performance improvements don't happen automatically. You have to upgrade to 
 
 Staying on Java 11 in 2024 is like running a 2018 car engine in a 2024 car. It works, but you're leaving performance on the table.
 
-Java 21 is faster, more memory-efficient, and more capable than Java 11. The upgrade path is well-documented, the ecosystem is mature, and the performance gains are measurable.
+Java 21 includes major JVM improvements over Java 11, and this episode's benchmark workflow is designed to quantify that with reproducible measurements.
 
 In the next episode, we'll look at another performance topic: profiling and optimization techniques using modern JVM tools. But we can only do that effectively if we're running on a modern JVM.
 
