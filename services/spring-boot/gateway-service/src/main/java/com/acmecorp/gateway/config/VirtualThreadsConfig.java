@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,7 +19,14 @@ public class VirtualThreadsConfig implements AsyncConfigurer {
 
     @Bean(destroyMethod = "shutdown")
     public ExecutorService virtualThreadExecutor() {
-        return Executors.newVirtualThreadPerTaskExecutor();
+        try {
+            Method factory = Executors.class.getMethod("newVirtualThreadPerTaskExecutor");
+            return (ExecutorService) factory.invoke(null);
+        } catch (NoSuchMethodException e) {
+            return Executors.newCachedThreadPool();
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to create virtual-thread executor", e);
+        }
     }
 
     @Override

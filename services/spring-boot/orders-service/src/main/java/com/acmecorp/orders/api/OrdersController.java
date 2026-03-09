@@ -13,8 +13,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
@@ -111,11 +114,25 @@ public class OrdersController {
                                                             @RequestParam(name = "status", required = false) OrderStatus status,
                                                             @RequestParam(name = "page", defaultValue = "0") int page,
                                                             @RequestParam(name = "size", defaultValue = "20") int size) throws ExecutionException, InterruptedException {
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        ExecutorService executor = createRequestExecutor();
+        try {
             var task = executor.submit(() -> orderService.listOrders(customerEmail, status, page, size));
             var ordersPage = task.get();
             var responses = ordersPage.getContent().stream().map(OrderResponse::from).toList();
             return new PageImpl<>(responses, PageRequest.of(page, size), ordersPage.getTotalElements());
+        } finally {
+            executor.shutdown();
+        }
+    }
+
+    private ExecutorService createRequestExecutor() {
+        try {
+            Method factory = Executors.class.getMethod("newVirtualThreadPerTaskExecutor");
+            return (ExecutorService) factory.invoke(null);
+        } catch (NoSuchMethodException e) {
+            return Executors.newCachedThreadPool();
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalStateException("Failed to create request executor", e);
         }
     }
 }
