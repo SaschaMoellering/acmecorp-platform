@@ -3,6 +3,7 @@ package com.acmecorp.orders.api;
 import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
+import com.acmecorp.orders.startup.StartupTimeline;
 import com.acmecorp.orders.web.OrderRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -33,6 +34,9 @@ class OrdersControllerTest {
     @MockBean
     private OrderService orderService;
 
+    @MockBean
+    private StartupTimeline startupTimeline;
+
     @Test
     void statusEndpointShouldReturnOk() throws Exception {
         mockMvc.perform(get("/api/orders/status"))
@@ -55,6 +59,21 @@ class OrdersControllerTest {
         mockMvc.perform(get("/api/orders/latest").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].orderNumber").value("ORD-2025-00001"));
+    }
+
+    @Test
+    void startupEndpointShouldReturnTimeline() throws Exception {
+        Mockito.when(startupTimeline.snapshot()).thenReturn(java.util.Map.of(
+                "jvmMainStartEpochMillis", 1L,
+                "applicationStartedEpochMillis", 2L,
+                "applicationReadyEpochMillis", 3L,
+                "applicationStartedSinceJvmStartMillis", 10L,
+                "applicationReadySinceJvmStartMillis", 20L
+        ));
+
+        mockMvc.perform(get("/api/orders/startup"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.applicationReadySinceJvmStartMillis").value(20));
     }
 
     @Test

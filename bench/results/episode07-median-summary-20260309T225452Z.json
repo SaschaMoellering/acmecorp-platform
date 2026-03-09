@@ -1,0 +1,29 @@
+{
+  "java11": {
+    "runs": [
+      "20260309T225039Z"
+    ],
+    "startup_median_s": 9.876,
+    "orders_main_to_ready_median_ms": 16065.0,
+    "rps_median": 1009.44,
+    "orders_mem_median_mib": 560.7
+  },
+  "java17": {
+    "runs": [
+      "20260309T225141Z"
+    ],
+    "startup_median_s": 11.281,
+    "orders_main_to_ready_median_ms": 19496.0,
+    "rps_median": 727.24,
+    "orders_mem_median_mib": 444.2
+  },
+  "java21": {
+    "runs": [
+      "20260309T225247Z"
+    ],
+    "startup_median_s": 10.469,
+    "orders_main_to_ready_median_ms": 17342.0,
+    "rps_median": 703.0,
+    "orders_mem_median_mib": 434.8
+  }
+}
