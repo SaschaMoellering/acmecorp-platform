@@ -1,17 +1,20 @@
 ARG APP_NAME=app
+ARG JAVA_VERSION=25
 
-FROM maven:3.9.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /workspace
 COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar dependency:resolve dependency:resolve-plugins
 COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 mvn -ntp -q -DskipTests -Dquarkus.package.jar.type=fast-jar package
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
 
 ARG APP_NAME=app
+ARG JAVA_VERSION=25
 ENV APP_NAME=${APP_NAME}
+ENV JAVA_VERSION=${JAVA_VERSION}
 
 RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app && mkdir -p /app && chown -R app:app /app
 RUN mkdir -p /opt/app && chown -R app:app /opt/app
