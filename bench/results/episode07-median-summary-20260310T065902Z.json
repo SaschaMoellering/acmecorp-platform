@@ -1,0 +1,41 @@
+{
+  "java11": {
+    "runs": [
+      "20260309T225917Z",
+      "20260309T230313Z",
+      "20260309T230709Z",
+      "20260309T231105Z",
+      "20260309T231501Z"
+    ],
+    "startup_median_s": 10.774,
+    "orders_main_to_ready_median_ms": 16168.0,
+    "rps_median": 6871.57,
+    "orders_mem_median_mib": 913.7
+  },
+  "java17": {
+    "runs": [
+      "20260309T231857Z",
+      "20260309T232257Z",
+      "20260309T232657Z",
+      "20260309T233058Z",
+      "20260309T233458Z"
+    ],
+    "startup_median_s": 12.271,
+    "orders_main_to_ready_median_ms": 20861.0,
+    "rps_median": 6498.41,
+    "orders_mem_median_mib": 553.5
+  },
+  "java21": {
+    "runs": [
+      "20260309T233859Z",
+      "20260309T234258Z",
+      "20260309T234656Z",
+      "20260309T235055Z",
+      "20260309T235454Z"
+    ],
+    "startup_median_s": 10.015,
+    "orders_main_to_ready_median_ms": 18603.0,
+    "rps_median": 6213.48,
+    "orders_mem_median_mib": 554.1
+  }
+}
