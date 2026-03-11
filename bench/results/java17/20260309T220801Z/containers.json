@@ -1,0 +1,56 @@
+[
+  {
+    "service": "postgres",
+    "container": "acmecorp-postgres",
+    "id": "4adecfcd27ed83e9b8b54e9eb1307d5f806198158d8f30a917f6ee5435a926f4",
+    "mem": "86.17MiB"
+  },
+  {
+    "service": "rabbitmq",
+    "container": "acmecorp-rabbitmq",
+    "id": "839bf78da12f0509025385e3ac9c082b7ade0f87b7a145b0364622a38d6af2dc",
+    "mem": "137MiB"
+  },
+  {
+    "service": "redis",
+    "container": "acmecorp-redis",
+    "id": "10ec484cbd4cca6db96032e0a672aaeca0d25773367f73d9ae9691159701a78c",
+    "mem": "3.656MiB"
+  },
+  {
+    "service": "analytics-service",
+    "container": "local-analytics-service-1",
+    "id": "bde3d4959e4b6a4c2afe9dac270001399278e2f8fe9456b7bd903c1c8f327ecd",
+    "mem": "383.7MiB"
+  },
+  {
+    "service": "billing-service",
+    "container": "local-billing-service-1",
+    "id": "2edac92e2ad6dc0e985f3cdf2e577820ad563641da5b5167fe10cc4fc16e95c7",
+    "mem": "417.9MiB"
+  },
+  {
+    "service": "catalog-service",
+    "container": "local-catalog-service-1",
+    "id": "6e6373ef4c31d9fda70befbcc4cbba2a035f4735c6e95f5e2627cec7d8264ddd",
+    "mem": "257.2MiB"
+  },
+  {
+    "service": "gateway-service",
+    "container": "local-gateway-service-1",
+    "id": "c5059bee844b080b58cc94c4a806f5872873af3c8e4594e1d72d5bb447d6131a",
+    "mem": "490.4MiB"
+  },
+  {
+    "service": "notification-service",
+    "container": "local-notification-service-1",
+    "id": "1e0310e41546a511f39d4db536aee43686e72917e3b01554c26e311e80f7c04e",
+    "mem": "433.9MiB"
+  },
+  {
+    "service": "orders-service",
+    "container": "local-orders-service-1",
+    "id": "78d6f64e16600150916755d7729203b8b29847546754722b99edb0d95dc05773",
+    "mem": "543.6MiB"
+  }
+]

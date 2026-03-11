@@ -1,0 +1,36 @@
+name: Codex Review
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - java11
+      - java17
+      - java21
+      - java25
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 21
+
+    - name: Build
+      run: mvn -ntp clean test
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: target/surefire-reports

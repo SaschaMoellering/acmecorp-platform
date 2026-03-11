@@ -1,0 +1,26 @@
+{
+  "java11": {
+    "runs": [
+      "20260309T220404Z"
+    ],
+    "startup_median_s": 12.0,
+    "rps_median": 7054.22,
+    "orders_mem_median_mib": 816.8
+  },
+  "java17": {
+    "runs": [
+      "20260309T220801Z"
+    ],
+    "startup_median_s": 12.0,
+    "rps_median": 6297.12,
+    "orders_mem_median_mib": 543.6
+  },
+  "java21": {
+    "runs": [
+      "20260309T221203Z"
+    ],
+    "startup_median_s": 12.0,
+    "rps_median": 5818.76,
+    "orders_mem_median_mib": 829.0
+  }
+}
