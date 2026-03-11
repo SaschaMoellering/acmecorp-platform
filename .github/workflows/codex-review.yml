@@ -26,11 +26,13 @@ jobs:
         distribution: temurin
         java-version: 21
 
-    - name: Build
-      run: mvn -ntp clean test
+    - name: Run backend tests
+      run: make test-backend
 
     - name: Upload Test Results
       uses: actions/upload-artifact@v4
       with:
         name: test-results
-        path: target/surefire-reports
+        path: |
+          services/**/target/surefire-reports
+          integration-tests/target/surefire-reports
