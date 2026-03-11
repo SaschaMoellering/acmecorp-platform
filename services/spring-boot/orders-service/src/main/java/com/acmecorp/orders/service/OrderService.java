@@ -141,7 +141,7 @@ public class OrderService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
         Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
-        //preloadItems(ordersPage.getContent());
+        preloadItems(ordersPage.getContent());
         return ordersPage;
     }
 
