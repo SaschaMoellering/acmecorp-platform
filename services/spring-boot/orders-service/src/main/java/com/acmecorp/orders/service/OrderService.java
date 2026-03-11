@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -140,7 +141,10 @@ public class OrderService {
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
+        Page<Order> ordersPage = orderRepository.findAll(
+                spec,
+                PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
+        );
         preloadItems(ordersPage.getContent());
         return ordersPage;
     }
