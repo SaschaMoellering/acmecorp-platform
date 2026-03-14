@@ -12,8 +12,6 @@ We're not going to look at language features or API changes. We're going to meas
 
 ## The JVM release cadence – Understanding LTS versions
 
-**[DIAGRAM: E07-D01-startup-comparison]**
-
 Before we dive into the benchmark results, let's ground this in the JVM release model. Since Java 9, Oracle and the OpenJDK community have released a new Java version every six months. But not all versions play the same role in production.
 
 Java 11, 17, and 21 are Long-Term Support (LTS) releases. These are the versions that get security updates and bug fixes for years. Java 11 was released in 2018, Java 17 in 2021, and Java 21 in 2023.
@@ -76,11 +74,11 @@ Already, we can see differences in startup time. But startup is just one metric.
 
 ## Startup time comparison – The first impression
 
-**[DIAGRAM: E07-D01-startup-comparison]**
-
 Startup time is the first thing users notice. In containerized environments with autoscaling, every second of startup time matters.
 
-Here is the exact rerun workflow for startup measurements:
+**[DIAGRAM: E07-D01-startup-comparison]**
+
+This chart shows two startup metrics side by side for each branch. Here is the exact rerun workflow for startup measurements:
 
 ```bash
 # 1) Ensure local tracking branches exist (one-time setup)
@@ -109,17 +107,15 @@ Median results from the latest rerun set (RUNS_PER_BRANCH=5):
 - Java 21: readiness 9.31s, orders-service main-to-ready 17669 ms, orders memory 611.5 MiB, throughput 6701.8 req/s
 - Java 25: readiness 11.06s, orders-service main-to-ready 15483 ms, orders memory 667.2 MiB, throughput 6193.0 req/s
 
-Look at what these numbers are telling us. Java 21 wins on full-stack readiness at 9.31 seconds. Java 25 wins on internal application bootstrap with the fastest main-to-ready at 15483 ms. Java 17 has the lowest orders-service memory footprint at 578.2 MiB. And Java 11 still leads on throughput at 7281.6 req/s in this particular branch set.
-
-That is not a clean story where newer always wins. It is a tradeoffs story. Real platform upgrades shift startup, memory, and throughput in different directions, and which dimension matters most depends on what your system actually needs.
+Java 21 wins on full-stack readiness at 9.31 seconds. Java 25 wins on internal bootstrap with the fastest main-to-ready at 15483 ms. Already the story is not a straight line from older to newer.
 
 ---
 
 ## Memory footprint comparison – The hidden cost
 
-**[DIAGRAM: E07-D02-memory-footprint-comparison]**
-
 Startup time is visible, but memory footprint is often hidden until you hit resource limits. Let me run the services with memory tracking enabled.
+
+**[DIAGRAM: E07-D02-memory-footprint-comparison]**
 
 ```bash
 docker stats orders-service-java11
@@ -128,7 +124,9 @@ docker stats orders-service-java21
 docker stats orders-service-java25
 ```
 
-These memory numbers come from the same five-run benchmark rerun set. They are median `orders-service` container snapshots taken after readiness, so we treat them as supporting evidence rather than as a perfect model of steady-state memory behavior.
+These memory numbers come from the same five-run benchmark rerun set. They are median orders-service container snapshots taken after readiness—supporting evidence, not a perfect model of steady-state behavior.
+
+Java 17 lands at 578.2 MiB. Java 11 is at 1060.9 MiB—nearly double. That gap matters at scale. But memory is only one axis, and we have already seen that Java 11 leads on throughput. That tension is exactly what this episode is about.
 
 ---
 
@@ -209,7 +207,9 @@ Java 17's memory footprint of 578.2 MiB versus Java 11's 1060.9 MiB is a meaning
 
 ## The upgrade path – Understanding the tradeoffs
 
-The results show real tradeoffs across metrics, not a single winner. So is upgrading worth the effort? Let's be honest about the costs.
+**[DIAGRAM: E07-D03-platform-tradeoffs]**
+
+This chart makes the tradeoff structure explicit. Each branch leads a different metric. There is no single winner across all four dimensions. The results show real tradeoffs, not a clean upgrade story. So is upgrading worth the effort? Let's be honest about the costs.
 
 Upgrading from Java 11 to Java 17 is relatively straightforward. Java 17 is mostly backward compatible. You might need to update some dependencies, but most well-maintained libraries already support Java 17.
 
@@ -235,9 +235,13 @@ Each LTS release gives you three years before the next one. That's plenty of tim
 
 ## Closing – The lesson is tradeoffs, not a winner
 
-The lesson from this benchmark is not that newer Java always wins.
+**[DIAGRAM: E07-D04-master-benchmark]**
 
-The lesson is that real platform upgrades shift startup, memory, and throughput in different ways. Java 21 gives you the fastest full-stack readiness. Java 25 gives you the fastest internal bootstrap. Java 17 gives you the lowest memory footprint. Java 11 still leads on throughput in this branch set.
+This radar chart puts all four branches on the same canvas. Startup, memory efficiency, throughput, internal bootstrap—each axis normalized from the measured medians. Take a moment to look at the shape of each branch. No single branch dominates every axis.
+
+Java 21 leads on full-stack readiness. Java 25 leads on internal bootstrap. Java 17 leads on memory efficiency. Java 11 still leads on throughput.
+
+The lesson from this benchmark is not that newer Java always wins. The lesson is that real platform upgrades shift startup, memory, and throughput in different ways—and which dimension matters most depends entirely on what your system needs.
 
 That's why serious teams measure their own platform behavior instead of assuming a universal upgrade story.
 
