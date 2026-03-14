@@ -10,7 +10,7 @@ classDef metric fill:#DBEAFE,stroke:#2563EB,stroke-width:2px,color:#0F172A;
 classDef neutral fill:#F3F4F6,stroke:#9CA3AF,stroke-width:1.5px,color:#111827;
 
 Title["<b>Platform Branch Tradeoffs</b><br/>Different branches lead different metrics"]:::metric
-Scope["<b>Scope</b><br/>Maintained platform branches<br/>Median of 5 runs per branch"]:::neutral
+Scope["<b>Scope</b><br/>Maintained platform branches<br/>Metric winners from 5-run medians"]:::neutral
 
 subgraph Tradeoffs[" "]
 direction LR
@@ -27,7 +27,7 @@ M4["<b>Highest Throughput</b><br/>7281.6 req/s"]:::metric
 J11["<b>Java 11</b><br/>Best gateway throughput"]:::java11
 end
 
-Takeaway["<b>Takeaway</b><br/>No single winner<br/>Episode 7 is a tradeoff story"]:::neutral
+Takeaway["<b>Takeaway</b><br/>No single winner<br/>Tradeoffs across startup, memory, throughput"]:::neutral
 
 Title --> Scope
 Scope --> M1 --> J21
