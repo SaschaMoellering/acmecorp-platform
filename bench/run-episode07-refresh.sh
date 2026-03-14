@@ -7,7 +7,7 @@ WARMUP="${WARMUP:-60}"
 DURATION="${DURATION:-120}"
 CONCURRENCY="${CONCURRENCY:-25}"
 DO_FETCH="${DO_FETCH:-1}"
-BRANCHES="${BRANCHES:-java11 java17 java21}"
+BRANCHES="${BRANCHES:-java11 java17 java21 java25}"
 
 START_UTC="$(date -u +"%Y%m%dT%H%M%SZ")"
 export START_UTC RUNS_PER_BRANCH
@@ -80,8 +80,16 @@ startup_diagram = root / "docs" / "episodes" / "episode-07" / "assets" / "diagra
 memory_diagram = root / "docs" / "episodes" / "episode-07" / "assets" / "diagrams" / "E07-D02-memory-footprint-comparison.md"
 teleprompter = root / "docs" / "episodes" / "episode-07" / "Teleprompter-Script-Episode-7-Polished.md"
 
-runnable_branches = __import__("os").environ.get("BRANCHES", "java11 java17 java21").split()
-branches = ["java11", "java17", "java21"]
+runnable_branches = __import__("os").environ.get("BRANCHES", "java11 java17 java21 java25").split()
+branch_meta = [
+    ("java11", "Java 11", "J11", "java11"),
+    ("java17", "Java 17", "J17", "java17"),
+    ("java21", "Java 21", "J21", "java21"),
+    ("java25", "Java 25", "J25", "java25"),
+]
+branches = [meta for meta in branch_meta if meta[0] in runnable_branches]
+if not branches:
+    raise SystemExit("No supported branches selected for Episode 7 refresh.")
 runs_per_branch = int(__import__("os").environ.get("RUNS_PER_BRANCH", "5"))
 start_utc = __import__("os").environ["START_UTC"]
 start_dt = datetime.strptime(start_utc, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
@@ -116,7 +124,7 @@ def eligible_dirs(branch: str):
     return list(reversed(dirs[:runs_per_branch]))
 
 results = {}
-for branch in branches:
+for branch, _, _, _ in branches:
     dirs = eligible_dirs(branch)
     if len(dirs) < runs_per_branch:
         raise SystemExit(
@@ -174,26 +182,17 @@ def fmt_ms(v):
 
 startup_text = startup_diagram.read_text(encoding="utf-8")
 startup_text = re.sub(
-    r'Method\["<b>Metric</b><br/>.*?Minimum: \d+ runs per Java version"\]:::metric',
+    r'Method\["<b>Metrics?</b><br/>.*?Minimum: \d+ runs per Java version"\]:::metric',
     f'Method["<b>Metrics</b><br/>External readiness median via /api/gateway/status<br/>Orders-service main() to ApplicationReadyEvent median<br/>Minimum: {runs_per_branch} runs per Java version"]:::metric',
     startup_text,
     flags=re.S,
 )
-startup_text = re.sub(
-    r'J11\["<b>Java 11</b><br/>.*?"\]:::java11',
-    f'J11["<b>Java 11</b><br/>Readiness: {fmt_startup(results["java11"]["startup_median_s"])}<br/>Orders main→ready: {fmt_ms(results["java11"]["orders_main_to_ready_median_ms"])}"]:::java11',
-    startup_text,
-)
-startup_text = re.sub(
-    r'J17\["<b>Java 17</b><br/>.*?"\]:::java17',
-    f'J17["<b>Java 17</b><br/>Readiness: {fmt_startup(results["java17"]["startup_median_s"])}<br/>Orders main→ready: {fmt_ms(results["java17"]["orders_main_to_ready_median_ms"])}"]:::java17',
-    startup_text,
-)
-startup_text = re.sub(
-    r'J21\["<b>Java 21</b><br/>.*?"\]:::java21',
-    f'J21["<b>Java 21</b><br/>Readiness: {fmt_startup(results["java21"]["startup_median_s"])}<br/>Orders main→ready: {fmt_ms(results["java21"]["orders_main_to_ready_median_ms"])}"]:::java21',
-    startup_text,
-)
+for branch, label, node_id, css_class in branches:
+    startup_text = re.sub(
+        rf'{node_id}\["<b>{re.escape(label)}</b><br/>.*?"\]:::{css_class}',
+        f'{node_id}["<b>{label}</b><br/>Readiness: {fmt_startup(results[branch]["startup_median_s"])}<br/>Orders main→ready: {fmt_ms(results[branch]["orders_main_to_ready_median_ms"])}"]:::{css_class}',
+        startup_text,
+    )
 startup_text = re.sub(
     r'Result\["<b>Status</b><br/>[^"]*"\]:::metric',
     f'Result["<b>Status</b><br/>Median of {runs_per_branch} cold starts per Java version"]:::metric',
@@ -202,21 +201,12 @@ startup_text = re.sub(
 startup_diagram.write_text(startup_text, encoding="utf-8")
 
 memory_text = memory_diagram.read_text(encoding="utf-8")
-memory_text = re.sub(
-    r'J11\["<b>Java 11</b><br/>Memory snapshot median: [^"]*"\]:::java11',
-    f'J11["<b>Java 11</b><br/>Memory snapshot median: {fmt_mem(results["java11"]["orders_mem_median_mib"])}"]:::java11',
-    memory_text,
-)
-memory_text = re.sub(
-    r'J17\["<b>Java 17</b><br/>Memory snapshot median: [^"]*"\]:::java17',
-    f'J17["<b>Java 17</b><br/>Memory snapshot median: {fmt_mem(results["java17"]["orders_mem_median_mib"])}"]:::java17',
-    memory_text,
-)
-memory_text = re.sub(
-    r'J21\["<b>Java 21</b><br/>Memory snapshot median: [^"]*"\]:::java21',
-    f'J21["<b>Java 21</b><br/>Memory snapshot median: {fmt_mem(results["java21"]["orders_mem_median_mib"])}"]:::java21',
-    memory_text,
-)
+for branch, label, node_id, css_class in branches:
+    memory_text = re.sub(
+        rf'{node_id}\["<b>{re.escape(label)}</b><br/>Memory snapshot median: [^"]*"\]:::{css_class}',
+        f'{node_id}["<b>{label}</b><br/>Memory snapshot median: {fmt_mem(results[branch]["orders_mem_median_mib"])}"]:::{css_class}',
+        memory_text,
+    )
 memory_text = re.sub(
     r'Status\["<b>Status</b><br/>[^"]*"\]:::metric',
     f'Status["<b>Status</b><br/>Median of {runs_per_branch} cold starts per Java version"]:::metric',
@@ -225,17 +215,20 @@ memory_text = re.sub(
 memory_diagram.write_text(memory_text, encoding="utf-8")
 
 tp_text = teleprompter.read_text(encoding="utf-8")
+summary_lines = [
+    f"- {label}: readiness {fmt_startup(results[branch]['startup_median_s'])}, orders-service main to ready {fmt_ms(results[branch]['orders_main_to_ready_median_ms'])}, orders-service memory {fmt_mem(results[branch]['orders_mem_median_mib'])}, throughput {fmt_rps(results[branch]['rps_median'])}"
+    for branch, label, _, _ in branches
+]
 summary_block = (
     f"Once those {runs_per_branch} runs are complete, we report medians only.\n\n"
     "Measured medians from the latest rerun set:\n"
-    f"- Java 11: readiness {fmt_startup(results['java11']['startup_median_s'])}, orders-service main to ready {fmt_ms(results['java11']['orders_main_to_ready_median_ms'])}, orders-service memory {fmt_mem(results['java11']['orders_mem_median_mib'])}, throughput {fmt_rps(results['java11']['rps_median'])}\n"
-    f"- Java 17: readiness {fmt_startup(results['java17']['startup_median_s'])}, orders-service main to ready {fmt_ms(results['java17']['orders_main_to_ready_median_ms'])}, orders-service memory {fmt_mem(results['java17']['orders_mem_median_mib'])}, throughput {fmt_rps(results['java17']['rps_median'])}\n"
-    f"- Java 21: readiness {fmt_startup(results['java21']['startup_median_s'])}, orders-service main to ready {fmt_ms(results['java21']['orders_main_to_ready_median_ms'])}, orders-service memory {fmt_mem(results['java21']['orders_mem_median_mib'])}, throughput {fmt_rps(results['java21']['rps_median'])}\n\n"
-    "The important distinction is that readiness is measured externally at the gateway, while the orders-service main to ready value is measured inside the service from `main()` to `ApplicationReadyEvent`."
+    + "\n".join(summary_lines)
+    + "\n\n"
+    + "The important distinction is that readiness is measured externally at the gateway, while the orders-service main to ready value is measured inside the service from `main()` to `ApplicationReadyEvent`."
 )
 pattern = (
     r"Once those (?:five|\d+) runs are complete(?: for each branch)?, we report medians only\.\n"
-    r"(?:\nMeasured medians from the latest rerun set:\n(?:- .*\n?){0,3})?"
+    r"(?:\nMeasured medians from the latest rerun set:\n(?:- .*\n?){0,10})?"
 )
 tp_text, replaced = re.subn(pattern, summary_block, tp_text, count=1)
 if replaced == 0:
