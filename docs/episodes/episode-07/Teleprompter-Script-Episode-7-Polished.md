@@ -1,10 +1,10 @@
-# Episode 7 — JVM Performance Baselines: Java 11 → 17 → 21
+# Episode 7 — Platform Branch Benchmarks: Java 11 → 17 → 21 → 25
 
-## Opening – Why JVM versions matter
+## Opening – Why platform generations matter
 
-In Episode 6, we looked at three different approaches to optimizing JVM startup: AppCDS, native images, and CRaC. But there's a more fundamental question we haven't addressed yet: which JVM version should you be running?
+In Episode 6, we looked at three different approaches to optimizing JVM startup: AppCDS, native images, and CRaC. But there's a more fundamental question we haven't addressed yet: what does it actually cost—or gain—to move your platform forward across Java generations?
 
-This isn't just a dependency update. It's an architectural decision. Staying on older JVM versions silently costs performance, memory efficiency, and stability. In this episode, we're going to establish a baseline by comparing Java 11, Java 17, and Java 21 running the same application—the AcmeCorp orders-service.
+This isn't just a JVM swap. Each branch in this repository represents a maintained platform generation: a different Java version, yes, but also the framework versions, packaging choices, and configuration that go with it. These are the kinds of changes real teams ship when they upgrade. In this episode, we benchmark four of those branches—Java 11, Java 17, Java 21, and Java 25—running the AcmeCorp orders-service.
 
 We're not going to look at language features or API changes. We're going to measure what actually matters in production: startup time, memory footprint, throughput, and garbage collection behavior.
 
@@ -14,25 +14,25 @@ We're not going to look at language features or API changes. We're going to meas
 
 **[DIAGRAM: E07-D01-startup-comparison]**
 
-Before we dive into benchmarks, let's understand the JVM release model. Since Java 9, Oracle and the OpenJDK community have released a new Java version every six months. But not all versions are equal.
+Before we dive into the benchmark results, let's ground this in the JVM release model. Since Java 9, Oracle and the OpenJDK community have released a new Java version every six months. But not all versions play the same role in production.
 
 Java 11, 17, and 21 are Long-Term Support (LTS) releases. These are the versions that get security updates and bug fixes for years. Java 11 was released in 2018, Java 17 in 2021, and Java 21 in 2023.
 
-Most production systems run on LTS versions because they need stability and long-term support. But each LTS release includes years of performance improvements, garbage collector enhancements, and JVM optimizations from the non-LTS releases in between.
+Most production systems run on LTS versions because they need stability and long-term support. And each LTS release carries years of JVM work forward: garbage collector changes, runtime tuning, and startup improvements from the non-LTS releases in between.
 
-When you stay on Java 11, you're not just missing new language features—you're missing six years of JVM performance work.
+So when you stay on Java 11, you're not just missing language features. You're also opting out of several generations of platform and JVM evolution. This benchmark does not isolate JVM-only effects, but it does show what those maintained branch generations look like in practice.
 
 ---
 
-## The test setup – Same application, different JVMs
+## The test setup – Repository-maintained platform branches
 
-Let me show you the test setup. We have three branches in the repository: java11, java17, and java21. Each branch runs the exact same orders-service code with the same dependencies, just compiled and run on different JVM versions.
+Let me show you the test setup. We have four benchmark branches in the repository: java11, java17, java21, and java25. Each branch is a repository-maintained platform branch aligned with a different Java generation—meaning the JVM, framework versions, packaging, and configuration all reflect what that generation looks like in practice.
 
 ```bash
 git branch -a | grep java
 ```
 
-We see three branches: java11, java17, and java21. Let me check out the Java 11 branch first.
+We see four benchmark branches: java11, java17, java21, and java25. Let me check out the Java 11 branch first.
 
 ```bash
 git checkout java11
@@ -54,12 +54,20 @@ docker build -t orders-service-java17 .
 time docker run --rm orders-service-java17
 ```
 
-And finally Java 21.
+Then Java 21.
 
 ```bash
 git checkout java21
 docker build -t orders-service-java21 .
 time docker run --rm orders-service-java21
+```
+
+And then Java 25.
+
+```bash
+git checkout java25
+docker build -t orders-service-java25 .
+time docker run --rm orders-service-java25
 ```
 
 Already, we can see differences in startup time. But startup is just one metric. Let's look at the full picture.
@@ -72,22 +80,16 @@ Already, we can see differences in startup time. But startup is just one metric.
 
 Startup time is the first thing users notice. In containerized environments with autoscaling, every second of startup time matters.
 
-The current repository snapshot does not include validated median startup numbers for this episode yet, so we should not present fixed values here.
-
 Here is the exact rerun workflow for startup measurements:
 
 ```bash
 # 1) Ensure local tracking branches exist (one-time setup)
-git branch java11 origin/java11
-git branch java17 origin/java17
-git branch java21 origin/java21
-
-# 2) Run 5 cold starts per Java version
-for branch in java11 java17 java21; do
-  for run in 1 2 3 4 5; do
-    ONLY_BRANCH="$branch" WARMUP=60 DURATION=120 CONCURRENCY=25 bash bench/run-matrix.sh
-  done
+for branch in java11 java17 java21 java25; do
+  git show-ref --verify --quiet "refs/heads/$branch" || git branch --track "$branch" "origin/$branch"
 done
+
+# 2) Run the canonical refresh workflow
+RUNS_PER_BRANCH=5 WARMUP=60 DURATION=120 CONCURRENCY=25 DO_FETCH=0 BRANCHES="java11 java17 java21 java25" bash bench/run-episode07-refresh.sh
 ```
 
 Raw outputs are written to:
@@ -99,12 +101,17 @@ Raw outputs are written to:
 
 Once those 5 runs are complete, we report medians only.
 
-Measured medians from the latest rerun set:
-- Java 11: readiness 10.77s, orders-service main to ready 16168 ms, orders-service memory 913.7 MiB, throughput 6871.6 req/s
-- Java 17: readiness 12.27s, orders-service main to ready 20861 ms, orders-service memory 553.5 MiB, throughput 6498.4 req/s
-- Java 21: readiness 10.02s, orders-service main to ready 18603 ms, orders-service memory 554.1 MiB, throughput 6213.5 req/s
+Two startup metrics are reported here, and the distinction matters. External readiness is measured at the gateway—it reflects the full stack coming up: infrastructure, networking, the works. The orders-service main-to-ready time is measured inside the application itself, from `main()` to `ApplicationReadyEvent`. That's the number that tells you how fast the application bootstraps, independent of everything around it. Main-to-ready is the primary startup metric we'll focus on.
 
-The important distinction is that readiness is measured externally at the gateway, while the orders-service main to ready value is measured inside the service from `main()` to `ApplicationReadyEvent`.
+Median results from the latest rerun set (RUNS_PER_BRANCH=5):
+- Java 11: readiness 10.46s, orders-service main-to-ready 15759 ms, orders memory 1060.9 MiB, throughput 7281.6 req/s
+- Java 17: readiness 10.99s, orders-service main-to-ready 19154 ms, orders memory 578.2 MiB, throughput 6995.6 req/s
+- Java 21: readiness 9.31s, orders-service main-to-ready 17669 ms, orders memory 611.5 MiB, throughput 6701.8 req/s
+- Java 25: readiness 11.06s, orders-service main-to-ready 15483 ms, orders memory 667.2 MiB, throughput 6193.0 req/s
+
+Look at what these numbers are telling us. Java 21 wins on full-stack readiness at 9.31 seconds. Java 25 wins on internal application bootstrap with the fastest main-to-ready at 15483 ms. Java 17 has the lowest orders-service memory footprint at 578.2 MiB. And Java 11 still leads on throughput at 7281.6 req/s in this particular branch set.
+
+That is not a clean story where newer always wins. It is a tradeoffs story. Real platform upgrades shift startup, memory, and throughput in different directions, and which dimension matters most depends on what your system actually needs.
 
 ---
 
@@ -118,11 +125,10 @@ Startup time is visible, but memory footprint is often hidden until you hit reso
 docker stats orders-service-java11
 docker stats orders-service-java17
 docker stats orders-service-java21
+docker stats orders-service-java25
 ```
 
-Memory numbers in this script must come from the same benchmark rerun output set. Until those measured files are present, we keep this section qualitative only.
-
-After rerunning, use `containers.json` from each run and report median memory snapshots per Java version.
+These memory numbers come from the same five-run benchmark rerun set. They are median `orders-service` container snapshots taken after readiness, so we treat them as supporting evidence rather than as a perfect model of steady-state memory behavior.
 
 ---
 
@@ -156,7 +162,7 @@ Let me run a proper throughput benchmark. I'll use the same load test script but
 # - p50 / p95 / p99 latency
 ```
 
-We do not state fixed throughput deltas in this script until those medians are computed from measured `load.json` files.
+Throughput here is a supporting metric, not the headline. It is measured through the full gateway path, so it reflects the behavior of each maintained platform branch, not just the JVM in isolation.
 
 ---
 
@@ -189,21 +195,21 @@ docker exec orders-service-java21 jcmd 1 Thread.print | grep "java.lang.Thread.S
 
 Record the actual platform-thread count after enabling virtual threads; do not assume a fixed value.
 
-This means we can handle more concurrent requests with less memory and less context switching overhead. For I/O-bound workloads, this is a massive improvement.
+In the right kind of I/O-bound workload, that can reduce platform-thread pressure and context switching overhead. But, as with the rest of this episode, we only claim what we actually measure.
 
 ---
 
 ## Real-world impact – Cost and capacity
 
-Let's translate these improvements into real-world impact. Assume you're running 100 containers of the orders-service in production.
+Let's translate these numbers into real-world impact. Assume you're running 100 containers of the orders-service in production.
 
-Translate real-world impact only after medians are computed from measured startup, memory, and throughput outputs for Java 11, 17, and 21.
+Java 17's memory footprint of 578.2 MiB versus Java 11's 1060.9 MiB is a meaningful difference at scale—that's nearly half the memory per container. But Java 11 still delivers the highest throughput at 7281.6 req/s. Depending on whether your bottleneck is memory or request capacity, those two facts point in different directions. That's exactly why you measure your own platform instead of assuming a universal upgrade story.
 
 ---
 
-## The upgrade path – Is it worth it?
+## The upgrade path – Understanding the tradeoffs
 
-The performance improvements are clear, but is upgrading worth the effort? Let's be honest about the costs.
+The results show real tradeoffs across metrics, not a single winner. So is upgrading worth the effort? Let's be honest about the costs.
 
 Upgrading from Java 11 to Java 17 is relatively straightforward. Java 17 is mostly backward compatible. You might need to update some dependencies, but most well-maintained libraries already support Java 17.
 
@@ -211,7 +217,7 @@ Upgrading from Java 17 to Java 21 is even easier. The main changes are new featu
 
 The real cost is testing. You need to verify that your application behaves correctly on the new JVM. You need to test performance under load. You need to validate that third-party libraries work as expected.
 
-When the rerun data is complete, we can present measured startup, memory, GC, and throughput deltas with confidence.
+With the rerun data in place, we can now talk about measured startup, memory, and throughput tradeoffs with confidence.
 
 ---
 
@@ -227,16 +233,12 @@ Each LTS release gives you three years before the next one. That's plenty of tim
 
 ---
 
-## Closing – Performance is not free
+## Closing – The lesson is tradeoffs, not a winner
 
-JVM performance improvements don't happen automatically. You have to upgrade to get them.
+The lesson from this benchmark is not that newer Java always wins.
 
-Staying on Java 11 in 2024 is like running a 2018 car engine in a 2024 car. It works, but you're leaving performance on the table.
+The lesson is that real platform upgrades shift startup, memory, and throughput in different ways. Java 21 gives you the fastest full-stack readiness. Java 25 gives you the fastest internal bootstrap. Java 17 gives you the lowest memory footprint. Java 11 still leads on throughput in this branch set.
 
-Java 21 includes major JVM improvements over Java 11, and this episode's benchmark workflow is designed to quantify that with reproducible measurements.
+That's why serious teams measure their own platform behavior instead of assuming a universal upgrade story.
 
-In the next episode, we'll look at another performance topic: profiling and optimization techniques using modern JVM tools. But we can only do that effectively if we're running on a modern JVM.
-
-You can't optimize what you're not measuring. And you can't measure improvements if you're stuck on old infrastructure.
-
-Upgrade your JVM. Measure the impact. Reap the benefits.
+In the next episode, we'll look at profiling and optimization techniques using modern JVM tools—because understanding your platform's actual behavior is where real performance work begins.
