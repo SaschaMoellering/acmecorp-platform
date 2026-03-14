@@ -78,7 +78,7 @@ Startup time is the first thing users notice. In containerized environments with
 
 **[DIAGRAM: E07-D01-startup-comparison]**
 
-This chart shows two startup metrics side by side for each branch. Here is the exact rerun workflow for startup measurements:
+Let's look at the startup numbers first. This chart compares the maintained platform branches side by side. It shows two startup metrics for each branch. Here is the exact rerun workflow for those measurements:
 
 ```bash
 # 1) Ensure local tracking branches exist (one-time setup)
@@ -99,7 +99,7 @@ Raw outputs are written to:
 
 Once those 5 runs are complete, we report medians only.
 
-Two startup metrics are reported here, and the distinction matters. External readiness is measured at the gateway—it reflects the full stack coming up: infrastructure, networking, the works. The orders-service main-to-ready time is measured inside the application itself, from `main()` to `ApplicationReadyEvent`. That's the number that tells you how fast the application bootstraps, independent of everything around it. Main-to-ready is the primary startup metric we'll focus on.
+Two startup metrics are reported here, and the distinction matters. External readiness is measured at the gateway. It reflects the full stack coming up: infrastructure, networking, the works. The orders-service main-to-ready time is measured inside the application itself, from `main()` to `ApplicationReadyEvent`. That is the number that tells you how fast the application bootstraps, independent of everything around it. Main-to-ready is the primary startup metric we'll focus on.
 
 Median results from the latest rerun set (RUNS_PER_BRANCH=5):
 - Java 11: readiness 10.46s, orders-service main-to-ready 15759 ms, orders memory 1060.9 MiB, throughput 7281.6 req/s
@@ -107,7 +107,7 @@ Median results from the latest rerun set (RUNS_PER_BRANCH=5):
 - Java 21: readiness 9.31s, orders-service main-to-ready 17669 ms, orders memory 611.5 MiB, throughput 6701.8 req/s
 - Java 25: readiness 11.06s, orders-service main-to-ready 15483 ms, orders memory 667.2 MiB, throughput 6193.0 req/s
 
-Java 21 wins on full-stack readiness at 9.31 seconds. Java 25 wins on internal bootstrap with the fastest main-to-ready at 15483 ms. Already the story is not a straight line from older to newer.
+Java 21 wins on full-stack readiness at 9.31 seconds. Java 25 wins on internal bootstrap with the fastest main-to-ready at 15483 ms. Already, the story is not a straight line from older to newer. Now let's add memory footprint to the picture.
 
 ---
 
@@ -124,9 +124,9 @@ docker stats orders-service-java21
 docker stats orders-service-java25
 ```
 
-These memory numbers come from the same five-run benchmark rerun set. They are median orders-service container snapshots taken after readiness—supporting evidence, not a perfect model of steady-state behavior.
+This chart keeps the same maintained platform branches and the same five-run median methodology. These memory numbers are median orders-service container snapshots taken after readiness. They are supporting evidence, not a perfect model of steady-state behavior.
 
-Java 17 lands at 578.2 MiB. Java 11 is at 1060.9 MiB—nearly double. That gap matters at scale. But memory is only one axis, and we have already seen that Java 11 leads on throughput. That tension is exactly what this episode is about.
+Java 17 lands at 578.2 MiB. Java 11 is at 1060.9 MiB, nearly double. That gap matters at scale. But memory is only one axis, and we have already seen that Java 11 leads on throughput. That tension is exactly what this episode is about.
 
 ---
 
@@ -160,7 +160,7 @@ Let me run a proper throughput benchmark. I'll use the same load test script but
 # - p50 / p95 / p99 latency
 ```
 
-Throughput here is a supporting metric, not the headline. It is measured through the full gateway path, so it reflects the behavior of each maintained platform branch, not just the JVM in isolation.
+Throughput here is a supporting metric, not the headline. It is measured through the full gateway path, so it reflects the behavior of each maintained platform branch, not just the JVM in isolation. At this point, the pattern becomes clear. Different branches lead different metrics.
 
 ---
 
@@ -217,7 +217,7 @@ Upgrading from Java 17 to Java 21 is even easier. The main changes are new featu
 
 The real cost is testing. You need to verify that your application behaves correctly on the new JVM. You need to test performance under load. You need to validate that third-party libraries work as expected.
 
-With the rerun data in place, we can now talk about measured startup, memory, and throughput tradeoffs with confidence.
+With the rerun data in place, we can now talk about measured startup, memory, and throughput tradeoffs with confidence. The last chart brings those tradeoffs together in one view.
 
 ---
 
@@ -237,11 +237,11 @@ Each LTS release gives you three years before the next one. That's plenty of tim
 
 **[DIAGRAM: E07-D04-master-benchmark]**
 
-This radar chart puts all four branches on the same canvas. Startup, memory efficiency, throughput, internal bootstrap—each axis normalized from the measured medians. Take a moment to look at the shape of each branch. No single branch dominates every axis.
+This final chart summarizes the benchmark tradeoffs. It puts all four maintained platform branches on the same canvas. Startup, memory efficiency, throughput, internal bootstrap: each axis is normalized from the measured medians. Take a moment to look at the shape of each branch. No single branch dominates every axis.
 
 Java 21 leads on full-stack readiness. Java 25 leads on internal bootstrap. Java 17 leads on memory efficiency. Java 11 still leads on throughput.
 
-The lesson from this benchmark is not that newer Java always wins. The lesson is that real platform upgrades shift startup, memory, and throughput in different ways—and which dimension matters most depends entirely on what your system needs.
+The lesson from this benchmark is not that newer Java always wins. This benchmark shows tradeoffs across platform generations. Real platform upgrades shift startup, memory, and throughput in different ways, and which dimension matters most depends on what your system needs.
 
 That's why serious teams measure their own platform behavior instead of assuming a universal upgrade story.
 
