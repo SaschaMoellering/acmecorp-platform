@@ -1,36 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "gateway-service.fullname" . }}
+  name: {{ include "billing-service.fullname" . }}
   labels:
-    {{- include "gateway-service.labels" . | nindent 4 }}
+    {{- include "billing-service.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "gateway-service.labels" . | nindent 6 }}
+      {{- include "billing-service.labels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "gateway-service.labels" . | nindent 8 }}
+        {{- include "billing-service.labels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "gateway-service.serviceAccountName" . }}
-      {{- $pullSecrets := .Values.imagePullSecrets }}
-      {{- if not $pullSecrets }}
-      {{- with .Values.global.imagePullSecrets }}
-      {{- $pullSecrets = . }}
-      {{- end }}
-      {{- end }}
-      {{- if $pullSecrets }}
-      imagePullSecrets:
-{{ toYaml $pullSecrets | nindent 6 }}
-      {{- end }}
+      serviceAccountName: {{ include "billing-service.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: gateway
+        - name: billing
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
@@ -41,37 +31,55 @@ spec:
               drop: ["ALL"]
           ports:
             - containerPort: {{ .Values.service.port }}
+              name: http
           env:
-            - name: ORDERS_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: ORDERS_BASE_URL
-            - name: CATALOG_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: CATALOG_BASE_URL
-            - name: BILLING_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: BILLING_BASE_URL
-            - name: NOTIFICATION_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: NOTIFICATION_BASE_URL
-            - name: ANALYTICS_BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: ANALYTICS_BASE_URL
             - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.config.springProfilesActive | quote }}
+            - name: DB_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "gateway-service.fullname" . }}-config
-                  key: SPRING_PROFILES_ACTIVE
+                  name: {{ include "billing-service.fullname" . }}-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "billing-service.fullname" . }}-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "billing-service.fullname" . }}-config
+                  key: DB_NAME
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: aurora-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aurora-credentials
+                  key: password
+            - name: RABBITMQ_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "billing-service.fullname" . }}-config
+                  key: MQ_HOST
+            - name: RABBITMQ_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "billing-service.fullname" . }}-config
+                  key: MQ_PORT
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mq-credentials
+                  key: username
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mq-credentials
+                  key: password
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

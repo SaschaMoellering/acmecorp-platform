@@ -1,29 +1,14 @@
 global:
   imagePullSecrets: []
-
-imagePullSecrets: []
-
-postgres:
-  host: postgres
-  port: 5432
-  database: acmecorp
-  username: acmecorp
-  # Secret storing password; create separately or provide name/key.
-  passwordSecret:
-    name: acmecorp-postgres
-    key: password
-
-rabbitmq:
-  host: rabbitmq
-  port: 5672
-  username: guest
-  passwordSecret:
-    name: acmecorp-rabbitmq
-    key: password
-
-redis:
-  host: redis
-  port: 6379
+  awsRegion: us-east-1
+  secretsNamePrefix: acmecorp-platform-prod
+  aurora:
+    host: ""        # set in values-prod.yaml from Terraform output
+    port: "5432"
+    database: acmecorp
+  mq:
+    host: ""        # set in values-prod.yaml from Terraform output
+    port: "5671"    # AMQPS
 
 gateway-service:
   enabled: true
@@ -65,6 +50,9 @@ gateway-service:
     minReplicas: 1
     maxReplicas: 3
     targetCPUUtilizationPercentage: 60
+  serviceAccount:
+    create: true
+    annotations: {}
   prometheus:
     annotations:
       prometheus.io/scrape: "true"
@@ -83,14 +71,7 @@ orders-service:
   service:
     port: 8081
   config:
-    dbHost: postgres
-    dbPort: 5432
-    dbName: acmecorp
-    springProfilesActive: docker
-  rabbitmq:
-    host: rabbitmq
-    port: 5672
-    username: guest
+    springProfilesActive: eks
   resources:
     limits:
       cpu: 500m
@@ -107,6 +88,9 @@ orders-service:
     minReplicas: 1
     maxReplicas: 3
     targetCPUUtilizationPercentage: 60
+  serviceAccount:
+    create: true
+    annotations: {}
   prometheus:
     annotations:
       prometheus.io/scrape: "true"
@@ -125,7 +109,7 @@ catalog-service:
   service:
     port: 8085
   config:
-    jdbcUrl: jdbc:postgresql://postgres:5432/acmecorp
+    springProfilesActive: eks
   probes:
     enabled: false
   autoscaling:
@@ -141,3 +125,179 @@ catalog-service:
     serviceMonitor:
       enabled: false
       interval: 15s
+
+billing-service:
+  enabled: true
+  image:
+    repository: acmecorp/billing-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8082
+  config:
+    springProfilesActive: eks
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  probes:
+    enabled: true
+    livenessPath: /actuator/health
+    readinessPath: /actuator/health
+  serviceAccount:
+    create: true
+    annotations: {}
+  prometheus:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: /actuator/prometheus
+      prometheus.io/port: "8082"
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+
+notification-service:
+  enabled: true
+  image:
+    repository: acmecorp/notification-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8083
+  config:
+    springProfilesActive: eks
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  probes:
+    enabled: true
+    livenessPath: /actuator/health
+    readinessPath: /actuator/health
+  serviceAccount:
+    create: true
+    annotations: {}
+  prometheus:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: /actuator/prometheus
+      prometheus.io/port: "8083"
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+
+analytics-service:
+  enabled: true
+  image:
+    repository: acmecorp/analytics-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8084
+  config:
+    springProfilesActive: eks
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  probes:
+    enabled: true
+    livenessPath: /actuator/health
+    readinessPath: /actuator/health
+  serviceAccount:
+    create: true
+    annotations: {}
+  prometheus:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/path: /actuator/prometheus
+      prometheus.io/port: "8084"
+    serviceMonitor:
+      enabled: true
+      interval: 15s
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7.2-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  persistence:
+    enabled: true
+    storageClass: gp3
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  auth:
+    secretName: redis-credentials
+    secretKey: password
+
+prometheus:
+  enabled: true
+  image:
+    repository: prom/prometheus
+    tag: "v2.51.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 9090
+  retention: "15d"
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  persistence:
+    enabled: true
+    storageClass: gp3
+    size: 20Gi
+    accessMode: ReadWriteOnce
+
+grafana:
+  enabled: true
+  image:
+    repository: grafana/grafana
+    tag: "10.4.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  auth:
+    secretName: grafana-credentials
+    secretKey: admin-password
+  ingress:
+    enabled: true
+    ingressClassName: alb
+    host: grafana.acmecorp.example.com
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/certificate-arn: ""
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  persistence:
+    enabled: false

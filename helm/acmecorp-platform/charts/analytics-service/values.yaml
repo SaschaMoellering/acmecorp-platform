@@ -1,0 +1,37 @@
+enabled: true
+image:
+  repository: acmecorp/analytics-service
+  tag: latest
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+service:
+  port: 8084
+config:
+  springProfilesActive: eks
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+serviceAccount:
+  create: true
+  annotations: {}
+probes:
+  enabled: true
+  livenessPath: /actuator/health
+  readinessPath: /actuator/health
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 60
+prometheus:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: /actuator/prometheus
+    prometheus.io/port: "8084"
+  serviceMonitor:
+    enabled: true
+    interval: 15s

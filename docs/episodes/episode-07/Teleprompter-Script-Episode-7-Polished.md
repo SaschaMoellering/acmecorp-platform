@@ -245,4 +245,4 @@ The lesson from this benchmark is not that newer Java always wins. This benchmar
 
 That's why serious teams measure their own platform behavior instead of assuming a universal upgrade story.
 
-In the next episode, we'll look at profiling and optimization techniques using modern JVM tools—because understanding your platform's actual behavior is where real performance work begins.
+In the next episode, we start deploying our AcmeCorp application into the cloud.
