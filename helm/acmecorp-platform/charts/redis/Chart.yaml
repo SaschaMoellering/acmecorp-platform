@@ -1,0 +1,6 @@
+apiVersion: v2
+name: redis
+description: In-cluster Redis with auth, PVC, and security context
+version: 0.1.0
+appVersion: "7.2"
+type: application

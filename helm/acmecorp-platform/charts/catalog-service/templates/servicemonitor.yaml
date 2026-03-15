@@ -9,7 +9,7 @@ spec:
   endpoints:
     - port: http
       interval: {{ .Values.prometheus.serviceMonitor.interval }}
-      path: {{ .Values.prometheus.annotations.prometheus.io/path }}
+      path: /q/metrics
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}

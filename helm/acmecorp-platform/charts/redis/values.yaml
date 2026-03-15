@@ -1,0 +1,28 @@
+enabled: true
+image:
+  repository: redis
+  tag: "7.2-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 6379
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+persistence:
+  enabled: true
+  storageClass: gp3
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+# Password is sourced from the redis-credentials ExternalSecret (key: password)
+# No password value is stored here.
+auth:
+  secretName: redis-credentials
+  secretKey: password

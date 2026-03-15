@@ -22,7 +22,9 @@ resources:
     memory: 256Mi
 serviceAccount:
   create: true
-  annotations: {}
+  annotations:
+    # Populated by Terraform Pod Identity association — do not set manually
+    # eks.amazonaws.com/pod-identity-association: <set via values-prod.yaml>
 
 probes:
   enabled: true

@@ -1,0 +1,42 @@
+enabled: true
+image:
+  repository: grafana/grafana
+  tag: "10.4.0"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 3000
+
+# Admin password is injected from the grafana-credentials ExternalSecret.
+# No password value is stored here.
+auth:
+  secretName: grafana-credentials
+  secretKey: admin-password
+
+ingress:
+  enabled: true
+  # Rendered by the ALB Ingress Controller (AWS Load Balancer Controller)
+  ingressClassName: alb
+  host: grafana.acmecorp.example.com
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: ""  # set in values-prod.yaml
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# Persistence is intentionally disabled.
+# Dashboards are provisioned as ConfigMaps (dashboards-as-code).
+# Datasources are provisioned via the datasources ConfigMap below.
+# Stateless Grafana restarts cleanly and avoids PVC lifecycle complexity.
+# Enable if you need persistent user-created dashboards or alert state.
+persistence:
+  enabled: false

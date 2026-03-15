@@ -1,19 +1,17 @@
-postgres:
-  host: <postgres-host>
-  port: 5432
-  database: acmecorp
-  username: acmecorp
-  passwordSecret:
-    name: prod-postgres-credentials
-    key: password
+# Production overrides — values that differ from defaults in values.yaml.
+# Aurora and MQ host values come from Terraform outputs.
+# Secrets (passwords) are never stored here; they flow via ExternalSecret.
 
-rabbitmq:
-  host: <rabbitmq-host>
-  port: 5672
-  username: acmecorp
-  passwordSecret:
-    name: prod-rabbitmq-credentials
-    key: password
+global:
+  awsRegion: us-east-1
+  secretsNamePrefix: acmecorp-platform-prod
+  aurora:
+    host: "<aurora-cluster-endpoint>"   # from: terraform output aurora_writer_endpoint
+    port: "5432"
+    database: acmecorp
+  mq:
+    host: "<mq-broker-endpoint>"        # from: terraform output mq_broker_endpoint
+    port: "5671"
 
 gateway-service:
   ingress:
@@ -21,15 +19,28 @@ gateway-service:
     host: api.acmecorp.example.com
     tls:
       enabled: true
-      certificateArn: <arn:aws:acm:...>
+      certificateArn: "<arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT-ID>"
     internal: false
+  config:
+    springProfilesActive: eks
+  prometheus:
+    serviceMonitor:
+      enabled: true
 
 orders-service:
   config:
-    dbHost: <postgres-host>
-    dbPort: 5432
-    dbName: acmecorp
+    springProfilesActive: eks
 
 catalog-service:
   config:
-    jdbcUrl: jdbc:postgresql://<postgres-host>:5432/acmecorp
+    springProfilesActive: eks
+
+grafana:
+  ingress:
+    host: grafana.acmecorp.example.com
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      alb.ingress.kubernetes.io/certificate-arn: "<arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT-ID>"
