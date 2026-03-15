@@ -2,6 +2,7 @@ variable "cluster_name" { type = string }
 variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "name_prefix" { type = string }
+variable "admin_principal_arn" { type = string }
 
 # ── Cluster IAM role ────────────────────────────────────────────────────────
 data "aws_iam_policy_document" "eks_assume" {
@@ -155,6 +156,28 @@ resource "aws_eks_addon" "pod_identity_agent" {
   resolve_conflicts_on_update = "OVERWRITE"
 }
 
+resource "aws_eks_access_entry" "admin" {
+  count = var.admin_principal_arn != "" ? 1 : 0
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.admin_principal_arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin_cluster_admin" {
+  count = var.admin_principal_arn != "" ? 1 : 0
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.admin_principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin]
+}
+
 output "cluster_name" { value = aws_eks_cluster.this.name }
 output "cluster_endpoint" { value = aws_eks_cluster.this.endpoint }
 output "cluster_certificate_authority_data" {
@@ -164,3 +187,6 @@ output "cluster_certificate_authority_data" {
 output "node_security_group_id" { value = aws_security_group.nodes.id }
 output "node_role_arn" { value = aws_iam_role.node.arn }
 output "oidc_issuer_url" { value = aws_eks_cluster.this.identity[0].oidc[0].issuer }
+output "admin_access_principal_arn" {
+  value = var.admin_principal_arn != "" ? var.admin_principal_arn : null
+}

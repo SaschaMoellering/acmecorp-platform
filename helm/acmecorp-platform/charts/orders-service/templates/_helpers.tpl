@@ -9,13 +9,13 @@
 {{- define "orders-service.labels" -}}
 app.kubernetes.io/name: {{ include "orders-service.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "orders-service.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{ include "orders-service.fullname" . }}
+{{ include "orders-service.name" . }}
 {{- else -}}
 default
 {{- end -}}

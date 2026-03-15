@@ -32,3 +32,6 @@ dependencies:
   - name: grafana
     version: 0.1.0
     repository: file://charts/grafana
+  - name: external-secrets
+    version: 0.1.0
+    repository: file://charts/external-secrets

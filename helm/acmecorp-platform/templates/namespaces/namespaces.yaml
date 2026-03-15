@@ -4,6 +4,7 @@ metadata:
   name: acmecorp
   labels:
     app.kubernetes.io/managed-by: Helm
+    acmecorp.io/namespace-role: application
 ---
 apiVersion: v1
 kind: Namespace
@@ -11,6 +12,15 @@ metadata:
   name: observability
   labels:
     app.kubernetes.io/managed-by: Helm
+    acmecorp.io/namespace-role: observability
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    acmecorp.io/namespace-role: platform
 ---
 apiVersion: v1
 kind: Namespace
@@ -18,3 +28,4 @@ metadata:
   name: data
   labels:
     app.kubernetes.io/managed-by: Helm
+    acmecorp.io/namespace-role: data

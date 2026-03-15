@@ -1,6 +1,7 @@
 apiVersion: v2
 name: acmecorp-platform
-description: Helm chart for the AcmeCorp demo platform
+description: DEPRECATED legacy Helm chart for the AcmeCorp demo platform
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
+deprecated: true

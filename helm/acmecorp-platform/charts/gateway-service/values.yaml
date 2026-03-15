@@ -37,6 +37,7 @@ autoscaling:
   targetCPUUtilizationPercentage: 60
 ingress:
   enabled: false
+  ingressClassName: alb
   host: api.acmecorp.example.com
   path: /
   internal: true

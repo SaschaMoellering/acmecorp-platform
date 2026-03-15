@@ -51,8 +51,8 @@ resource "aws_mq_broker" "this" {
   host_instance_type = "mq.m5.large"
   deployment_mode    = "SINGLE_INSTANCE"
 
-  subnet_ids         = [var.private_subnet_ids[0]]
-  security_groups    = [aws_security_group.mq.id]
+  subnet_ids          = [var.private_subnet_ids[0]]
+  security_groups     = [aws_security_group.mq.id]
   publicly_accessible = false
 
   user {

@@ -9,13 +9,13 @@
 {{- define "gateway-service.labels" -}}
 app.kubernetes.io/name: {{ include "gateway-service.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "gateway-service.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{ include "gateway-service.fullname" . }}
+{{ include "gateway-service.name" . }}
 {{- else -}}
 default
 {{- end -}}

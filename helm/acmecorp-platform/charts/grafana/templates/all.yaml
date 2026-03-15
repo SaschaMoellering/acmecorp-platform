@@ -17,6 +17,17 @@ data:
         isDefault: true
         editable: false
 ---
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -37,6 +48,7 @@ spec:
         app.kubernetes.io/name: grafana
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 472

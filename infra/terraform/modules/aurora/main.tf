@@ -52,24 +52,24 @@ resource "aws_rds_cluster_parameter_group" "this" {
 
 # ── Aurora Serverless v2 cluster ────────────────────────────────────────────
 resource "aws_rds_cluster" "this" {
-  cluster_identifier        = "${var.name_prefix}-aurora"
-  engine                    = "aurora-postgresql"
-  engine_mode               = "provisioned"
-  engine_version            = "16.4"
-  database_name             = var.db_name
-  master_username           = var.master_username
+  cluster_identifier          = "${var.name_prefix}-aurora"
+  engine                      = "aurora-postgresql"
+  engine_mode                 = "provisioned"
+  engine_version              = "16.4"
+  database_name               = var.db_name
+  master_username             = var.master_username
   manage_master_user_password = false
-  master_password           = jsondecode(data.aws_secretsmanager_secret_version.aurora.secret_string)["password"]
+  master_password             = jsondecode(data.aws_secretsmanager_secret_version.aurora.secret_string)["password"]
 
   db_subnet_group_name            = aws_db_subnet_group.aurora.name
   vpc_security_group_ids          = [aws_security_group.aurora.id]
   db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.this.name
 
-  storage_encrypted       = true
-  deletion_protection     = var.deletion_protection
-  backup_retention_period = 7
-  preferred_backup_window = "03:00-04:00"
-  skip_final_snapshot     = false
+  storage_encrypted         = true
+  deletion_protection       = var.deletion_protection
+  backup_retention_period   = 7
+  preferred_backup_window   = "03:00-04:00"
+  skip_final_snapshot       = false
   final_snapshot_identifier = "${var.name_prefix}-aurora-final"
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
