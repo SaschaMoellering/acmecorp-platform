@@ -53,6 +53,7 @@ services:
     container_name: local-orders-service-1
     environment:
       APP_NAME: orders-service
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx128m -Xlog:gc*=info:stdout:time,level,tags
       SPRING_PROFILES_ACTIVE: docker
       SERVER_PORT: "8080"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/acmecorp

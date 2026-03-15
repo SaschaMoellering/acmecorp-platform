@@ -1,0 +1,6 @@
+apiVersion: v2
+name: external-secrets
+description: Minimal External Secrets Operator installation for AWS Secrets Manager with EKS Pod Identity
+version: 0.1.0
+appVersion: "0.10.5"
+type: application

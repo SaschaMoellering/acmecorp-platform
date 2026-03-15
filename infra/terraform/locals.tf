@@ -6,6 +6,15 @@ locals {
   private_subnet_cidrs  = [for i, az in local.azs : cidrsubnet(var.vpc_cidr, 4, i)]
   public_subnet_cidrs   = [for i, az in local.azs : cidrsubnet(var.vpc_cidr, 4, i + 4)]
   database_subnet_cidrs = [for i, az in local.azs : cidrsubnet(var.vpc_cidr, 4, i + 8)]
+
+  ecr_repository_names = [
+    "acmecorp/gateway-service",
+    "acmecorp/orders-service",
+    "acmecorp/catalog-service",
+    "acmecorp/billing-service",
+    "acmecorp/analytics-service",
+    "acmecorp/notification-service",
+  ]
 }
 
 data "aws_availability_zones" "available" {

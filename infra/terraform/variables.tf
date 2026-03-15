@@ -16,6 +16,12 @@ variable "cluster_name" {
   default     = "acmecorp-platform"
 }
 
+variable "admin_principal_arn" {
+  description = "IAM principal ARN that should receive explicit first-admin access to the EKS cluster"
+  type        = string
+  default     = ""
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
@@ -50,6 +56,42 @@ variable "grafana_ingress_host" {
   description = "Public hostname for Grafana Ingress"
   type        = string
   default     = "grafana.acmecorp.example.com"
+}
+
+variable "gateway_ingress_host" {
+  description = "Public hostname for the gateway Ingress"
+  type        = string
+  default     = "api.acmecorp.example.com"
+}
+
+variable "route53_zone_name" {
+  description = "Public Route53 hosted zone name used for ACM validation and ingress DNS records"
+  type        = string
+  default     = "acmecorp.example.com"
+}
+
+variable "gateway_alb_dns_name" {
+  description = "Optional ALB DNS name for the gateway Ingress; when set with gateway_alb_zone_id, Terraform creates the Route53 alias"
+  type        = string
+  default     = null
+}
+
+variable "gateway_alb_zone_id" {
+  description = "Optional ALB hosted zone ID for the gateway Ingress; when set with gateway_alb_dns_name, Terraform creates the Route53 alias"
+  type        = string
+  default     = null
+}
+
+variable "grafana_alb_dns_name" {
+  description = "Optional ALB DNS name for the Grafana Ingress; when set with grafana_alb_zone_id, Terraform creates the Route53 alias"
+  type        = string
+  default     = null
+}
+
+variable "grafana_alb_zone_id" {
+  description = "Optional ALB hosted zone ID for the Grafana Ingress; when set with grafana_alb_dns_name, Terraform creates the Route53 alias"
+  type        = string
+  default     = null
 }
 
 variable "aurora_deletion_protection" {

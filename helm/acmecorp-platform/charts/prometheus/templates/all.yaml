@@ -6,37 +6,91 @@ metadata:
   labels:
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/instance: {{ .Release.Name }}
----
-# ClusterRole lets Prometheus scrape pods/services/endpoints across all namespaces
-# and read ServiceMonitor CRDs in the observability namespace.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: {{ .Release.Name }}-prometheus
+  name: prometheus-discovery
+  namespace: acmecorp
   labels:
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/instance: {{ .Release.Name }}
 rules:
   - apiGroups: [""]
-    resources: [nodes, nodes/metrics, services, endpoints, pods]
+    resources: [services, endpoints, pods]
     verbs: [get, list, watch]
-  - apiGroups: [monitoring.coreos.com]
-    resources: [servicemonitors, podmonitors]
-    verbs: [get, list, watch]
-  - nonResourceURLs: [/metrics, /metrics/cadvisor]
-    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-prometheus
+  name: prometheus-discovery
+  namespace: acmecorp
   labels:
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/instance: {{ .Release.Name }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ .Release.Name }}-prometheus
+  kind: Role
+  name: prometheus-discovery
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prometheus-discovery
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-discovery
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prometheus-discovery
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: prometheus-discovery
+  namespace: data
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  - apiGroups: [""]
+    resources: [services, endpoints, pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: prometheus-discovery
+  namespace: data
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/instance: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prometheus-discovery
 subjects:
   - kind: ServiceAccount
     name: prometheus
@@ -56,9 +110,7 @@ data:
       scrape_interval: 15s
       evaluation_interval: 15s
 
-    # ServiceMonitor-based discovery via the Prometheus Operator CRD.
-    # Each service subchart creates a ServiceMonitor with label release=prometheus.
-    # Prometheus discovers them here via the kubernetes_sd_configs below.
+    # Annotation-based discovery via Kubernetes endpoints in the selected namespaces.
     scrape_configs:
       - job_name: prometheus
         static_configs:

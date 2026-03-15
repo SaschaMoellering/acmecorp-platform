@@ -15,6 +15,11 @@ output "cluster_certificate_authority_data" {
   sensitive   = true
 }
 
+output "cluster_admin_access_entry_principal_arn" {
+  description = "IAM principal ARN configured for explicit first-admin EKS access"
+  value       = module.eks.admin_access_principal_arn
+}
+
 # Aurora
 output "aurora_endpoint" {
   description = "Aurora cluster writer endpoint"
@@ -88,4 +93,36 @@ output "vpc_id" {
 output "private_subnet_ids" {
   description = "Private subnet IDs"
   value       = module.vpc.private_subnet_ids
+}
+
+# ECR
+output "ecr_repository_urls" {
+  description = "Map of ECR repository URLs keyed by repository name"
+  value       = module.ecr.repository_urls
+}
+
+# ACM / DNS
+output "route53_zone_id" {
+  description = "Route53 hosted zone ID used for ingress DNS and ACM validation"
+  value       = module.dns.zone_id
+}
+
+output "gateway_ingress_host" {
+  description = "Gateway public ingress hostname"
+  value       = module.dns.gateway_hostname
+}
+
+output "grafana_ingress_host" {
+  description = "Grafana public ingress hostname"
+  value       = module.dns.grafana_hostname
+}
+
+output "gateway_certificate_arn" {
+  description = "ACM certificate ARN for the gateway ingress hostname"
+  value       = module.acm.gateway_certificate_arn
+}
+
+output "grafana_certificate_arn" {
+  description = "ACM certificate ARN for the Grafana ingress hostname"
+  value       = module.acm.grafana_certificate_arn
 }

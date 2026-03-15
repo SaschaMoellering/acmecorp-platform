@@ -13,35 +13,36 @@ module "vpc" {
 module "eks" {
   source = "./modules/eks"
 
-  cluster_name       = var.cluster_name
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-  name_prefix        = local.name_prefix
+  cluster_name        = var.cluster_name
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.vpc.private_subnet_ids
+  name_prefix         = local.name_prefix
+  admin_principal_arn = var.admin_principal_arn
 }
 
 module "aurora" {
   source = "./modules/aurora"
 
-  name_prefix            = local.name_prefix
-  vpc_id                 = module.vpc.vpc_id
-  database_subnet_ids    = module.vpc.database_subnet_ids
-  eks_node_sg_id         = module.eks.node_security_group_id
-  db_name                = var.aurora_db_name
-  master_username        = var.aurora_master_username
-  deletion_protection    = var.aurora_deletion_protection
-  secret_arn             = module.secrets.aurora_secret_arn
+  name_prefix         = local.name_prefix
+  vpc_id              = module.vpc.vpc_id
+  database_subnet_ids = module.vpc.database_subnet_ids
+  eks_node_sg_id      = module.eks.node_security_group_id
+  db_name             = var.aurora_db_name
+  master_username     = var.aurora_master_username
+  deletion_protection = var.aurora_deletion_protection
+  secret_arn          = module.secrets.aurora_secret_arn
 }
 
 module "mq" {
   source = "./modules/mq"
 
-  name_prefix         = local.name_prefix
-  broker_name         = var.mq_broker_name
-  mq_username         = var.mq_username
-  vpc_id              = module.vpc.vpc_id
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  eks_node_sg_id      = module.eks.node_security_group_id
-  secret_arn          = module.secrets.mq_secret_arn
+  name_prefix        = local.name_prefix
+  broker_name        = var.mq_broker_name
+  mq_username        = var.mq_username
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+  eks_node_sg_id     = module.eks.node_security_group_id
+  secret_arn         = module.secrets.mq_secret_arn
 }
 
 module "secrets" {
@@ -64,4 +65,32 @@ module "iam" {
   redis_secret_arn   = module.secrets.redis_secret_arn
   grafana_secret_arn = module.secrets.grafana_secret_arn
   aurora_cluster_arn = module.aurora.cluster_arn
+}
+
+module "ecr" {
+  source = "./modules/ecr"
+
+  name_prefix      = local.name_prefix
+  repository_names = local.ecr_repository_names
+}
+
+module "acm" {
+  source = "./modules/acm"
+
+  name_prefix          = local.name_prefix
+  route53_zone_name    = var.route53_zone_name
+  gateway_ingress_host = var.gateway_ingress_host
+  grafana_ingress_host = var.grafana_ingress_host
+}
+
+module "dns" {
+  source = "./modules/dns"
+
+  route53_zone_name    = var.route53_zone_name
+  gateway_ingress_host = var.gateway_ingress_host
+  grafana_ingress_host = var.grafana_ingress_host
+  gateway_alb_dns_name = var.gateway_alb_dns_name
+  gateway_alb_zone_id  = var.gateway_alb_zone_id
+  grafana_alb_dns_name = var.grafana_alb_dns_name
+  grafana_alb_zone_id  = var.grafana_alb_zone_id
 }

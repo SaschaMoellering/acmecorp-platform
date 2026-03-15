@@ -9,13 +9,13 @@
 {{- define "catalog-service.labels" -}}
 app.kubernetes.io/name: {{ include "catalog-service.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "catalog-service.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{ include "catalog-service.fullname" . }}
+{{ include "catalog-service.name" . }}
 {{- else -}}
 default
 {{- end -}}

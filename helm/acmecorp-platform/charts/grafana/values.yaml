@@ -7,6 +7,10 @@ image:
 service:
   port: 3000
 
+serviceAccount:
+  create: true
+  name: grafana
+
 # Admin password is injected from the grafana-credentials ExternalSecret.
 # No password value is stored here.
 auth:
@@ -21,7 +25,7 @@ ingress:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/certificate-arn: ""  # set in values-prod.yaml
 

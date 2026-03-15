@@ -9,13 +9,13 @@
 {{- define "analytics-service.labels" -}}
 app.kubernetes.io/name: {{ include "analytics-service.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- define "analytics-service.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{ include "analytics-service.fullname" . }}
+{{ include "analytics-service.name" . }}
 {{- else -}}
 default
 {{- end -}}
