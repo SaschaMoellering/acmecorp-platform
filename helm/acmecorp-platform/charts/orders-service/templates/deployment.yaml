@@ -31,7 +31,8 @@ spec:
       {{- end }}
       containers:
         - name: orders
-          {{- $secretName := default (printf "%s-secret" (include "orders-service.fullname" .)) .Values.secret.name }}
+          {{- $databaseSecretName := .Values.secrets.database.name }}
+          {{- $rabbitmqSecretName := .Values.secrets.rabbitmq.name }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
@@ -76,23 +77,23 @@ spec:
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
-                  key: username
+                  name: {{ $databaseSecretName }}
+                  key: {{ .Values.secrets.database.usernameKey }}
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
-                  key: password
+                  name: {{ $databaseSecretName }}
+                  key: {{ .Values.secrets.database.passwordKey }}
             - name: RABBITMQ_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
-                  key: rabbitmqUsername
+                  name: {{ $rabbitmqSecretName }}
+                  key: {{ .Values.secrets.rabbitmq.usernameKey }}
             - name: RABBITMQ_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
-                  key: rabbitmqPassword
+                  name: {{ $rabbitmqSecretName }}
+                  key: {{ .Values.secrets.rabbitmq.passwordKey }}
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

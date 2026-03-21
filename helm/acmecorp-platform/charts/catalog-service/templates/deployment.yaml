@@ -31,7 +31,7 @@ spec:
       {{- end }}
       containers:
         - name: catalog
-          {{- $secretName := default (printf "%s-secret" (include "catalog-service.fullname" .)) .Values.secret.name }}
+          {{- $databaseSecretName := .Values.databaseSecret.name }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
@@ -50,14 +50,14 @@ spec:
                   key: QUARKUS_DATASOURCE_JDBC_URL
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:
-                configMapKeyRef:
-                  name: {{ include "catalog-service.fullname" . }}-config
-                  key: QUARKUS_DATASOURCE_USERNAME
+                secretKeyRef:
+                  name: {{ $databaseSecretName }}
+                  key: {{ .Values.databaseSecret.usernameKey }}
             - name: QUARKUS_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $secretName }}
-                  key: password
+                  name: {{ $databaseSecretName }}
+                  key: {{ .Values.databaseSecret.passwordKey }}
           resources:
             limits:
               cpu: {{ .Values.resources.limits.cpu }}

@@ -14,6 +14,7 @@ BASE_VALUES="${BASE_VALUES:-$ROOT_DIR/helm/acmecorp-platform/values-prod.yaml}"
 OUTPUT_PATH="${1:-${OUTPUT_PATH:-/tmp/acmecorp-values-prod.generated.yaml}}"
 IMAGE_TAG="${IMAGE_TAG:-${2:-}}"
 TF_OUTPUT_JSON="${TF_OUTPUT_JSON:-}"
+ENV_AWS_REGION="${AWS_REGION:-${aws_region:-${AWS_REGION_OVERRIDE:-}}}"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -42,7 +43,38 @@ tf_output_ecr() {
 }
 
 require_cmd jq
-require_cmd yq
+
+run_yq_inplace() {
+  local expression="$1"
+  local file_path="$2"
+
+  if command -v yq >/dev/null 2>&1; then
+    yq -i "$expression" "$file_path"
+    return
+  fi
+
+  require_cmd docker
+
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -e AWS_REGION \
+    -e AURORA_ENDPOINT \
+    -e MQ_ENDPOINT \
+    -e GATEWAY_HOST \
+    -e GRAFANA_HOST \
+    -e GATEWAY_CERT_ARN \
+    -e GRAFANA_CERT_ARN \
+    -e ECR_GATEWAY \
+    -e ECR_ORDERS \
+    -e ECR_CATALOG \
+    -e ECR_BILLING \
+    -e ECR_ANALYTICS \
+    -e ECR_NOTIFICATION \
+    -e IMAGE_TAG \
+    -v "${file_path}:${file_path}" \
+    mikefarah/yq:4 \
+    -i "$expression" "$file_path"
+}
 
 if [[ -z "$IMAGE_TAG" ]]; then
   echo "ERROR: image tag is required. Pass it as IMAGE_TAG=<tag> or as the second argument." >&2
@@ -66,9 +98,9 @@ fi
 
 AWS_REGION="$(tf_output_value aws_region 2>/dev/null || true)"
 if [[ -z "$AWS_REGION" || "$AWS_REGION" == "null" ]]; then
-  AWS_REGION="${AWS_REGION_OVERRIDE:-${AWS_REGION:-}}"
+  AWS_REGION="$ENV_AWS_REGION"
 fi
-if [[ -z "$AWS_REGION" ]]; then
+if [[ -z "$AWS_REGION" || "$AWS_REGION" == "null" ]]; then
   AWS_REGION="$(terraform -chdir="$TF_DIR" console <<'EOF' | tr -d '\r'
 var.aws_region
 EOF
@@ -120,25 +152,31 @@ export IMAGE_TAG
 
 cp "$BASE_VALUES" "$OUTPUT_PATH"
 
-yq -i '
+run_yq_inplace '
   .global.awsRegion = env(AWS_REGION) |
   .global.aurora.host = env(AURORA_ENDPOINT) |
   .global.mq.host = env(MQ_ENDPOINT) |
   .["gateway-service"].image.repository = env(ECR_GATEWAY) |
   .["gateway-service"].image.tag = env(IMAGE_TAG) |
+  .["gateway-service"].image.pullPolicy = "Always" |
   .["gateway-service"].ingress.host = env(GATEWAY_HOST) |
   .["gateway-service"].ingress.tls.enabled = true |
   .["gateway-service"].ingress.tls.certificateArn = env(GATEWAY_CERT_ARN) |
   .["orders-service"].image.repository = env(ECR_ORDERS) |
   .["orders-service"].image.tag = env(IMAGE_TAG) |
+  .["orders-service"].image.pullPolicy = "Always" |
   .["catalog-service"].image.repository = env(ECR_CATALOG) |
   .["catalog-service"].image.tag = env(IMAGE_TAG) |
+  .["catalog-service"].image.pullPolicy = "Always" |
   .["billing-service"].image.repository = env(ECR_BILLING) |
   .["billing-service"].image.tag = env(IMAGE_TAG) |
+  .["billing-service"].image.pullPolicy = "Always" |
   .["analytics-service"].image.repository = env(ECR_ANALYTICS) |
   .["analytics-service"].image.tag = env(IMAGE_TAG) |
+  .["analytics-service"].image.pullPolicy = "Always" |
   .["notification-service"].image.repository = env(ECR_NOTIFICATION) |
   .["notification-service"].image.tag = env(IMAGE_TAG) |
+  .["notification-service"].image.pullPolicy = "Always" |
   .grafana.ingress.host = env(GRAFANA_HOST) |
   .grafana.ingress.annotations."alb.ingress.kubernetes.io/certificate-arn" = env(GRAFANA_CERT_ARN)
 ' "$OUTPUT_PATH"

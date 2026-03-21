@@ -10,6 +10,17 @@ global:
     host: ""        # set in values-prod.yaml from Terraform output
     port: "5671"    # AMQPS
 
+namespaces:
+  enabled: true
+
+storageClass:
+  create: true
+  name: auto-ebs-sc
+  defaultClass: false
+  parameters:
+    type: gp3
+    encrypted: "true"
+
 gateway-service:
   enabled: true
   image:
@@ -156,7 +167,7 @@ billing-service:
       prometheus.io/path: /actuator/prometheus
       prometheus.io/port: "8082"
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 15s
 
 notification-service:
@@ -189,7 +200,7 @@ notification-service:
       prometheus.io/path: /actuator/prometheus
       prometheus.io/port: "8083"
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 15s
 
 analytics-service:
@@ -222,7 +233,7 @@ analytics-service:
       prometheus.io/path: /actuator/prometheus
       prometheus.io/port: "8084"
     serviceMonitor:
-      enabled: true
+      enabled: false
       interval: 15s
 
 redis:
@@ -242,7 +253,7 @@ redis:
       memory: 128Mi
   persistence:
     enabled: true
-    storageClass: gp3
+    storageClass: auto-ebs-sc
     size: 5Gi
     accessMode: ReadWriteOnce
   auth:
@@ -267,7 +278,7 @@ prometheus:
       memory: 512Mi
   persistence:
     enabled: true
-    storageClass: gp3
+    storageClass: auto-ebs-sc
     size: 20Gi
     accessMode: ReadWriteOnce
 
@@ -301,3 +312,6 @@ grafana:
       memory: 256Mi
   persistence:
     enabled: false
+
+external-secrets:
+  enabled: false
