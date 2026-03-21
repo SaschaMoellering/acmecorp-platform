@@ -17,7 +17,7 @@ resources:
 
 persistence:
   enabled: true
-  storageClass: gp3
+  storageClass: auto-ebs-sc
   size: 5Gi
   accessMode: ReadWriteOnce
 

@@ -34,12 +34,13 @@ Expected local context:
 The first deployment is a two-phase infrastructure and workload rollout:
 
 1. Apply Terraform foundation
-2. Build and push service images to ECR
-3. Generate production Helm values from Terraform outputs
-4. Deploy the canonical Helm chart
-5. Wait for the ALB-backed ingresses to be created
-6. Run a second Terraform apply to create the Route53 alias records that point at those ALBs
-7. Verify the platform end to end
+2. Bootstrap the fresh cluster for namespaces and External Secrets
+3. Build and push service images to ECR
+4. Generate production Helm values from Terraform outputs
+5. Deploy the canonical Helm chart
+6. Wait for the ALB-backed ingresses to be created
+7. Run a second Terraform apply to create the Route53 alias records that point at those ALBs
+8. Verify the platform end to end
 
 ## 1. Configure Terraform inputs
 
@@ -50,19 +51,40 @@ aws_region           = "eu-west-1"
 environment          = "prod"
 cluster_name         = "acmecorp-platform"
 admin_principal_arn  = "arn:aws:iam::<ACCOUNT_ID>:role/<YOUR_ADMIN_ROLE_OR_USER>"
+eks_public_access_cidrs = ["0.0.0.0/0"]
 route53_zone_name    = "acmecorp.example.com"
 gateway_ingress_host = "api.acmecorp.example.com"
 grafana_ingress_host = "grafana.acmecorp.example.com"
 ```
 
 Important:
+- the EKS cluster is managed in API-only authentication mode; keep `admin_principal_arn` set to an IAM principal that should retain cluster-admin access through EKS access entries
 - do not set the ALB alias variables yet
 - those values do not exist until after Helm has created the ingresses and AWS has provisioned the ALBs
 
 ## 2. Apply Terraform foundation
 
+Before `terraform apply`, restore any expected Secrets Manager secrets that still exist by name but are pending deletion:
+
+```bash
+scripts/restore-secrets-if-pending-deletion.sh
+```
+
+This preflight step:
+- checks these exact secret names:
+  - `acmecorp-platform-prod/aurora`
+  - `acmecorp-platform-prod/mq`
+  - `acmecorp-platform-prod/redis`
+  - `acmecorp-platform-prod/grafana`
+- does nothing when a secret does not exist yet
+- does nothing when a secret already exists and is active
+- restores a secret automatically when AWS still has it scheduled for deletion
+
+Run it again before retrying `terraform apply` after a failed or interrupted deployment.
+
 ```bash
 terraform -chdir=infra/terraform init
+scripts/restore-secrets-if-pending-deletion.sh
 terraform -chdir=infra/terraform apply -var-file=terraform.tfvars
 ```
 
@@ -77,7 +99,40 @@ This provisions:
 - ECR repositories
 - ACM certificates and DNS validation
 
-## 3. Capture Terraform outputs
+## 3. Bootstrap the fresh cluster
+
+Bootstrap the fresh cluster before building images or installing the umbrella chart:
+
+```bash
+scripts/bootstrap-first-cluster.sh
+```
+
+What the bootstrap script does:
+- updates kubeconfig for the Terraform-managed EKS cluster
+- updates Helm dependencies for `helm/acmecorp-platform`
+- creates the required namespaces from the chart template:
+  - `acmecorp`
+  - `observability`
+  - `external-secrets`
+  - `data`
+- creates the EKS Auto Mode storage class required by Redis and Prometheus:
+  - `auto-ebs-sc`
+- installs the bundled `external-secrets` subchart as a separate Helm release
+- configures the operator only for the repo's required resources:
+  - `ClusterSecretStore`
+  - `ExternalSecret`
+- waits for the `external-secrets` deployment rollout
+- verifies these CRDs exist:
+  - `externalsecrets.external-secrets.io`
+  - `secretstores.external-secrets.io`
+  - `clustersecretstores.external-secrets.io`
+
+This step is required on a fresh cluster because the umbrella chart cannot reliably install CRDs and `ExternalSecret` resources in the same first-time release.
+
+The generated production values also disable namespace rendering for the umbrella release, so the main app install does not try to take ownership of namespaces that bootstrap already created.
+The generated production values also disable `storageClass.create`, because bootstrap precreates the shared `auto-ebs-sc` class before the StatefulSets are installed.
+
+## 4. Capture Terraform outputs
 
 Write Terraform outputs to JSON for downstream scripts:
 
@@ -91,13 +146,15 @@ These outputs drive:
 - ingress certificate ARNs
 - database and MQ endpoints
 
-## 4. Build and push all service images to ECR
+## 5. Build and push all service images to ECR
 
 Choose a release tag:
 
 ```bash
-export IMAGE_TAG=$(git rev-parse --short HEAD)
+export IMAGE_TAG="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
 ```
+
+Use a unique tag on each deployment attempt so Helm updates the workload templates and Kubernetes pulls the fresh images built from the current Dockerfiles.
 
 Build and push all six services:
 
@@ -112,7 +169,7 @@ What the script does:
 - tags each image with the required release tag
 - pushes all six images
 
-## 5. Generate production Helm values
+## 6. Generate production Helm values
 
 Generate a deployment-specific production values file:
 
@@ -131,8 +188,9 @@ It fills in:
 - ACM certificate ARNs
 - all six ECR repository URLs
 - image tags for all six services
+- `image.pullPolicy: Always` for all six backend services so upgraded pods pull the new ECR image for the requested tag
 
-## 6. Connect kubectl to the cluster
+## 7. Connect kubectl to the cluster
 
 ```bash
 CLUSTER_NAME=$(terraform -chdir=infra/terraform output -raw cluster_name)
@@ -146,7 +204,29 @@ aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
 kubectl get nodes
 ```
 
-## 7. Validate Helm input before install
+## 8. Pre-deployment validation
+
+Before the first Helm install, run the full validation workflow:
+
+```bash
+PROD_VALUES=/tmp/acmecorp-values-prod.generated.yaml scripts/validate-deploy.sh
+```
+
+This validates:
+- Terraform formatting
+- Terraform configuration and plan
+- Helm lint
+- Helm template rendering
+- Kubernetes manifest conformance with `kubeconform`
+- Helm dry-run using the generated production values
+
+Outputs:
+- rendered manifests at `/tmp/acmecorp-rendered.yaml`
+- Terraform plan at `/tmp/acmecorp-tfplan`
+
+If this step fails, fix the issue before attempting the real install.
+
+## 9. Validate Helm input before install
 
 ```bash
 helm dependency update helm/acmecorp-platform
@@ -160,7 +240,7 @@ helm template acmecorp-platform helm/acmecorp-platform \
   > /tmp/acmecorp-rendered.yaml
 ```
 
-## 8. Deploy the canonical Helm chart
+## 10. Deploy the canonical Helm chart
 
 ```bash
 helm upgrade --install acmecorp-platform helm/acmecorp-platform \
@@ -173,12 +253,14 @@ This deploys:
 - Redis
 - Prometheus
 - Grafana
-- External Secrets Operator
 - `ClusterSecretStore`
 - `ExternalSecret` resources
 - ingress resources for gateway and Grafana
 
-## 9. Two-step ALB to Route53 alias handoff
+The External Secrets Operator and CRDs are installed by `scripts/bootstrap-first-cluster.sh` before this step.
+The generated production values disable `namespaces.enabled`, so this release does not attempt to recreate the pre-bootstrapped namespaces.
+
+## 11. Two-step ALB to Route53 alias handoff
 
 The Terraform DNS module supports Route53 alias records for the gateway and Grafana ingresses, but those alias targets are only known after AWS creates the ALBs for the ingresses.
 
@@ -207,7 +289,7 @@ What the script does:
 - resolves ALB canonical hosted zone IDs with `aws elbv2 describe-load-balancers`
 - re-runs `terraform apply` with the required alias variables
 
-## 10. Verify the first deployment
+## 12. Verify the first deployment
 
 Run the verification helper:
 

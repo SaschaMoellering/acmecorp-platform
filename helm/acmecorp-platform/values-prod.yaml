@@ -13,6 +13,12 @@ global:
     host: "<mq-broker-endpoint>"        # from: terraform output mq_broker_endpoint
     port: "5671"
 
+namespaces:
+  enabled: false
+
+storageClass:
+  create: false
+
 gateway-service:
   ingress:
     enabled: true
@@ -25,7 +31,7 @@ gateway-service:
     springProfilesActive: eks
   prometheus:
     serviceMonitor:
-      enabled: true
+      enabled: false
 
 orders-service:
   config:
