@@ -91,6 +91,9 @@ rules:
     resources: ["secrets", "configmaps", "events"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
     resources: ["serviceaccounts"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["coordination.k8s.io"]
@@ -162,6 +165,9 @@ spec:
           args:
             - --loglevel=info
             - --enable-leader-election=true
+            - --enable-cluster-store-reconciler={{ .Values.processClusterStore }}
+            - --enable-cluster-external-secret-reconciler={{ .Values.processClusterExternalSecret }}
+            - --enable-push-secret-reconciler={{ .Values.processPushSecret }}
           env:
             - name: AWS_REGION
               value: {{ .Values.global.awsRegion | quote }}

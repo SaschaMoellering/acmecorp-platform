@@ -20,8 +20,8 @@ serviceAccount:
   annotations: {}
 probes:
   enabled: true
-  livenessPath: /actuator/health
-  readinessPath: /actuator/health
+  livenessPath: /actuator/health/liveness
+  readinessPath: /actuator/health/readiness
 autoscaling:
   enabled: false
   minReplicas: 1

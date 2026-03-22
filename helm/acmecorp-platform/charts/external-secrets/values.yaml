@@ -1,5 +1,9 @@
 enabled: true
 
+processClusterStore: true
+processClusterExternalSecret: false
+processPushSecret: false
+
 image:
   repository: ghcr.io/external-secrets/external-secrets
   tag: "v0.10.5"

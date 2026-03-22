@@ -24,8 +24,8 @@ resources:
     memory: 256Mi
 probes:
   enabled: true
-  livenessPath: /actuator/health
-  readinessPath: /actuator/health
+  livenessPath: /actuator/health/liveness
+  readinessPath: /actuator/health/readiness
 autoscaling:
   enabled: false
   minReplicas: 1
@@ -44,6 +44,15 @@ secret:
     password: ""
     rabbitmqUsername: ""
     rabbitmqPassword: ""
+secrets:
+  database:
+    name: aurora-credentials
+    usernameKey: username
+    passwordKey: password
+  rabbitmq:
+    name: mq-credentials
+    usernameKey: username
+    passwordKey: password
 prometheus:
   annotations:
     prometheus.io/scrape: "true"

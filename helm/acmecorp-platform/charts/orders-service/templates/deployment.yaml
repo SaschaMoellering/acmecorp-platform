@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "orders-service.fullname" . }}
+  namespace: {{ include "acmecorp-platform.namespace.app" . }}
   labels:
     {{- include "orders-service.labels" . | nindent 4 }}
 spec:
@@ -19,6 +20,8 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        {{- include "acmecorp-platform.tmpVolume" . | nindent 8 }}
       {{- $pullSecrets := .Values.imagePullSecrets }}
       {{- if not $pullSecrets }}
       {{- with .Values.global }}
@@ -74,6 +77,8 @@ spec:
                 configMapKeyRef:
                   name: {{ include "orders-service.fullname" . }}-config
                   key: RABBITMQ_PORT
+            - name: SPRING_RABBITMQ_SSL_ENABLED
+              value: "true"
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -115,3 +120,5 @@ spec:
             initialDelaySeconds: 15
             timeoutSeconds: 3
           {{- end }}
+          volumeMounts:
+            {{- include "acmecorp-platform.tmpVolumeMount" . | nindent 12 }}

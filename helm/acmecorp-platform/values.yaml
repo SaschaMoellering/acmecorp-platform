@@ -2,6 +2,11 @@ global:
   imagePullSecrets: []
   awsRegion: us-east-1
   secretsNamePrefix: acmecorp-platform-prod
+  namespaces:
+    app: acmecorp
+    data: data
+    observability: observability
+    externalSecrets: external-secrets
   aurora:
     host: ""        # set in values-prod.yaml from Terraform output
     port: "5432"
@@ -9,6 +14,9 @@ global:
   mq:
     host: ""        # set in values-prod.yaml from Terraform output
     port: "5671"    # AMQPS
+  redis:
+    host: redis.data.svc.cluster.local
+    port: "6379"
 
 namespaces:
   enabled: true
@@ -54,8 +62,8 @@ gateway-service:
       memory: 256Mi
   probes:
     enabled: true
-    livenessPath: /actuator/health
-    readinessPath: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -92,8 +100,8 @@ orders-service:
       memory: 256Mi
   probes:
     enabled: true
-    livenessPath: /actuator/health
-    readinessPath: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -156,8 +164,8 @@ billing-service:
       memory: 256Mi
   probes:
     enabled: true
-    livenessPath: /actuator/health
-    readinessPath: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
   serviceAccount:
     create: true
     annotations: {}
@@ -222,8 +230,8 @@ analytics-service:
       memory: 256Mi
   probes:
     enabled: true
-    livenessPath: /actuator/health
-    readinessPath: /actuator/health
+    livenessPath: /actuator/health/liveness
+    readinessPath: /actuator/health/readiness
   serviceAccount:
     create: true
     annotations: {}
@@ -235,6 +243,10 @@ analytics-service:
     serviceMonitor:
       enabled: false
       interval: 15s
+  redis:
+    auth:
+      secretName: analytics-redis-credentials
+      secretKey: password
 
 redis:
   enabled: true

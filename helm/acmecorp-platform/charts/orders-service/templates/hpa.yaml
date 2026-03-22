@@ -3,6 +3,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ include "orders-service.fullname" . }}
+  namespace: {{ include "acmecorp-platform.namespace.app" . }}
   labels:
     {{- include "orders-service.labels" . | nindent 4 }}
 spec:

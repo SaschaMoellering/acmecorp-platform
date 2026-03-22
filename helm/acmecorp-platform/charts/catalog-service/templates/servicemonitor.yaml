@@ -3,6 +3,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "catalog-service.fullname" . }}
+  namespace: {{ include "acmecorp-platform.namespace.observability" . }}
   labels:
     {{- include "catalog-service.labels" . | nindent 4 }}
 spec:
@@ -12,7 +13,7 @@ spec:
       path: /q/metrics
   namespaceSelector:
     matchNames:
-      - {{ .Release.Namespace }}
+      - {{ include "acmecorp-platform.namespace.app" . }}
   selector:
     matchLabels:
       {{- include "catalog-service.labels" . | nindent 6 }}
