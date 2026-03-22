@@ -3,14 +3,14 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: {{ include "billing-service.fullname" . }}
-  namespace: observability
+  namespace: {{ include "acmecorp-platform.namespace.observability" . }}
   labels:
     {{- include "billing-service.labels" . | nindent 4 }}
     release: prometheus
 spec:
   namespaceSelector:
     matchNames:
-      - acmecorp
+      - {{ include "acmecorp-platform.namespace.app" . }}
   selector:
     matchLabels:
       {{- include "billing-service.labels" . | nindent 6 }}

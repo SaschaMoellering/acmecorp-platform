@@ -4,6 +4,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "gateway-service.fullname" . }}-ingress
+  namespace: {{ include "acmecorp-platform.namespace.app" . }}
   labels:
     {{- include "gateway-service.labels" . | nindent 4 }}
   annotations:

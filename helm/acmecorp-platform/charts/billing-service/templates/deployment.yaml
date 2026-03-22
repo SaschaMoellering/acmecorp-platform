@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "billing-service.fullname" . }}
+  namespace: {{ include "acmecorp-platform.namespace.app" . }}
   labels:
     {{- include "billing-service.labels" . | nindent 4 }}
 spec:
@@ -19,6 +20,8 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        {{- include "acmecorp-platform.tmpVolume" . | nindent 8 }}
       containers:
         - name: billing
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -70,6 +73,8 @@ spec:
                 configMapKeyRef:
                   name: {{ include "billing-service.fullname" . }}-config
                   key: MQ_PORT
+            - name: SPRING_RABBITMQ_SSL_ENABLED
+              value: "true"
             - name: RABBITMQ_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -101,3 +106,5 @@ spec:
             initialDelaySeconds: 15
             timeoutSeconds: 3
           {{- end }}
+          volumeMounts:
+            {{- include "acmecorp-platform.tmpVolumeMount" . | nindent 12 }}

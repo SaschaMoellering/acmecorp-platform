@@ -12,6 +12,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="${TF_DIR:-$ROOT_DIR/infra/terraform}"
 AWS_REGION="${AWS_REGION:-}"
 TIMEOUT="${TIMEOUT:-300s}"
+RELEASE_NAME="${RELEASE_NAME:-acmecorp-platform}"
+APP_NAMESPACE="${APP_NAMESPACE:-acmecorp}"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -61,22 +63,28 @@ check_cmd "namespace observability exists" kubectl get ns observability
 check_cmd "namespace data exists" kubectl get ns data
 check_cmd "namespace external-secrets exists" kubectl get ns external-secrets
 
+rollout_deployment() {
+  local namespace="$1"
+  local deployment_name="$2"
+  kubectl rollout status "deploy/${deployment_name}" -n "$namespace" --timeout="$TIMEOUT"
+}
+
 rollout_by_label() {
   local namespace="$1"
   local app_name="$2"
   local deploy_name
   deploy_name="$(kubectl get deploy -n "$namespace" -l "app.kubernetes.io/name=${app_name}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
   [[ -n "$deploy_name" ]] || return 1
-  kubectl rollout status "deploy/${deploy_name}" -n "$namespace" --timeout="$TIMEOUT"
+  rollout_deployment "$namespace" "$deploy_name"
 }
 
 check_cmd "external-secrets deployment rolled out" rollout_by_label external-secrets external-secrets
-check_cmd "gateway-service deployment rolled out" rollout_by_label acmecorp gateway-service
-check_cmd "orders-service deployment rolled out" rollout_by_label acmecorp orders-service
-check_cmd "billing-service deployment rolled out" rollout_by_label acmecorp billing-service
-check_cmd "notification-service deployment rolled out" rollout_by_label acmecorp notification-service
-check_cmd "analytics-service deployment rolled out" rollout_by_label acmecorp analytics-service
-check_cmd "catalog-service deployment rolled out" rollout_by_label acmecorp catalog-service
+check_cmd "gateway-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-gateway-service"
+check_cmd "orders-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-orders-service"
+check_cmd "billing-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-billing-service"
+check_cmd "notification-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-notification-service"
+check_cmd "analytics-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-analytics-service"
+check_cmd "catalog-service deployment rolled out" rollout_deployment "$APP_NAMESPACE" "${RELEASE_NAME}-catalog-service"
 check_cmd "grafana deployment rolled out" rollout_by_label observability grafana
 check_cmd "prometheus deployment rolled out" rollout_by_label observability prometheus
 check_cmd "redis stateful workload exists" kubectl get statefulset -n data redis

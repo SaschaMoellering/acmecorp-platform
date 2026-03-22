@@ -10,8 +10,11 @@ global:
     port: "5432"
     database: acmecorp
   mq:
-    host: "<mq-broker-endpoint>"        # from: terraform output mq_broker_endpoint
+    host: "<mq-broker-hostname>"        # hostname only, normalized from terraform output mq_broker_endpoint
     port: "5671"
+  redis:
+    host: redis.data.svc.cluster.local
+    port: "6379"
 
 namespaces:
   enabled: false

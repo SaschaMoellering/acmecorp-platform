@@ -18,6 +18,10 @@ secret:
   data:
     username: ""
     password: ""
+databaseSecret:
+  name: aurora-credentials
+  usernameKey: username
+  passwordKey: password
 resources:
   limits:
     cpu: 500m

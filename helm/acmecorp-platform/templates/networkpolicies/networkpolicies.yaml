@@ -1,8 +1,11 @@
+{{- $appNamespace := include "acmecorp-platform.namespace.app" . }}
+{{- $dataNamespace := include "acmecorp-platform.namespace.data" . }}
+{{- $observabilityNamespace := include "acmecorp-platform.namespace.observability" . }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-default-deny
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -13,7 +16,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-allow-dns
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -36,7 +39,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-allow-intra-namespace
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -46,7 +49,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: acmecorp
+              kubernetes.io/metadata.name: {{ $appNamespace }}
       ports:
         - protocol: TCP
           port: 8080
@@ -64,7 +67,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: acmecorp
+              kubernetes.io/metadata.name: {{ $appNamespace }}
       ports:
         - protocol: TCP
           port: 8080
@@ -83,7 +86,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-allow-redis
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -92,7 +95,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: data
+              kubernetes.io/metadata.name: {{ $dataNamespace }}
           podSelector:
             matchLabels:
               app.kubernetes.io/name: redis
@@ -104,7 +107,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-allow-managed-services
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -123,7 +126,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: acmecorp-allow-prometheus-scrape
-  namespace: acmecorp
+  namespace: {{ $appNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -132,7 +135,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: observability
+              kubernetes.io/metadata.name: {{ $observabilityNamespace }}
           podSelector:
             matchLabels:
               app.kubernetes.io/name: prometheus
@@ -154,7 +157,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: data-default-deny
-  namespace: data
+  namespace: {{ $dataNamespace }}
 spec:
   podSelector: {}
   policyTypes:
@@ -165,7 +168,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: data-allow-redis-from-acmecorp
-  namespace: data
+  namespace: {{ $dataNamespace }}
 spec:
   podSelector:
     matchLabels:
@@ -176,7 +179,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: acmecorp
+              kubernetes.io/metadata.name: {{ $appNamespace }}
       ports:
         - protocol: TCP
           port: 6379

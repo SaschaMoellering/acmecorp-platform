@@ -1,7 +1,8 @@
+{{- if .Values.namespaces.enabled }}
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: acmecorp
+  name: {{ include "acmecorp-platform.namespace.app" . }}
   labels:
     app.kubernetes.io/managed-by: Helm
     acmecorp.io/namespace-role: application
@@ -9,7 +10,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: observability
+  name: {{ include "acmecorp-platform.namespace.observability" . }}
   labels:
     app.kubernetes.io/managed-by: Helm
     acmecorp.io/namespace-role: observability
@@ -17,7 +18,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: external-secrets
+  name: {{ include "acmecorp-platform.namespace.externalSecrets" . }}
   labels:
     app.kubernetes.io/managed-by: Helm
     acmecorp.io/namespace-role: platform
@@ -25,7 +26,8 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: data
+  name: {{ include "acmecorp-platform.namespace.data" . }}
   labels:
     app.kubernetes.io/managed-by: Helm
     acmecorp.io/namespace-role: data
+{{- end }}

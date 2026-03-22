@@ -17,3 +17,29 @@ helm.sh/chart: {{ include "acmecorp-platform.chart" . }}
 {{- define "acmecorp-platform.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version -}}
 {{- end -}}
+
+{{- define "acmecorp-platform.namespace.app" -}}
+{{- default .Release.Namespace .Values.global.namespaces.app -}}
+{{- end -}}
+
+{{- define "acmecorp-platform.namespace.data" -}}
+{{- default "data" .Values.global.namespaces.data -}}
+{{- end -}}
+
+{{- define "acmecorp-platform.namespace.observability" -}}
+{{- default "observability" .Values.global.namespaces.observability -}}
+{{- end -}}
+
+{{- define "acmecorp-platform.namespace.externalSecrets" -}}
+{{- default "external-secrets" .Values.global.namespaces.externalSecrets -}}
+{{- end -}}
+
+{{- define "acmecorp-platform.tmpVolume" -}}
+- name: tmp
+  emptyDir: {}
+{{- end -}}
+
+{{- define "acmecorp-platform.tmpVolumeMount" -}}
+- name: tmp
+  mountPath: /tmp
+{{- end -}}

@@ -32,6 +32,17 @@ require_value() {
   fi
 }
 
+normalize_host() {
+  local value="$1"
+  local normalized="$value"
+
+  normalized="${normalized#*://}"
+  normalized="${normalized%%/*}"
+  normalized="${normalized%%:*}"
+
+  printf '%s\n' "$normalized"
+}
+
 tf_output_value() {
   local key="$1"
   jq -er --arg key "$key" '.[$key].value' <<<"$TF_JSON"
@@ -60,6 +71,7 @@ run_yq_inplace() {
     -e AWS_REGION \
     -e AURORA_ENDPOINT \
     -e MQ_ENDPOINT \
+    -e MQ_HOST \
     -e GATEWAY_HOST \
     -e GRAFANA_HOST \
     -e GATEWAY_CERT_ARN \
@@ -110,6 +122,7 @@ fi
 
 AURORA_ENDPOINT="$(tf_output_value aurora_endpoint)"
 MQ_ENDPOINT="$(tf_output_value mq_broker_endpoint)"
+MQ_HOST="$(normalize_host "$MQ_ENDPOINT")"
 GATEWAY_HOST="$(tf_output_value gateway_ingress_host)"
 GRAFANA_HOST="$(tf_output_value grafana_ingress_host)"
 GATEWAY_CERT_ARN="$(tf_output_value gateway_certificate_arn)"
@@ -124,6 +137,7 @@ ECR_NOTIFICATION="$(tf_output_ecr acmecorp/notification-service)"
 require_value "aws_region" "$AWS_REGION"
 require_value "aurora_endpoint" "$AURORA_ENDPOINT"
 require_value "mq_broker_endpoint" "$MQ_ENDPOINT"
+require_value "mq_host" "$MQ_HOST"
 require_value "gateway_ingress_host" "$GATEWAY_HOST"
 require_value "grafana_ingress_host" "$GRAFANA_HOST"
 require_value "gateway_certificate_arn" "$GATEWAY_CERT_ARN"
@@ -138,6 +152,7 @@ require_value "ecr_repository_urls[acmecorp/notification-service]" "$ECR_NOTIFIC
 export AWS_REGION
 export AURORA_ENDPOINT
 export MQ_ENDPOINT
+export MQ_HOST
 export GATEWAY_HOST
 export GRAFANA_HOST
 export GATEWAY_CERT_ARN
@@ -155,7 +170,7 @@ cp "$BASE_VALUES" "$OUTPUT_PATH"
 run_yq_inplace '
   .global.awsRegion = env(AWS_REGION) |
   .global.aurora.host = env(AURORA_ENDPOINT) |
-  .global.mq.host = env(MQ_ENDPOINT) |
+  .global.mq.host = env(MQ_HOST) |
   .["gateway-service"].image.repository = env(ECR_GATEWAY) |
   .["gateway-service"].image.tag = env(IMAGE_TAG) |
   .["gateway-service"].image.pullPolicy = "Always" |
@@ -180,5 +195,11 @@ run_yq_inplace '
   .grafana.ingress.host = env(GRAFANA_HOST) |
   .grafana.ingress.annotations."alb.ingress.kubernetes.io/certificate-arn" = env(GRAFANA_CERT_ARN)
 ' "$OUTPUT_PATH"
+
+if grep -nE '<[^>]+>' "$OUTPUT_PATH" >/dev/null; then
+  echo "ERROR: unresolved placeholder values remain in rendered output: $OUTPUT_PATH" >&2
+  grep -nE '<[^>]+>' "$OUTPUT_PATH" >&2
+  exit 1
+fi
 
 echo "Generated production values: $OUTPUT_PATH"
