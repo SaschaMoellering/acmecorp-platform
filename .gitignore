@@ -14,3 +14,15 @@ services/spring-boot/billing-service/target/*
 .idea/
 .vscode/
 *.iml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+
+# Temp / render
+yaml/
+
+.terraform/
+.terraform/
