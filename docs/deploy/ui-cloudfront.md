@@ -5,15 +5,24 @@ The React UI is deployed separately from the EKS workloads.
 - Terraform provisions the S3 bucket, CloudFront distribution, ACM certificate in `us-east-1`, and Route53 alias records.
 - GitHub Actions builds the UI, syncs `webapp/dist` to the S3 bucket, and invalidates CloudFront.
 - The S3 bucket is private. CloudFront reaches it through Origin Access Control.
+- The production UI build injects the gateway URL at build time via `VITE_API_BASE_URL`.
 
 ## Manual Deploy
 
 Build the UI:
 
 ```bash
+VITE_API_BASE_URL="https://$(terraform -chdir=infra/terraform output -raw gateway_ingress_host)" \
+  npm --prefix webapp ci
+VITE_API_BASE_URL="https://$(terraform -chdir=infra/terraform output -raw gateway_ingress_host)" \
+  npm --prefix webapp run build
+```
+
+For local UI development against a local or port-forwarded gateway:
+
+```bash
 cd webapp
-npm ci
-npm run build
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
 ```
 
 Read the Terraform outputs:

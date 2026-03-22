@@ -1,3 +1,5 @@
+import { buildApiUrl } from '../config/api';
+
 export type OrderStatus = 'NEW' | 'CONFIRMED' | 'CANCELLED' | 'FULFILLED';
 
 export type OrderItem = {
@@ -93,11 +95,8 @@ export type ApiError = Error & {
   path?: string;
 };
 
-const configuredApiBase = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
-const API_BASE = configuredApiBase.replace(/\/+$/, '');
-
 async function handle<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
     headers: { 'Content-Type': 'application/json' },
     ...init
   });

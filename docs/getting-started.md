@@ -166,14 +166,21 @@ curl http://acmecorp.local/api/gateway/orders
 
 The React SPA reads the API base URL from `VITE_API_BASE_URL`.
 
-* Default: `http://localhost:8080`
-* Kubernetes (Ingress):
+Local development uses [`webapp/.env.development`](/home/videouser/development/acme/acmecorp-platform/webapp/.env.development), which points at the gateway on `http://localhost:8080`.
 
 ```bash
-VITE_API_BASE_URL=http://acmecorp.local npm run dev
+cd webapp
+npm ci
+npm run dev
 ```
 
-For production, the API base URL should be injected **at build time** rather than runtime.
+If you want to override it manually:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
+```
+
+Production builds use [`webapp/.env.production`](/home/videouser/development/acme/acmecorp-platform/webapp/.env.production) by default, and the UI deploy workflow overrides it from Terraform output so the build stays aligned with the deployed gateway hostname.
 
 ---
 
