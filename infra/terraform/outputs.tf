@@ -131,3 +131,34 @@ output "grafana_certificate_arn" {
   description = "ACM certificate ARN for the Grafana ingress hostname"
   value       = module.acm.grafana_certificate_arn
 }
+
+# UI hosting
+output "ui_bucket_name" {
+  description = "S3 bucket that stores the static UI assets"
+  value       = module.ui.bucket_name
+}
+
+output "ui_cloudfront_domain_name" {
+  description = "CloudFront distribution domain name for the UI"
+  value       = module.ui.cloudfront_distribution_domain_name
+}
+
+output "ui_cloudfront_url" {
+  description = "CloudFront distribution URL for the UI"
+  value       = module.ui.cloudfront_distribution_url
+}
+
+output "ui_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for the UI"
+  value       = module.ui.cloudfront_distribution_id
+}
+
+output "ui_custom_domain" {
+  description = "Custom hostname for the UI served via CloudFront"
+  value       = module.ui.custom_domain
+}
+
+output "ui_custom_url" {
+  description = "Custom URL for the UI served via CloudFront"
+  value       = module.ui.custom_url
+}

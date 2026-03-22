@@ -143,3 +143,21 @@ variable "aurora_deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "ui_bucket_name_override" {
+  description = "Optional explicit S3 bucket name for the UI static assets. Leave null to derive a globally unique bucket name from the project, environment, account, and region."
+  type        = string
+  default     = null
+}
+
+variable "ui_subdomain" {
+  description = "UI hostname label created under the public Route53 zone for CloudFront, for example app -> app.example.com."
+  type        = string
+  default     = "app"
+}
+
+variable "ui_build_assets_path" {
+  description = "Optional local path to the built UI assets used by deployment workflows. Terraform creates the hosting infrastructure but does not upload files."
+  type        = string
+  default     = "../../webapp/dist"
+}

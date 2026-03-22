@@ -102,3 +102,18 @@ module "dns" {
   grafana_alb_dns_name = var.grafana_alb_dns_name
   grafana_alb_zone_id  = var.grafana_alb_zone_id
 }
+
+module "ui" {
+  source = "./modules/ui"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  name_prefix          = local.name_prefix
+  aws_region           = var.aws_region
+  route53_zone_name    = var.route53_zone_name
+  ui_subdomain         = var.ui_subdomain
+  bucket_name_override = var.ui_bucket_name_override
+}
