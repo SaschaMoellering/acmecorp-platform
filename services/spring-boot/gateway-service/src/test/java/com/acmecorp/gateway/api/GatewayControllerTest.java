@@ -1,12 +1,18 @@
 package com.acmecorp.gateway.api;
 
+import com.acmecorp.gateway.config.GatewayCorsConfig;
 import com.acmecorp.gateway.service.GatewayService;
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 
@@ -18,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 @WebFluxTest(GatewayController.class)
+@Import(GatewayCorsConfig.class)
 class GatewayControllerTest {
 
     @Autowired
@@ -319,5 +326,56 @@ class GatewayControllerTest {
                 .uri("/api/gateway/analytics/counters")
                 .exchange()
                 .expectStatus().isEqualTo(502);
+    }
+
+    @Test
+    void preflightShouldAllowConfiguredUiOrigin() {
+        webClient.options()
+                .uri("http://localhost/api/gateway/orders")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Idempotency-Key")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173")
+                .expectHeader().value(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, value ->
+                        Assertions.assertTrue(value.contains("Idempotency-Key"), "allow headers should include Idempotency-Key"));
+    }
+
+    @Test
+    void preflightShouldRejectUnknownOrigin() {
+        webClient.options()
+                .uri("http://localhost/api/gateway/orders")
+                .header(HttpHeaders.ORIGIN, "https://evil.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .exchange()
+                .expectStatus().isForbidden();
+    }
+
+    private String expectBody(WebTestClient.ResponseSpec spec, String context) {
+        EntityExchangeResult<String> result = spec.expectBody(String.class).returnResult();
+        String body = result.getResponseBody();
+        return assertJsonNotEmpty(body, context + " status=" + result.getStatus() + " body=" + body);
+    }
+
+    private static String assertJsonNotEmpty(String body, String context) {
+        if (body == null || body.isBlank()) {
+            Assertions.fail("Empty response body: " + context);
+        }
+        return body;
+    }
+
+    private static void assertJsonEquals(String body, String path, Object expected, String context) {
+        Object actual = readJson(body, path, context);
+        Assertions.assertEquals(expected, actual, context + " jsonPath=" + path + " body=" + body);
+    }
+
+    private static Object readJson(String body, String path, String context) {
+        try {
+            return JsonPath.read(body, path);
+        } catch (Exception ex) {
+            Assertions.fail("Missing JSON path " + path + " for " + context + " body=" + body, ex);
+            return null;
+        }
     }
 }

@@ -19,6 +19,14 @@ management:
         enabled: true
 
 acmecorp:
+  gateway:
+    cors:
+      allowed-origins:
+        - ${GATEWAY_CORS_ORIGIN_LOCAL:http://localhost:5173}
+        - ${GATEWAY_CORS_ORIGIN_LOCAL_ALT:http://127.0.0.1:5173}
+        - ${GATEWAY_CORS_ORIGIN_PREVIEW:http://localhost:4173}
+        - ${GATEWAY_CORS_ORIGIN_PREVIEW_ALT:http://127.0.0.1:4173}
+        - ${GATEWAY_CORS_ORIGIN_UI:https://app.acmecorp.autoscaling.io}
   services:
     orders:
       base-url: ${ORDERS_BASE_URL:http://orders-service:8081}
