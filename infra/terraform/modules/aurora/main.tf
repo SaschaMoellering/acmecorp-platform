@@ -1,24 +1,25 @@
 variable "name_prefix" { type = string }
 variable "vpc_id" { type = string }
 variable "database_subnet_ids" { type = list(string) }
-variable "eks_node_sg_id" { type = string }
+variable "eks_database_client_sg_id" { type = string }
 variable "db_name" { type = string }
 variable "master_username" { type = string }
+variable "master_password" { type = string }
 variable "deletion_protection" { type = bool }
 variable "secret_arn" { type = string }
 
 # ── Security group ──────────────────────────────────────────────────────────
 resource "aws_security_group" "aurora" {
   name        = "${var.name_prefix}-aurora"
-  description = "Aurora Serverless v2 — allow access from EKS nodes only"
+  description = "Aurora Serverless v2 - allow access from EKS nodes only"
   vpc_id      = var.vpc_id
 
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [var.eks_node_sg_id]
-    description     = "PostgreSQL from EKS nodes"
+    security_groups = [var.eks_database_client_sg_id]
+    description     = "PostgreSQL from EKS data plane"
   }
 
   egress {
@@ -52,14 +53,13 @@ resource "aws_rds_cluster_parameter_group" "this" {
 
 # ── Aurora Serverless v2 cluster ────────────────────────────────────────────
 resource "aws_rds_cluster" "this" {
-  cluster_identifier          = "${var.name_prefix}-aurora"
-  engine                      = "aurora-postgresql"
-  engine_mode                 = "provisioned"
-  engine_version              = "16.4"
-  database_name               = var.db_name
-  master_username             = var.master_username
-  manage_master_user_password = false
-  master_password             = jsondecode(data.aws_secretsmanager_secret_version.aurora.secret_string)["password"]
+  cluster_identifier = "${var.name_prefix}-aurora"
+  engine             = "aurora-postgresql"
+  engine_mode        = "provisioned"
+  engine_version     = "16.4"
+  database_name      = var.db_name
+  master_username    = var.master_username
+  master_password    = var.master_password
 
   db_subnet_group_name            = aws_db_subnet_group.aurora.name
   vpc_security_group_ids          = [aws_security_group.aurora.id]
@@ -78,10 +78,6 @@ resource "aws_rds_cluster" "this" {
     min_capacity = 0.5
     max_capacity = 8.0
   }
-}
-
-data "aws_secretsmanager_secret_version" "aurora" {
-  secret_id = var.secret_arn
 }
 
 # ── Aurora Serverless v2 instance ───────────────────────────────────────────

@@ -20,6 +20,11 @@ output "cluster_admin_access_entry_principal_arn" {
   value       = module.eks.admin_access_principal_arn
 }
 
+output "cluster_secrets_kms_key_arn" {
+  description = "Customer-managed KMS key ARN used for EKS Kubernetes secrets envelope encryption"
+  value       = module.eks.secrets_kms_key_arn
+}
+
 # Aurora
 output "aurora_endpoint" {
   description = "Aurora cluster writer endpoint"

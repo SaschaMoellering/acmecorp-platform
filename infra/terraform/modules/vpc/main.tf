@@ -1,10 +1,19 @@
 variable "name_prefix" { type = string }
 variable "vpc_cidr" { type = string }
+variable "nat_gateway_mode" { type = string }
 variable "azs" { type = list(string) }
 variable "private_subnet_cidrs" { type = list(string) }
 variable "public_subnet_cidrs" { type = list(string) }
 variable "database_subnet_cidrs" { type = list(string) }
 variable "cluster_name" { type = string }
+
+locals {
+  nat_gateway_count = (
+    var.nat_gateway_mode == "ha" ? length(var.azs) :
+    var.nat_gateway_mode == "single" ? 1 :
+    0
+  )
+}
 
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
@@ -67,13 +76,13 @@ resource "aws_internet_gateway" "this" {
 
 # ── NAT Gateways (one per AZ for HA) ───────────────────────────────────────
 resource "aws_eip" "nat" {
-  count  = length(var.azs)
+  count  = local.nat_gateway_count
   domain = "vpc"
   tags   = { Name = "${var.name_prefix}-nat-eip-${var.azs[count.index]}" }
 }
 
 resource "aws_nat_gateway" "this" {
-  count         = length(var.azs)
+  count         = local.nat_gateway_count
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
   tags          = { Name = "${var.name_prefix}-nat-${var.azs[count.index]}" }
@@ -105,10 +114,10 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route" "private_nat" {
-  count                  = length(var.azs)
+  count                  = local.nat_gateway_count == 0 ? 0 : length(var.azs)
   route_table_id         = aws_route_table.private[count.index].id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.this[count.index].id
+  nat_gateway_id         = aws_nat_gateway.this[var.nat_gateway_mode == "ha" ? count.index : 0].id
 }
 
 resource "aws_route_table_association" "private" {
