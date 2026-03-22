@@ -10,7 +10,12 @@ npm install
 npm run dev   # http://localhost:5173
 ```
 
-The app expects the gateway-service at `http://localhost:8080` (configurable via `VITE_API_BASE_URL`).
+The app reads the gateway base URL from Vite env files:
+
+- `.env.development` -> `http://localhost:8080`
+- `.env.production` -> `https://api.acmecorp.autoscaling.io`
+
+You can override either with `VITE_API_BASE_URL=... npm run dev` or `VITE_API_BASE_URL=... npm run build`.
 
 ## Structure
 

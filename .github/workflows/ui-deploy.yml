@@ -43,10 +43,6 @@ jobs:
         working-directory: webapp
         run: npm ci
 
-      - name: Build UI
-        working-directory: webapp
-        run: npm run build
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -66,6 +62,13 @@ jobs:
           echo "distribution_id=$(terraform -chdir="${TF_WORKING_DIR}" output -raw ui_cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
           echo "cloudfront_url=$(terraform -chdir="${TF_WORKING_DIR}" output -raw ui_cloudfront_url)" >> "$GITHUB_OUTPUT"
           echo "custom_url=$(terraform -chdir="${TF_WORKING_DIR}" output -raw ui_custom_url)" >> "$GITHUB_OUTPUT"
+          echo "api_base_url=https://$(terraform -chdir="${TF_WORKING_DIR}" output -raw gateway_ingress_host)" >> "$GITHUB_OUTPUT"
+
+      - name: Build UI
+        working-directory: webapp
+        env:
+          VITE_API_BASE_URL: ${{ steps.tf.outputs.api_base_url }}
+        run: npm run build
 
       - name: Sync immutable UI assets
         run: |
