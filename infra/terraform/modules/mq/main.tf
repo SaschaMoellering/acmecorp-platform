@@ -1,19 +1,29 @@
 variable "name_prefix" { type = string }
 variable "broker_name" { type = string }
+variable "deployment_mode" { type = string }
+variable "broker_instance_type" {
+  type    = string
+  default = null
+}
 variable "mq_username" { type = string }
+variable "mq_password" { type = string }
 variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "eks_node_sg_id" { type = string }
 variable "secret_arn" { type = string }
 
-data "aws_secretsmanager_secret_version" "mq" {
-  secret_id = var.secret_arn
+locals {
+  resolved_broker_instance_type = var.broker_instance_type != null ? var.broker_instance_type : (
+    var.deployment_mode == "SINGLE_INSTANCE" ? "mq.t3.micro" : "mq.m7g.medium"
+  )
+
+  broker_subnet_ids = var.deployment_mode == "SINGLE_INSTANCE" ? [var.private_subnet_ids[0]] : slice(var.private_subnet_ids, 0, 2)
 }
 
 # ── Security group ──────────────────────────────────────────────────────────
 resource "aws_security_group" "mq" {
   name        = "${var.name_prefix}-mq"
-  description = "Amazon MQ — allow AMQP from EKS nodes only"
+  description = "Amazon MQ - allow AMQP from EKS nodes only"
   vpc_id      = var.vpc_id
 
   ingress {
@@ -45,19 +55,20 @@ resource "aws_security_group" "mq" {
 
 # ── Amazon MQ broker ────────────────────────────────────────────────────────
 resource "aws_mq_broker" "this" {
-  broker_name        = var.broker_name
-  engine_type        = "RabbitMQ"
-  engine_version     = "3.13"
-  host_instance_type = "mq.m5.large"
-  deployment_mode    = "SINGLE_INSTANCE"
+  broker_name                = var.broker_name
+  engine_type                = "RabbitMQ"
+  engine_version             = "3.13"
+  auto_minor_version_upgrade = true
+  host_instance_type         = local.resolved_broker_instance_type
+  deployment_mode            = var.deployment_mode
 
-  subnet_ids          = [var.private_subnet_ids[0]]
+  subnet_ids          = local.broker_subnet_ids
   security_groups     = [aws_security_group.mq.id]
   publicly_accessible = false
 
   user {
     username = var.mq_username
-    password = jsondecode(data.aws_secretsmanager_secret_version.mq.secret_string)["password"]
+    password = var.mq_password
   }
 
   logs {

@@ -1,6 +1,8 @@
 ARG JAVA_VERSION=21
 ARG APP_NAME=app
 ARG JAR_PATTERN=${APP_NAME}-*.jar
+ARG APP_UID=10001
+ARG APP_GID=10001
 
 FROM maven:3.9-eclipse-temurin-${JAVA_VERSION} AS build
 WORKDIR /workspace
@@ -28,16 +30,18 @@ FROM eclipse-temurin:${JAVA_VERSION}-jre
 WORKDIR /app
 ARG APP_NAME=app
 ARG JAVA_VERSION=21
+ARG APP_UID=10001
+ARG APP_GID=10001
 ENV APP_NAME=${APP_NAME}
 ENV JAVA_VERSION=${JAVA_VERSION}
 
-RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin app
-RUN mkdir -p /opt/app && chown -R app:app /opt/app
+RUN groupadd -g "${APP_GID}" app && useradd -u "${APP_UID}" -g app -d /app -s /sbin/nologin app
+RUN mkdir -p /opt/app && chown -R "${APP_UID}:${APP_GID}" /opt/app
 
-COPY --from=extract --chown=app:app /layers/app/dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/snapshot-dependencies/ /app/
-COPY --from=extract --chown=app:app /layers/app/spring-boot-loader/ /app/
-COPY --from=extract --chown=app:app /layers/app/application/ /app/
+COPY --from=extract --chown=${APP_UID}:${APP_GID} /layers/app/dependencies/ /app/
+COPY --from=extract --chown=${APP_UID}:${APP_GID} /layers/app/snapshot-dependencies/ /app/
+COPY --from=extract --chown=${APP_UID}:${APP_GID} /layers/app/spring-boot-loader/ /app/
+COPY --from=extract --chown=${APP_UID}:${APP_GID} /layers/app/application/ /app/
 
 RUN set -eu; \
   base='-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp'; \
@@ -47,8 +51,8 @@ RUN set -eu; \
     *) extra='' ;; \
   esac; \
   printf '%s %s\n' "${base}" "${extra}" > /opt/app/jvm.options; \
-  chown app:app /opt/app/jvm.options
+  chown "${APP_UID}:${APP_GID}" /opt/app/jvm.options
 
-USER app
+USER ${APP_UID}:${APP_GID}
 EXPOSE 8080
 ENTRYPOINT ["sh","-c","exec java $(cat /opt/app/jvm.options) org.springframework.boot.loader.launch.JarLauncher"]

@@ -12,7 +12,7 @@ resource "random_password" "aurora" {
 resource "random_password" "mq" {
   length           = 32
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  override_special = "!#$%&*()+-.?@"
 }
 
 resource "random_password" "redis" {
@@ -86,3 +86,11 @@ output "aurora_secret_arn" { value = aws_secretsmanager_secret.aurora.arn }
 output "mq_secret_arn" { value = aws_secretsmanager_secret.mq.arn }
 output "redis_secret_arn" { value = aws_secretsmanager_secret.redis.arn }
 output "grafana_secret_arn" { value = aws_secretsmanager_secret.grafana.arn }
+output "aurora_password" {
+  value     = random_password.aurora.result
+  sensitive = true
+}
+output "mq_password" {
+  value     = random_password.mq.result
+  sensitive = true
+}

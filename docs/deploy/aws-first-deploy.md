@@ -52,12 +52,15 @@ environment          = "prod"
 cluster_name         = "acmecorp-platform"
 admin_principal_arn  = "arn:aws:iam::<ACCOUNT_ID>:role/<YOUR_ADMIN_ROLE_OR_USER>"
 eks_public_access_cidrs = ["0.0.0.0/0"]
+nat_gateway_mode     = "single"
+mq_deployment_mode   = "SINGLE_INSTANCE"
 route53_zone_name    = "acmecorp.example.com"
 gateway_ingress_host = "api.acmecorp.example.com"
 grafana_ingress_host = "grafana.acmecorp.example.com"
 ```
 
 Important:
+- for the lowest recurring demo/dev cost, keep `nat_gateway_mode = "single"` and `mq_deployment_mode = "SINGLE_INSTANCE"` so Terraform uses one shared NAT gateway and the smallest practical RabbitMQ broker size
 - the EKS cluster is managed in API-only authentication mode; keep `admin_principal_arn` set to an IAM principal that should retain cluster-admin access through EKS access entries
 - do not set the ALB alias variables yet
 - those values do not exist until after Helm has created the ingresses and AWS has provisioned the ALBs
@@ -190,6 +193,40 @@ It fills in:
 - image tags for all six services
 - `image.pullPolicy: Always` for all six backend services so upgraded pods pull the new ECR image for the requested tag
 
+Important runtime expectations for the generated production values:
+- Amazon MQ RabbitMQ is exposed to the applications over AMQPS on port `5671`
+- `global.mq.host` must be the broker hostname only, without scheme and without port
+- `global.mq.port` stays `5671`
+- application TLS stays separate from the host/port split; Spring Boot services that connect to Amazon MQ on `5671` must set `SPRING_RABBITMQ_SSL_ENABLED=true`
+- analytics must use the EKS Redis service DNS name, not the local Docker Compose hostname `redis`
+
+Example production values after rendering:
+
+```yaml
+global:
+  aurora:
+    host: acmecorp-platform-prod.cluster-abcdefghijkl.eu-west-1.rds.amazonaws.com
+    port: "5432"
+  mq:
+    host: b-12345678-90ab-cdef-1234-567890abcdef.mq.eu-west-1.on.aws
+    port: "5671"
+  redis:
+    host: redis.data.svc.cluster.local
+    port: "6379"
+```
+
+Expected effective runtime configuration for the MQ-connected Spring Boot services:
+
+```yaml
+env:
+  - name: RABBITMQ_HOST
+    value: b-12345678-90ab-cdef-1234-567890abcdef.mq.eu-west-1.on.aws
+  - name: RABBITMQ_PORT
+    value: "5671"
+  - name: SPRING_RABBITMQ_SSL_ENABLED
+    value: "true"
+```
+
 ## 7. Connect kubectl to the cluster
 
 ```bash
@@ -244,6 +281,7 @@ helm template acmecorp-platform helm/acmecorp-platform \
 
 ```bash
 helm upgrade --install acmecorp-platform helm/acmecorp-platform \
+  -n acmecorp --create-namespace \
   -f helm/acmecorp-platform/values.yaml \
   -f /tmp/acmecorp-values-prod.generated.yaml
 ```
@@ -259,6 +297,16 @@ This deploys:
 
 The External Secrets Operator and CRDs are installed by `scripts/bootstrap-first-cluster.sh` before this step.
 The generated production values disable `namespaces.enabled`, so this release does not attempt to recreate the pre-bootstrapped namespaces.
+
+Probe behavior in the production chart:
+- orders-service uses:
+  - `/actuator/health/liveness`
+  - `/actuator/health/readiness`
+- notification-service uses:
+  - `/actuator/health/liveness`
+  - `/actuator/health/readiness`
+
+Do not point Kubernetes liveness probes at `/actuator/health` directly for these services. That endpoint includes dependency-aware health contributors, so a temporary outage in RabbitMQ, Aurora, or Redis can make Kubernetes restart a healthy JVM process. The liveness and readiness probe groups separate "should this container be restarted?" from "should this pod receive traffic right now?".
 
 ## 11. Two-step ALB to Route53 alias handoff
 
@@ -334,6 +382,54 @@ Check:
 - ECR login region
 - repository URLs from Terraform output
 - image tag supplied to `scripts/build-and-push-ecr.sh`
+
+### RabbitMQ EOFException on port 5671
+
+Symptoms:
+- TLS network checks succeed, for example `openssl s_client` to the Amazon MQ endpoint works
+- Spring Boot logs still show `EOFException` or connection startup failure against RabbitMQ
+
+Check:
+- `global.mq.host` rendered as hostname only, with no `amqps://` prefix and no `:5671` suffix
+- `global.mq.port` is `"5671"`
+- the service has `SPRING_RABBITMQ_SSL_ENABLED=true`
+- credentials come from `mq-credentials`
+
+Why this happens:
+- Amazon MQ listens with TLS on `5671`
+- if Spring Boot is pointed at the TLS listener but SSL is not enabled, the TCP connection can succeed while the AMQP protocol negotiation fails immediately
+- that failure often surfaces as `EOFException`, even though basic network reachability and TLS handshake tests look healthy
+
+Useful checks:
+
+```bash
+kubectl get configmap acmecorp-platform-orders-service-config -n acmecorp -o yaml
+kubectl get configmap acmecorp-platform-notification-service-config -n acmecorp -o yaml
+kubectl get deploy acmecorp-platform-orders-service -n acmecorp -o yaml | rg 'SPRING_RABBITMQ_SSL_ENABLED|RABBITMQ_HOST|RABBITMQ_PORT'
+kubectl get deploy acmecorp-platform-notification-service -n acmecorp -o yaml | rg 'SPRING_RABBITMQ_SSL_ENABLED|RABBITMQ_HOST|RABBITMQ_PORT'
+```
+
+### Redis UnknownHostException for `redis`
+
+Symptoms:
+- analytics logs show `UnknownHostException: redis`
+
+Check:
+- the analytics ConfigMap renders `REDIS_HOST=redis.data.svc.cluster.local`
+- `REDIS_PORT="6379"`
+- the `redis` StatefulSet and Service are present in namespace `data`
+
+Why this happens:
+- `redis` is the local Docker Compose hostname
+- in EKS, analytics must use the cluster DNS name for the Redis Service in namespace `data`
+
+Useful checks:
+
+```bash
+kubectl get configmap acmecorp-platform-analytics-service-config -n acmecorp -o yaml
+kubectl get svc -n data
+kubectl logs deployment/acmecorp-platform-analytics-service -n acmecorp --tail=200
+```
 
 ### Helm deploy succeeds but pods crash
 

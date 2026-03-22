@@ -3,11 +3,12 @@ variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "name_prefix" { type = string }
 variable "admin_principal_arn" { type = string }
+variable "public_access_cidrs" { type = list(string) }
 
 # ── Cluster IAM role ────────────────────────────────────────────────────────
 data "aws_iam_policy_document" "eks_assume" {
   statement {
-    actions = ["sts:AssumeRole"]
+    actions = ["sts:AssumeRole", "sts:TagSession"]
     principals {
       type        = "Service"
       identifiers = ["eks.amazonaws.com"]
@@ -99,16 +100,33 @@ resource "aws_security_group_rule" "nodes_self" {
   description              = "Allow node-to-node communication"
 }
 
+# ── KMS key for Kubernetes secrets envelope encryption ──────────────────────
+resource "aws_kms_key" "eks_secrets" {
+  description             = "KMS key for EKS Kubernetes secrets envelope encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = { Name = "${var.name_prefix}-eks-secrets" }
+}
+
+resource "aws_kms_alias" "eks_secrets" {
+  name          = "alias/${var.name_prefix}-eks-secrets"
+  target_key_id = aws_kms_key.eks_secrets.key_id
+}
+
 # ── EKS Cluster ─────────────────────────────────────────────────────────────
 resource "aws_eks_cluster" "this" {
   name     = var.cluster_name
   role_arn = aws_iam_role.cluster.arn
-  version  = "1.31"
+  version  = "1.35"
+
+  bootstrap_self_managed_addons = false
 
   vpc_config {
     subnet_ids              = var.private_subnet_ids
     endpoint_private_access = true
-    endpoint_public_access  = true
+    endpoint_public_access  = length(var.public_access_cidrs) > 0
+    public_access_cidrs     = var.public_access_cidrs
     security_group_ids      = [aws_security_group.nodes.id]
   }
 
@@ -131,8 +149,15 @@ resource "aws_eks_cluster" "this" {
     }
   }
 
+  encryption_config {
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
+    resources = ["secrets"]
+  }
+
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode = "API"
   }
 
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
@@ -143,17 +168,10 @@ resource "aws_eks_cluster" "this" {
     aws_iam_role_policy_attachment.cluster_block_storage_policy,
     aws_iam_role_policy_attachment.cluster_load_balancing_policy,
     aws_iam_role_policy_attachment.cluster_networking_policy,
+    aws_iam_role_policy_attachment.node_worker,
+    aws_iam_role_policy_attachment.node_ecr,
+    aws_kms_alias.eks_secrets,
   ]
-}
-
-# ── Pod Identity Agent add-on ───────────────────────────────────────────────
-resource "aws_eks_addon" "pod_identity_agent" {
-  cluster_name  = aws_eks_cluster.this.name
-  addon_name    = "eks-pod-identity-agent"
-  addon_version = "v1.3.2-eksbuild.2"
-
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
 }
 
 resource "aws_eks_access_entry" "admin" {
@@ -187,6 +205,7 @@ output "cluster_certificate_authority_data" {
 output "node_security_group_id" { value = aws_security_group.nodes.id }
 output "node_role_arn" { value = aws_iam_role.node.arn }
 output "oidc_issuer_url" { value = aws_eks_cluster.this.identity[0].oidc[0].issuer }
+output "secrets_kms_key_arn" { value = aws_kms_key.eks_secrets.arn }
 output "admin_access_principal_arn" {
   value = var.admin_principal_arn != "" ? var.admin_principal_arn : null
 }
