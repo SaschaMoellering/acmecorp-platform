@@ -1,4 +1,9 @@
 # Cluster
+output "aws_region" {
+  description = "AWS region for this Terraform deployment"
+  value       = var.aws_region
+}
+
 output "cluster_name" {
   description = "EKS cluster name"
   value       = module.eks.cluster_name
@@ -16,7 +21,7 @@ output "cluster_certificate_authority_data" {
 }
 
 output "cluster_admin_access_entry_principal_arn" {
-  description = "IAM principal ARN configured for explicit first-admin EKS access"
+  description = "IAM principal ARN that Terraform uses for the EKS standard admin access entry and cluster-admin policy association."
   value       = module.eks.admin_access_principal_arn
 }
 
@@ -28,33 +33,48 @@ output "cluster_secrets_kms_key_arn" {
 # Aurora
 output "aurora_endpoint" {
   description = "Aurora cluster writer endpoint"
-  value       = module.aurora.cluster_endpoint
+  value       = try(module.aurora[0].cluster_endpoint, null)
 }
 
 output "aurora_reader_endpoint" {
   description = "Aurora cluster reader endpoint"
-  value       = module.aurora.cluster_reader_endpoint
+  value       = try(module.aurora[0].cluster_reader_endpoint, null)
 }
 
 output "aurora_port" {
   description = "Aurora port"
-  value       = module.aurora.port
+  value       = try(module.aurora[0].port, null)
 }
 
 output "aurora_database_name" {
   description = "Aurora initial database name"
-  value       = var.aurora_db_name
+  value       = var.enable_aurora ? var.aurora_db_name : null
+}
+
+output "eks_cluster_security_group_id" {
+  description = "EKS-managed cluster security group ID used by the default EKS Auto Mode networking model."
+  value       = module.eks.cluster_security_group_id
+}
+
+output "aurora_ingress_source_security_group_ids" {
+  description = "Security group IDs currently allowed to reach Aurora on tcp/5432. Defaults to the EKS cluster security group unless an explicit override is set."
+  value       = var.enable_aurora ? local.aurora_ingress_source_security_group_ids : []
 }
 
 # Amazon MQ
 output "mq_broker_endpoint" {
   description = "Amazon MQ AMQP endpoint"
-  value       = module.mq.amqp_endpoint
+  value       = try(module.mq[0].amqp_endpoint, null)
 }
 
 output "mq_console_url" {
   description = "Amazon MQ web console URL"
-  value       = module.mq.console_url
+  value       = try(module.mq[0].console_url, null)
+}
+
+output "mq_ingress_source_security_group_ids" {
+  description = "Security group IDs currently allowed to reach Amazon MQ. Defaults to the EKS cluster security group unless an explicit override is set."
+  value       = var.enable_mq ? local.mq_ingress_source_security_group_ids : []
 }
 
 # Secrets Manager ARNs (not values)
@@ -151,6 +171,11 @@ output "ui_cloudfront_url" {
 output "ui_cloudfront_distribution_id" {
   description = "CloudFront distribution ID for the UI"
   value       = module.ui.cloudfront_distribution_id
+}
+
+output "ui_hostname" {
+  description = "Frontend hostname"
+  value       = module.ui.custom_domain
 }
 
 output "ui_custom_domain" {

@@ -30,6 +30,11 @@ variable "grafana_alb_zone_id" {
   default = null
 }
 
+variable "enable_grafana_dns" {
+  type    = bool
+  default = false
+}
+
 data "aws_route53_zone" "public" {
   name         = var.route53_zone_name
   private_zone = false
@@ -50,7 +55,7 @@ resource "aws_route53_record" "gateway_alias" {
 }
 
 resource "aws_route53_record" "grafana_alias" {
-  count = var.grafana_alb_dns_name != null && var.grafana_alb_zone_id != null ? 1 : 0
+  count = var.enable_grafana_dns && var.grafana_alb_dns_name != null && var.grafana_alb_zone_id != null ? 1 : 0
 
   zone_id = data.aws_route53_zone.public.zone_id
   name    = var.grafana_ingress_host

@@ -1,26 +1,25 @@
 variable "name_prefix" { type = string }
 variable "vpc_id" { type = string }
 variable "database_subnet_ids" { type = list(string) }
-variable "eks_database_client_sg_id" { type = string }
+variable "eks_database_client_sg_ids" { type = list(string) }
 variable "db_name" { type = string }
 variable "master_username" { type = string }
 variable "master_password" { type = string }
 variable "deletion_protection" { type = bool }
 variable "secret_arn" { type = string }
 
+locals {
+  eks_database_client_sg_ids_by_key = {
+    for index, sg_id in var.eks_database_client_sg_ids :
+    tostring(index) => sg_id
+  }
+}
+
 # ── Security group ──────────────────────────────────────────────────────────
 resource "aws_security_group" "aurora" {
   name        = "${var.name_prefix}-aurora"
   description = "Aurora Serverless v2 - allow access from EKS nodes only"
   vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.eks_database_client_sg_id]
-    description     = "PostgreSQL from EKS data plane"
-  }
 
   egress {
     from_port   = 0
@@ -31,6 +30,18 @@ resource "aws_security_group" "aurora" {
   }
 
   tags = { Name = "${var.name_prefix}-aurora" }
+}
+
+resource "aws_security_group_rule" "eks_ingress" {
+  for_each = local.eks_database_client_sg_ids_by_key
+
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = each.value
+  security_group_id        = aws_security_group.aurora.id
+  description              = "PostgreSQL from EKS data plane ${each.value}"
 }
 
 # ── Subnet group ────────────────────────────────────────────────────────────

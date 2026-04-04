@@ -11,6 +11,11 @@ variable "bucket_name_override" {
   default = null
 }
 
+variable "force_destroy_bucket" {
+  type    = bool
+  default = false
+}
+
 variable "route53_zone_name" {
   type = string
 }
@@ -40,7 +45,8 @@ locals {
 }
 
 resource "aws_s3_bucket" "ui" {
-  bucket = local.bucket_name
+  bucket        = local.bucket_name
+  force_destroy = var.force_destroy_bucket
 
   tags = {
     Name = "${var.name_prefix}-ui"

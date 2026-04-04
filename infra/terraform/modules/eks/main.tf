@@ -4,6 +4,14 @@ variable "private_subnet_ids" { type = list(string) }
 variable "name_prefix" { type = string }
 variable "admin_principal_arn" { type = string }
 variable "public_access_cidrs" { type = list(string) }
+variable "manage_secrets_kms_key" {
+  type    = bool
+  default = true
+}
+variable "secrets_kms_key_arn" {
+  type    = string
+  default = null
+}
 
 # ── Cluster IAM role ────────────────────────────────────────────────────────
 data "aws_iam_policy_document" "eks_assume" {
@@ -73,45 +81,36 @@ resource "aws_iam_role_policy_attachment" "node_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
 }
 
-# ── Security group for nodes ────────────────────────────────────────────────
-resource "aws_security_group" "nodes" {
-  name        = "${var.name_prefix}-eks-nodes"
-  description = "EKS Auto Mode node security group"
-  vpc_id      = var.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound"
-  }
-
-  tags = { Name = "${var.name_prefix}-eks-nodes" }
-}
-
-resource "aws_security_group_rule" "nodes_self" {
-  type                     = "ingress"
-  from_port                = 0
-  to_port                  = 65535
-  protocol                 = "-1"
-  source_security_group_id = aws_security_group.nodes.id
-  security_group_id        = aws_security_group.nodes.id
-  description              = "Allow node-to-node communication"
+locals {
+  resolved_secrets_kms_arn = var.manage_secrets_kms_key ? aws_kms_key.eks_secrets[0].arn : var.secrets_kms_key_arn
 }
 
 # ── KMS key for Kubernetes secrets envelope encryption ──────────────────────
 resource "aws_kms_key" "eks_secrets" {
+  count = var.manage_secrets_kms_key ? 1 : 0
+
   description             = "KMS key for EKS Kubernetes secrets envelope encryption"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+
+  lifecycle {
+    # This key is intentionally long-lived so EKS rebuilds can reuse it
+    # instead of forcing a dangerous delete-and-recover cycle.
+    prevent_destroy = false
+  }
 
   tags = { Name = "${var.name_prefix}-eks-secrets" }
 }
 
 resource "aws_kms_alias" "eks_secrets" {
+  count = var.manage_secrets_kms_key ? 1 : 0
+
   name          = "alias/${var.name_prefix}-eks-secrets"
-  target_key_id = aws_kms_key.eks_secrets.key_id
+  target_key_id = aws_kms_key.eks_secrets[0].key_id
+
+  lifecycle {
+    prevent_destroy = false
+  }
 }
 
 # ── EKS Cluster ─────────────────────────────────────────────────────────────
@@ -127,14 +126,13 @@ resource "aws_eks_cluster" "this" {
     endpoint_private_access = true
     endpoint_public_access  = length(var.public_access_cidrs) > 0
     public_access_cidrs     = var.public_access_cidrs
-    security_group_ids      = [aws_security_group.nodes.id]
   }
 
   # Enable EKS Auto Mode
   compute_config {
     enabled       = true
     node_role_arn = aws_iam_role.node.arn
-    node_pools    = ["general-purpose"]
+    node_pools    = ["general-purpose", "system"]
   }
 
   kubernetes_network_config {
@@ -151,7 +149,7 @@ resource "aws_eks_cluster" "this" {
 
   encryption_config {
     provider {
-      key_arn = aws_kms_key.eks_secrets.arn
+      key_arn = local.resolved_secrets_kms_arn
     }
     resources = ["secrets"]
   }
@@ -170,7 +168,6 @@ resource "aws_eks_cluster" "this" {
     aws_iam_role_policy_attachment.cluster_networking_policy,
     aws_iam_role_policy_attachment.node_worker,
     aws_iam_role_policy_attachment.node_ecr,
-    aws_kms_alias.eks_secrets,
   ]
 }
 
@@ -196,16 +193,22 @@ resource "aws_eks_access_policy_association" "admin_cluster_admin" {
   depends_on = [aws_eks_access_entry.admin]
 }
 
+resource "aws_eks_access_entry" "auto_mode_node_role" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = aws_iam_role.node.arn
+  type          = "EC2"
+}
+
 output "cluster_name" { value = aws_eks_cluster.this.name }
 output "cluster_endpoint" { value = aws_eks_cluster.this.endpoint }
 output "cluster_certificate_authority_data" {
   value     = aws_eks_cluster.this.certificate_authority[0].data
   sensitive = true
 }
-output "node_security_group_id" { value = aws_security_group.nodes.id }
+output "cluster_security_group_id" { value = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id }
 output "node_role_arn" { value = aws_iam_role.node.arn }
 output "oidc_issuer_url" { value = aws_eks_cluster.this.identity[0].oidc[0].issuer }
-output "secrets_kms_key_arn" { value = aws_kms_key.eks_secrets.arn }
+output "secrets_kms_key_arn" { value = local.resolved_secrets_kms_arn }
 output "admin_access_principal_arn" {
   value = var.admin_principal_arn != "" ? var.admin_principal_arn : null
 }
