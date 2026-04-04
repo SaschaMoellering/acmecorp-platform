@@ -63,7 +63,7 @@ Expected result:
 
 High-level sequence:
 
-1. Apply Terraform foundation
+1. Apply Terraform phase 1 for base infrastructure and EKS
 2. Bootstrap the cluster
 3. Build and push service images to ECR
 4. Generate production Helm values

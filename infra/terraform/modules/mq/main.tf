@@ -9,38 +9,26 @@ variable "mq_username" { type = string }
 variable "mq_password" { type = string }
 variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
-variable "eks_node_sg_id" { type = string }
+variable "mq_client_security_group_ids" { type = list(string) }
 variable "secret_arn" { type = string }
 
 locals {
   resolved_broker_instance_type = var.broker_instance_type != null ? var.broker_instance_type : (
-    var.deployment_mode == "SINGLE_INSTANCE" ? "mq.t3.micro" : "mq.m7g.medium"
+    "mq.m7g.medium"
   )
 
   broker_subnet_ids = var.deployment_mode == "SINGLE_INSTANCE" ? [var.private_subnet_ids[0]] : slice(var.private_subnet_ids, 0, 2)
+  mq_client_security_group_ids_by_key = {
+    for index, sg_id in var.mq_client_security_group_ids :
+    tostring(index) => sg_id
+  }
 }
 
 # ── Security group ──────────────────────────────────────────────────────────
 resource "aws_security_group" "mq" {
   name        = "${var.name_prefix}-mq"
-  description = "Amazon MQ - allow AMQP from EKS nodes only"
+  description = "Amazon MQ - allow AMQPS from the explicit EKS Auto Mode node security group"
   vpc_id      = var.vpc_id
-
-  ingress {
-    from_port       = 5671
-    to_port         = 5671
-    protocol        = "tcp"
-    security_groups = [var.eks_node_sg_id]
-    description     = "AMQPS from EKS nodes"
-  }
-
-  ingress {
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [var.eks_node_sg_id]
-    description     = "MQ web console from EKS nodes"
-  }
 
   egress {
     from_port   = 0
@@ -51,6 +39,30 @@ resource "aws_security_group" "mq" {
   }
 
   tags = { Name = "${var.name_prefix}-mq" }
+}
+
+resource "aws_security_group_rule" "mq_ingress" {
+  for_each = local.mq_client_security_group_ids_by_key
+
+  type                     = "ingress"
+  from_port                = 5671
+  to_port                  = 5671
+  protocol                 = "tcp"
+  source_security_group_id = each.value
+  security_group_id        = aws_security_group.mq.id
+  description              = "AMQPS from EKS Auto Mode nodes ${each.value}"
+}
+
+resource "aws_security_group_rule" "mq_console_ingress" {
+  for_each = local.mq_client_security_group_ids_by_key
+
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = each.value
+  security_group_id        = aws_security_group.mq.id
+  description              = "MQ web console from EKS Auto Mode nodes ${each.value}"
 }
 
 # ── Amazon MQ broker ────────────────────────────────────────────────────────

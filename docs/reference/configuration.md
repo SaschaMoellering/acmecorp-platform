@@ -42,6 +42,7 @@ Key environment-backed properties in `gateway-service`:
 
 | Variable | Purpose |
 | --- | --- |
+| `eks_secrets_kms_key_arn` | optional existing KMS key ARN for EKS secrets envelope encryption |
 | `route53_zone_name` | public Route53 hosted zone |
 | `gateway_ingress_host` | API hostname |
 | `grafana_ingress_host` | Grafana hostname |
@@ -54,6 +55,8 @@ Key environment-backed properties in `gateway-service`:
 | Output | Purpose |
 | --- | --- |
 | `cluster_name` | EKS cluster name |
+| `cluster_secrets_kms_key_arn` | retained customer-managed KMS key ARN for EKS secrets encryption |
+| `eks_cluster_security_group_id` | EKS-managed cluster security group used by the Auto Mode networking model |
 | `aurora_endpoint` | Aurora writer endpoint |
 | `mq_broker_endpoint` | Amazon MQ endpoint |
 | `gateway_ingress_host` | public gateway hostname |

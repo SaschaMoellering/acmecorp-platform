@@ -17,7 +17,7 @@ variable "cluster_name" {
 }
 
 variable "admin_principal_arn" {
-  description = "IAM principal ARN that should receive explicit first-admin access to the EKS cluster"
+  description = "Optional IAM principal ARN that should receive cluster-admin access to the EKS cluster. Leave empty to derive the current caller's IAM role ARN when Terraform runs under an assumed role."
   type        = string
   default     = ""
 }
@@ -28,8 +28,25 @@ variable "eks_public_access_cidrs" {
   default     = []
 }
 
+variable "eks_secrets_kms_key_arn" {
+  description = "Optional existing customer-managed KMS key ARN for EKS Kubernetes secrets envelope encryption. Leave null to let Terraform create and retain the long-lived key."
+  type        = string
+  default     = null
+}
+
+variable "manage_eks_secrets_kms_key" {
+  description = "When true, Terraform continues to manage and retain the EKS secrets KMS key and alias. Set false only when intentionally reusing an existing external key ARN."
+  type        = bool
+  default     = true
+
+  validation {
+    condition     = var.manage_eks_secrets_kms_key || var.eks_secrets_kms_key_arn != null
+    error_message = "eks_secrets_kms_key_arn must be set when manage_eks_secrets_kms_key is false."
+  }
+}
+
 variable "eks_database_client_sg_id_override" {
-  description = "Optional explicit EKS data-plane security group ID that should be allowed to reach Aurora on tcp/5432. Use this when the actual worker-node SG differs from the Terraform-managed EKS SG output."
+  description = "Optional explicit security group ID to allow Aurora ingress on tcp/5432. Leave null for the normal EKS Auto Mode path, which discovers the runtime EC2 compute security group dynamically. Use only as a break-glass override."
   type        = string
   default     = null
 }
@@ -57,6 +74,12 @@ variable "aurora_db_name" {
   default     = "acmecorp"
 }
 
+variable "enable_aurora" {
+  description = "When true, provision Aurora. Aurora ingress defaults to the explicit EKS Auto Mode node security group unless an override is set."
+  type        = bool
+  default     = true
+}
+
 variable "aurora_master_username" {
   description = "Master username for Aurora"
   type        = string
@@ -67,6 +90,12 @@ variable "mq_broker_name" {
   description = "Amazon MQ broker name"
   type        = string
   default     = "acmecorp-mq"
+}
+
+variable "enable_mq" {
+  description = "When true, provision Amazon MQ. MQ ingress defaults to the explicit EKS Auto Mode node security group unless an override is set."
+  type        = bool
+  default     = true
 }
 
 variable "mq_deployment_mode" {
@@ -85,7 +114,7 @@ variable "mq_deployment_mode" {
 }
 
 variable "mq_broker_instance_type" {
-  description = "Optional explicit Amazon MQ broker instance type override. Leave null to use the demo-cost default for the selected deployment mode."
+  description = "Optional explicit Amazon MQ broker instance type override. Leave null to use the default supported RabbitMQ instance type for the selected deployment mode."
   type        = string
   default     = null
 }
@@ -94,6 +123,12 @@ variable "mq_username" {
   description = "Amazon MQ admin username"
   type        = string
   default     = "acmecorp"
+}
+
+variable "mq_client_sg_id_override" {
+  description = "Optional override for MQ ingress SG. Leave null for the normal EKS Auto Mode path, which discovers runtime EC2 compute security groups dynamically. Use only for break-glass debugging."
+  type        = string
+  default     = null
 }
 
 variable "grafana_ingress_host" {
@@ -138,6 +173,20 @@ variable "grafana_alb_zone_id" {
   default     = null
 }
 
+variable "enable_grafana_dns" {
+  description = "Enable Route53 record for Grafana"
+  type        = bool
+  default     = false
+
+  validation {
+    condition = (
+      var.enable_grafana_dns == false ||
+      (var.grafana_alb_dns_name != null && var.grafana_alb_zone_id != null)
+    )
+    error_message = "grafana_alb_dns_name and grafana_alb_zone_id must be set when enable_grafana_dns = true"
+  }
+}
+
 variable "aurora_deletion_protection" {
   description = "Enable deletion protection on Aurora cluster"
   type        = bool
@@ -148,6 +197,12 @@ variable "ui_bucket_name_override" {
   description = "Optional explicit S3 bucket name for the UI static assets. Leave null to derive a globally unique bucket name from the project, environment, account, and region."
   type        = string
   default     = null
+}
+
+variable "force_destroy_ui_bucket" {
+  description = "When true, allows Terraform destroy to delete the UI S3 bucket even when it still contains objects."
+  type        = bool
+  default     = false
 }
 
 variable "ui_subdomain" {

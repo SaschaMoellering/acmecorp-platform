@@ -8,6 +8,15 @@ variable "redis_secret_arn" { type = string }
 variable "grafana_secret_arn" { type = string }
 variable "aurora_cluster_arn" { type = string }
 
+locals {
+  eso_secret_arns = [
+    "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:${var.name_prefix}/aurora*",
+    "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:${var.name_prefix}/mq*",
+    "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:${var.name_prefix}/redis*",
+    "arn:aws:secretsmanager:${var.aws_region}:${var.account_id}:secret:${var.name_prefix}/grafana*",
+  ]
+}
+
 # ── Shared assume-role policy for Pod Identity ───────────────────────────────
 data "aws_iam_policy_document" "pod_identity_assume" {
   statement {
@@ -100,12 +109,7 @@ data "aws_iam_policy_document" "eso" {
       "secretsmanager:DescribeSecret",
       "secretsmanager:ListSecretVersionIds",
     ]
-    resources = [
-      var.aurora_secret_arn,
-      var.mq_secret_arn,
-      var.redis_secret_arn,
-      var.grafana_secret_arn,
-    ]
+    resources = local.eso_secret_arns
   }
 }
 

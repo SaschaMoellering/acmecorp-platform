@@ -4,6 +4,9 @@ set -euo pipefail
 # Destructive AWS-side cleanup for the AcmeCorp demo environment.
 # Use this when Terraform state is gone but the AWS resources still exist and
 # the environment must be rebuilt from scratch.
+#
+# The EKS Kubernetes secrets KMS key is intentionally long-lived and retained.
+# This script does not delete or schedule deletion for that key.
 
 PREFIX="${PREFIX:-acmecorp-platform-prod}"
 CLUSTER_NAME="${CLUSTER_NAME:-acmecorp-platform}"
@@ -23,7 +26,6 @@ KNOWN_SECRETS=(
   "acmecorp-platform-prod/grafana"
 )
 KMS_ALIAS="alias/acmecorp-platform-prod-eks-secrets"
-KMS_PENDING_WINDOW_DAYS="${KMS_PENDING_WINDOW_DAYS:-7}"
 FORCE="${FORCE:-false}"
 POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-20}"
 POLL_TIMEOUT_SECONDS="${POLL_TIMEOUT_SECONDS:-1800}"
@@ -350,7 +352,7 @@ cleanup_rds() {
 }
 
 cleanup_kms_alias() {
-  log "Starting KMS alias cleanup"
+  log "Inspecting retained KMS key alias state"
 
   for region in "${REGIONS[@]}"; do
     local aliases_json
@@ -360,27 +362,21 @@ cleanup_kms_alias() {
     target_key_id="$(jq -r --arg alias "$KMS_ALIAS" '.Aliases[]? | select(.AliasName == $alias) | .TargetKeyId // empty' <<<"$aliases_json")"
 
     if [[ -n "$target_key_id" ]]; then
-      log "Deleting KMS alias $KMS_ALIAS in $region"
-      run aws --region "$region" kms delete-alias --alias-name "$KMS_ALIAS"
-
       local key_state
       key_state="$(aws --region "$region" kms describe-key --key-id "$target_key_id" --output json 2>/dev/null | jq -r '.KeyMetadata.KeyState // empty' || true)"
       if [[ -z "$key_state" ]]; then
-        warn "KMS key $target_key_id in $region could not be described after alias deletion"
-      elif [[ "$key_state" == "PendingDeletion" ]]; then
-        log "KMS key $target_key_id in $region is already pending deletion"
+        warn "Retained KMS key $target_key_id in $region could not be described"
       else
-        log "Scheduling KMS key $target_key_id in $region for deletion"
-        run aws --region "$region" kms schedule-key-deletion --key-id "$target_key_id" --pending-window-in-days "$KMS_PENDING_WINDOW_DAYS" >/dev/null
+        log "Retaining KMS alias $KMS_ALIAS and key $target_key_id in $region with state $key_state"
       fi
     else
-      log "KMS alias $KMS_ALIAS not found in $region"
+      log "Retained KMS alias $KMS_ALIAS not found in $region"
     fi
 
     local matching_aliases
     matching_aliases="$(jq -r --arg prefix "alias/$PREFIX" '.Aliases[]? | select(.AliasName | contains($prefix)) | "\(.AliasName)\t\(.TargetKeyId // "no-target-key")"' <<<"$aliases_json" || true)"
     if [[ -n "$matching_aliases" ]]; then
-      warn "Additional matching KMS aliases in $region still need manual review:"
+      warn "Matching KMS aliases in $region were left intact and may need manual review:"
       while IFS= read -r line; do
         [[ -n "${line:-}" ]] && warn "  $line"
       done <<<"$matching_aliases"

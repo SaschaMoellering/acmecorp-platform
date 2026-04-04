@@ -1,158 +1,118 @@
 # AcmeCorp Platform
 
-AcmeCorp Platform is a cloud-native enterprise demo that stitches together Spring Boot, Quarkus, and a Vite/React UI to showcase architecting, deploying, and observing a microservices suite (orders, catalog, billing, analytics, notifications) in Docker, Kubernetes, and EKS labs.
+AcmeCorp Platform is a cloud-native reference system for learning, building, and operating a modern Java microservice platform on local Docker Compose and AWS.
 
-## What’s Included
+It combines:
+- Spring Boot and Quarkus services
+- a React + Vite UI
+- Terraform-managed AWS infrastructure
+- Helm-managed Kubernetes workloads on EKS
+- Prometheus and Grafana observability
+- GitHub Actions CI/CD, including UI deployment to S3 + CloudFront
 
-- **Gateway** – Spring WebFlux entry point that composes downstream microservices and offers `/api/gateway/*` APIs.
-- **Orders, Billing, Notification, Analytics** – Spring Boot services backed by Postgres, RabbitMQ, and Redis.
-- **Catalog** – Quarkus product service that feeds the catalog UI and integrates with the gateway.
-- **Webapp** – React + Vite SPA consumed via `VITE_API_BASE_URL`.
-- **Observability stack** – Prometheus/Grafana resources (manifests + dashboards) scrape JVM + HTTP metrics for each service.
+## Architecture Summary
 
-## Architecture
+At runtime, the platform is split into three layers:
+- **UI**: static frontend assets hosted from S3 and served through CloudFront at `https://app.acmecorp.autoscaling.io`
+- **API entry point**: `gateway-service`, exposed at `https://api.acmecorp.autoscaling.io`
+- **Backend services**: orders, catalog, billing, notification, and analytics, backed by Aurora, Redis, RabbitMQ, and Secrets Manager
 
-```
-           ┌────────────┐
-           │ React UI   │
-           │ (webapp)   │
-           └─────┬──────┘
-                 ▼
-        ┌───────────────────────┐
-        │ Gateway Service (8080) │
-        └─────┬─────┬────┬──────┘
-              │     │    │
-              ▼     ▼    ▼
-     ┌──────────┐ ┌──────────┐ ┌────────────┐
-     │ Orders   │ │ Catalog  │ │ Billing    │
-     │ (8081)   │ │ (8085)   │ │ (8082)     │
-     └────┬─────┘ └────┬─────┘ └────┬───────┘
-          │            │            │
-          ▼            ▼            ▼
-     PostgreSQL    PostgreSQL    PostgreSQL
-     Redis         (shared via    (shared via
-     RabbitMQ       Kafka/AMQP)    analytics)
-```
+High-level request path:
+- Browser -> CloudFront -> gateway-service -> backend services
 
-The gateway forwards HTTP traffic to the Spring Boot services (orders, billing, notification, analytics) plus the Quarkus catalog service, while shared infrastructure (Postgres, Redis, RabbitMQ) supports persistence, caching, and messaging.
+For the full architecture and request flow, see [docs/architecture/system-overview.md](docs/architecture/system-overview.md).
 
-## Quickstart (Local)
+## Key Features
 
-1. **Prerequisites**
-   - Docker Desktop / Docker Engine + Compose plugin
-   - Java 21 / Maven (build Java services)
-   - Node.js (React UI via Vite)
+- Terraform foundation for VPC, EKS, Aurora, Amazon MQ, Secrets Manager, ECR, ACM, Route53, and UI hosting
+- Helm umbrella chart for application services, observability, Redis, and External Secrets
+- Environment-driven UI API configuration through `VITE_API_BASE_URL`
+- Strict gateway CORS for local UI development and the deployed UI domain
+- GitHub Actions CI for backend, frontend, integration, and smoke tests
+- GitHub Actions UI deploy workflow for S3 sync and CloudFront invalidation
 
-2. **Start the stack**
+## Quickstart
+
+### Local Platform
+
+Start the local stack:
 
 ```bash
 cd infra/local
 docker compose up --build
 ```
 
-3. **Access the platform**
-
-```text
-- React UI:            http://localhost:5173 (run `cd webapp && npm run dev`)
-- Gateway health:      http://localhost:8080/api/gateway/status
-- Orders service:      http://localhost:8081/actuator/health
-- RabbitMQ UI:         http://localhost:15672
-- Grafana (when enabled via infra/observability): http://localhost:3000
-```
-
-4. **Seed demo data**
+Run the UI separately:
 
 ```bash
-curl -X POST http://localhost:8080/api/gateway/seed
+cd webapp
+npm ci
+npm run dev
 ```
 
-The UI uses `VITE_API_BASE_URL` (default `http://localhost:8080`). Adjust that env var when running the SPA against a different gateway host.
+Default local endpoints:
+- UI: `http://localhost:5173`
+- Gateway: `http://localhost:8080`
+- Orders: `http://localhost:8081`
+- Billing: `http://localhost:8082`
+- Notification: `http://localhost:8083`
+- Analytics: `http://localhost:8084`
+- Catalog: `http://localhost:8085`
+- RabbitMQ UI: `http://localhost:15672`
 
-## API Overview
+### AWS Platform
 
-- `GET /api/gateway/status` – lightweight service health.
-- `GET /api/gateway/orders` – paged list of orders (filters via `page`, `size`).
-- `POST /api/gateway/orders` – place a new order.
-- `PUT /api/gateway/orders/{id}` – update order metadata/items.
-- `POST /api/gateway/orders/{id}/confirm` – confirm payment intent.
-- `POST /api/gateway/orders/{id}/cancel` – cancel a new order.
-- `GET /api/gateway/orders/latest` – dashboard-friendly recents.
-- `GET /api/gateway/catalog` – list products and filter by `category`/`search`.
-- `POST /api/gateway/catalog` – create or edit catalog entries.
-- `POST /api/gateway/seed` – seed catalog + orders data from a deterministic payload.
-- `GET /api/gateway/system/status` – aggregate status from each downstream service.
-
-Other services expose their native endpoints (`/api/orders/*`, `/api/catalog/*`, etc.) for deeper debugging.
-
-## Observability
-
-- Deploy the Prometheus/Grafana stack referenced under `infra/observability/k8s/` (`ServiceMonitor` YAMLs) once you have `kube-prometheus-stack`.
-- Import the dashboard JSON at `infra/observability/grafana/acmecorp-jvm-http-overview.json` into Grafana for JVM/HTTP telemetry.
-- Each Spring Boot service exposes `/actuator/prometheus`, `/actuator/health`, and `/actuator/info`.
-- The Quarkus catalog service exposes `/q/metrics`.
-- Grafana sees metrics via the service monitors that scrape the above endpoints every 15s.
-
-## Database Performance: Hibernate N+1
-
-- **Demo endpoint**: `GET /api/orders/demo/nplus1?limit=N` runs `OrderService.listOrdersNPlusOneDemo(limit)` which fetches orders via `orderRepository.findAll(...)` and maps `OrderResponse.from(order)` without preloading `items`. This produces the classic 1 (orders) + N (items) queries.
-- **Optimized flow**: `listOrders` and `latestOrders` now call `preloadItems(...)`, which collects the returned IDs and runs `OrderRepository.findAllWithItemsByIds(ids)` (a `left join fetch`), so only the orders query plus one join-fetch covers all items.
-- **Regression guard**: `OrderServiceQueryCountTest` seeds 10 orders × 5 items, enables `hibernate.generate_statistics` (see `services/spring-boot/orders-service/src/test/resources/application-test.yml` for the H2 profile), and asserts that the optimized path runs no more than 3 SQL statements. Run it via:
+High-level deploy order:
 
 ```bash
-cd services/spring-boot/orders-service
-mvn test -Dtest=OrderServiceQueryCountTest
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform apply
+scripts/bootstrap-first-cluster.sh
+IMAGE_TAG="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)" scripts/build-and-push-ecr.sh
+IMAGE_TAG="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)" scripts/render-prod-values.sh /tmp/acmecorp-values-prod.generated.yaml
+helm upgrade --install acmecorp-platform helm/acmecorp-platform -n acmecorp -f /tmp/acmecorp-values-prod.generated.yaml
+scripts/deploy-ui.sh
 ```
 
-The test ensures the fixed flow cannot regresses into N+1 while developers can still invoke `/api/orders/demo/nplus1` to observe the pathological behavior.
+Terraform provisions the AWS infrastructure, Kubernetes foundation, DNS, certificates, and the S3 + CloudFront hosting resources for the frontend. It does not upload frontend assets into the UI bucket.
 
-## Learning Path: Season 1 (8×10 min)
+### Deploy Frontend
 
-1. Episode 1 – Foundation: Platform, Spring Boot & Quarkus on Kubernetes  
-2. Episode 2 – JVM Deep Dive: Virtual Threads, N+1, Profiling  
-3. Episode 3 – Deploying & Optimizing on EKS Auto Mode  
-4. Episode 4 – Observability with Prometheus & Grafana  
-5. Episode 5 – Reactive Gateway & API Composition  
-6. Episode 6 – Catalog and Orders Management Workflows  
-7. Episode 7 – Automation, GitOps, and Helm Deployments  
-8. Episode 8 – Monitoring, Alerts, and Runbook Drills  
-
-## Backport automation
-
-Use the backport script to cherry-pick a fix from `main` into the long-lived Java branches:
+Build and publish the React UI after Terraform has created the UI hosting infrastructure:
 
 ```bash
-bash scripts/backport.sh <SHA>
+scripts/deploy-ui.sh
 ```
 
-You can also run the GitHub Actions workflow manually (workflow_dispatch) and provide `commit_sha` (and optionally `branches`) to backport via CI.
+The script builds `webapp`, syncs `webapp/dist/` to the Terraform-managed S3 bucket, and invalidates the Terraform-managed CloudFront distribution.
 
-## How to run CI locally
+See the full production runbooks under [docs/deployment/](docs/deployment/).
 
-### Host-based (normal dev machine with Docker socket access)
+## Documentation Map
 
-```bash
-cd infra/local
-docker compose up -d --build
-BASE_URL=http://localhost:8080 bash ../scripts/wait-for-compose-health.sh
-cd ../integration-tests
-mvn -q test
-```
+- [docs/README.md](docs/README.md): documentation hub
+- [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md): onboarding and quickstart
+- [docs/development/local-setup.md](docs/development/local-setup.md): local development flow
+- [docs/architecture/system-overview.md](docs/architecture/system-overview.md): system design and request flow
+- [docs/deployment/terraform.md](docs/deployment/terraform.md): Terraform foundation
+- [docs/deployment/platform-deployment.md](docs/deployment/platform-deployment.md): AWS + Helm deployment flow
+- [docs/deployment/ui-cloudfront.md](docs/deployment/ui-cloudfront.md): UI hosting, CloudFront, and UI deploy workflow
+- [docs/operations/observability.md](docs/operations/observability.md): metrics, dashboards, and observability
+- [docs/operations/troubleshooting.md](docs/operations/troubleshooting.md): troubleshooting and recovery
+- [docs/reference/configuration.md](docs/reference/configuration.md): important env vars, domains, and outputs
+- [docs/reference/services.md](docs/reference/services.md): service inventory
 
-### In-network (restricted host → localhost access)
+## Tech Stack
 
-```bash
-bash scripts/run-integration-in-network.sh
-```
+- **Languages**: Java 21, TypeScript
+- **Backend frameworks**: Spring Boot 3, Quarkus 3
+- **Frontend**: React 18, Vite 5
+- **Infrastructure**: Terraform, AWS, EKS, Route53, ACM, CloudFront, S3
+- **Packaging / deployment**: Docker Compose, Helm, Kubernetes
+- **Observability**: Spring Actuator, Quarkus metrics, Prometheus, Grafana
+- **CI/CD**: GitHub Actions
 
-This runs readiness checks and integration tests from a container attached to the compose network.
+## Repo Notes
 
-## Troubleshooting
-
-- **Ports in use** – stop conflicting containers/processes if `docker compose` fails to bind 8080–8085, 5432, 6379, or 5672.
-- **Docker resource limits** – bump CPU/memory if the JVMs or PostgreSQL repeatedly restart under load.
-- **Clean rebuild** – run `docker compose down --volumes` followed by `docker compose up --build` and `mvn -pl services/spring-boot/orders-service clean test` when caches cause inconsistent data.
-- **UI not talking to gateway** – ensure `VITE_API_BASE_URL` matches the gateway URL before running `npm run dev`.
-
-## License / Contributing
-
-This repository does not publish a formal `LICENSE` or `CONTRIBUTING.md`; please coordinate with the AcmeCorp maintainers before sharing or extending the code.
+- `docs/course/`, `docs/episodes/`, and `docs/steering/` are preserved as learning and course material.
+- The files under `docs/getting-started/`, `docs/architecture/`, `docs/deployment/`, `docs/operations/`, `docs/development/`, and `docs/reference/` are the canonical operational docs.

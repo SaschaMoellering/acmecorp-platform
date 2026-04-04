@@ -4,7 +4,7 @@ This is the canonical AWS deployment flow for the backend platform and supportin
 
 ## Flow
 
-1. Apply Terraform foundation
+1. Apply Terraform for the foundation and platform services
 2. Bootstrap the cluster
 3. Build and push service images to ECR
 4. Generate production Helm values from Terraform outputs
@@ -21,7 +21,57 @@ terraform -chdir=infra/terraform apply
 ```
 
 Expected result:
-- VPC, EKS, Aurora, MQ, Secrets Manager, ECR, ACM, Route53, and UI hosting are provisioned
+- VPC, EKS, Secrets Manager, IAM, ECR, ACM, Route53, and UI hosting are provisioned
+- Aurora and Amazon MQ can be provisioned deterministically in the same apply
+- The long-lived EKS secrets KMS key is created once and retained
+- The EKS-managed cluster security group is available as the Auto Mode ingress source
+- Terraform creates an EKS access entry and cluster-admin policy association for the resolved admin principal
+
+Equivalent default `tfvars` settings:
+
+```hcl
+eks_secrets_kms_key_arn = null
+enable_aurora = true
+enable_mq     = true
+```
+
+If you are rebuilding from fresh Terraform state and already have the retained EKS secrets KMS key, supply its ARN explicitly:
+
+```bash
+terraform -chdir=infra/terraform apply \
+  -var='eks_secrets_kms_key_arn=arn:aws:kms:eu-west-1:851073193649:key/12345678-1234-1234-1234-123456789012'
+```
+
+Optional staged bring-up remains available:
+
+```hcl
+eks_secrets_kms_key_arn = null
+enable_aurora = false
+enable_mq     = false
+```
+
+Optional break-glass overrides:
+
+- `eks_database_client_sg_id_override`
+- `mq_client_sg_id_override`
+
+Aurora and MQ ingress now default to the EKS-managed cluster security group instead of discovering SGs from live EC2 instances.
+
+Inspect the resulting node-network outputs:
+
+```bash
+terraform -chdir=infra/terraform output eks_cluster_security_group_id
+terraform -chdir=infra/terraform output cluster_admin_access_entry_principal_arn
+terraform -chdir=infra/terraform output aurora_ingress_source_security_group_ids
+terraform -chdir=infra/terraform output mq_ingress_source_security_group_ids
+terraform -chdir=infra/terraform output cluster_secrets_kms_key_arn
+```
+
+KMS note:
+
+- The customer-managed EKS secrets KMS key is intentionally protected from destroy
+- Normal environment rebuilds should reuse that key rather than delete and recreate it
+- The cleanup helper leaves the key and alias intact on purpose
 
 ## 2. Bootstrap The Cluster
 
@@ -34,6 +84,20 @@ Expected result:
 - External Secrets is installed
 - CRDs are present
 - `auto-ebs-sc` exists for stateful workloads
+
+Verify the EKS Auto Mode security group and built-in node pools:
+
+```bash
+terraform -chdir=infra/terraform output eks_cluster_security_group_id
+aws eks describe-cluster --name acmecorp-platform --region eu-west-1 --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId'
+```
+
+If `kubectl` access fails, first confirm the admin access entry principal Terraform created:
+
+```bash
+terraform -chdir=infra/terraform output cluster_admin_access_entry_principal_arn
+aws eks list-access-entries --cluster-name acmecorp-platform --region eu-west-1
+```
 
 ## 3. Build And Push Images
 
@@ -119,3 +183,14 @@ aws cloudfront create-invalidation \
 - Grafana: `https://grafana.acmecorp.autoscaling.io`
 
 For the UI-specific hosting path, see [ui-cloudfront.md](ui-cloudfront.md).
+
+## Manual Recovery For Older Broken Environments
+
+If a previous teardown already put the EKS secrets KMS key into `PendingDeletion`, recover it manually before rerunning Terraform:
+
+```bash
+aws kms cancel-key-deletion --key-id <key-id-or-arn> --region eu-west-1
+aws kms enable-key --key-id <key-id-or-arn> --region eu-west-1
+```
+
+Then either reconnect Terraform state to that key or pass it back in through `eks_secrets_kms_key_arn`.
