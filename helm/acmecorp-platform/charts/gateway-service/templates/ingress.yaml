@@ -9,7 +9,7 @@ metadata:
     {{- include "gateway-service.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: {{ ternary "internet-facing" "internal" .Values.ingress.internal }}
+    alb.ingress.kubernetes.io/scheme: {{ ternary "internal" "internet-facing" .Values.ingress.internal }}
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     {{- if .Values.ingress.tls.enabled }}

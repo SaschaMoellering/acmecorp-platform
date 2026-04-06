@@ -252,7 +252,7 @@ Let me make a few more requests to different endpoints.
 curl http://localhost:8080/api/gateway/catalog
 curl http://localhost:8080/api/gateway/orders?page=0&size=10
 ```
-
+Generating traffic and watching metrics
 Watch the dashboard. Each request shows up immediately. The gateway RPS increases. The latency distribution updates. The services remain healthy. This is observability in action—we can see exactly what the system is doing, in real time, without adding any custom instrumentation.
 
 ---
@@ -305,7 +305,7 @@ Observability is the foundation. Performance optimization is what we build on to
 
 ---
 
-## Closing – Seeing before fixing
+## Conclusion
 
 Observability isn't about dashboards. It's about visibility. Only when we can see the system clearly can we begin to change it safely.
 
