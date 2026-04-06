@@ -6,8 +6,8 @@
 
 ---
 
-# Episode 0 — Course Overview & Goals
 
+# Episode 0 — Course Overview & Goals
 ## Duration
 ~7–8 minutes
 
@@ -277,15 +277,25 @@ Cloud platforms amplify both good and bad architecture. Moving to the cloud with
 ~10 minutes
 
 ## Purpose of this Episode
-Demonstrate modern, credential-free database access using IAM.
+Show production-grade database access using IAM-based authentication, and explain the operational implications.
 
 ## High-Level Narrative
 
-Static database credentials are an operational liability. This episode shows how identity-based access reduces risk and operational burden.
+Passwords do not scale operationally. They leak, they live too long, and rotation becomes a tax. Identity-based authentication changes the game — but it introduces new constraints (token TTL, pooling, caching). This episode shows how to adopt IAM auth without breaking your runtime behavior.
+
+## Architecture & Visuals
+- **E12-D01-iam-auth-flow** — Token-based DB authentication flow
+- **E12-D02-pod-identity-to-db** — Pod Identity (or IRSA) → Aurora auth chain
+- **E12-D03-token-ttl-and-pooling** — Token TTL vs connection pooling implications
 
 ## What Is Shown (Live / Hands-on)
-- IAM authentication flow
-- Code walkthrough
+- Code walkthrough: how tokens are generated and injected
+- Kubernetes identity binding (Pod Identity / IRSA) walkthrough
+- Test/validation: connectivity and failure modes (expired token, pool behavior)
+
+## What Is Intentionally Deferred
+- Cross-account database auth patterns
+- Multi-region failover
 
 ---
 
@@ -357,35 +367,7 @@ Upgrading to a new major JVM is not a performance lottery ticket — it is a ris
 
 ---
 
-# Episode 12 — Secure Data Plane: Aurora PostgreSQL IAM Auth
-
-## Duration
-~10 minutes
-
-## Purpose of this Episode
-Show production-grade database access using IAM-based authentication, and explain the operational implications.
-
-## High-Level Narrative
-
-Passwords do not scale operationally. They leak, they live too long, and rotation becomes a tax. Identity-based authentication changes the game — but it introduces new constraints (token TTL, pooling, caching). This episode shows how to adopt IAM auth without breaking your runtime behavior.
-
-## Architecture & Visuals
-- **E12-D01-iam-auth-flow** — Token-based DB authentication flow
-- **E12-D02-pod-identity-to-db** — Pod Identity (or IRSA) → Aurora auth chain
-- **E12-D03-token-ttl-and-pooling** — Token TTL vs connection pooling implications
-
-## What Is Shown (Live / Hands-on)
-- Code walkthrough: how tokens are generated and injected
-- Kubernetes identity binding (Pod Identity / IRSA) walkthrough
-- Test/validation: connectivity and failure modes (expired token, pool behavior)
-
-## What Is Intentionally Deferred
-- Cross-account database auth patterns
-- Multi-region failover
-
----
-
-# Episode 13 — Asynchronous Messaging with RabbitMQ
+# Episode 12 — Asynchronous Messaging with RabbitMQ
 
 ## Duration
 ~10 minutes
@@ -413,46 +395,10 @@ Synchronous calls are easy — until they become your bottleneck and your failur
 - Exactly-once semantics
 - Kafka comparisons
 
----
-
-# Episode 14 — AI for Developer Productivity: Amazon Q & Kiro
-
-## Duration
-~10 minutes
-
-## Purpose of this Episode
-Show how modern AI-assisted developer tools can **increase productivity and quality** when used deliberately — without replacing engineering judgment.
-
-## High-Level Narrative
-
-AI does not make engineers obsolete. It changes *where* they spend their time.
-
-This episode focuses on **AI as a developer tool**, not as a runtime component: understanding how tools like Amazon Q Developer and Kiro fit into daily workflows, and where their limits are.
-
-## Key Concepts Covered
-- AI-assisted code understanding and navigation
-- Large-scale refactoring and migration support
-- Prompting as a technical skill
-- Where AI helps — and where it actively hurts
-
-## Architecture & Visuals
-- **E14-D01-ai-dev-workflow** — Developer → AI tool → codebase feedback loop
-- **E14-D02-human-in-the-loop** — Human oversight and validation
-- **E14-D03-ai-failure-modes** — Hallucinations, stale context, overconfidence
-
-## What Is Shown (Live / Hands-on)
-- Guided walkthrough of Amazon Q Developer (code explanation, refactoring)
-- Example workflow using Kiro for structured changes
-- Small, intentional live coding where it clarifies AI-assisted workflows
-
-## What Is Intentionally Deferred
-- Fully autonomous code generation
-- Model training or fine-tuning
 
 ---
 
-
-# Episode 15 — Benchmarking & Performance Methodology
+# Episode 13 — Benchmarking & Performance Methodology
 
 ## Duration
 ~10 minutes
@@ -480,3 +426,4 @@ Benchmarks often lie because people accidentally change multiple variables at on
 
 ---
 
+# Episode 14 - Closing

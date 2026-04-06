@@ -4,23 +4,9 @@
 
 In the previous seven episodes, we built the AcmeCorp platform from the ground up. We established service boundaries, implemented observability, fixed performance problems, optimized the JVM, and compared different optimization strategies. We did all of this locally using Docker Compose.
 
-Now we're ready to talk about cloud deployment. But here's the critical point: we're not moving to the cloud because it's trendy or because everyone else is doing it. We're moving to the cloud because we understand our system well enough to make informed infrastructure decisions.
+Now we're ready to talk about cloud deployment. Now we're moving to the cloud because we understand our system well enough to make informed infrastructure decisions.
 
 Cloud platforms amplify both good and bad architecture. If you move to the cloud without understanding system behavior, you increase complexity without increasing reliability. In this episode, we're going to look at how to deploy the AcmeCorp platform to AWS in a way that preserves the boundaries and observability we've built.
-
----
-
-## Why AWS? – The infrastructure decision
-
-**[DIAGRAM: E08-D01-aws-reference-architecture]**
-
-Before we dive into the architecture, let's address the obvious question: why AWS?
-
-The answer is not "because AWS is the best cloud provider." The answer is "because AWS provides the primitives we need to implement our architecture." We need managed Kubernetes with EKS, managed PostgreSQL with Aurora, managed RabbitMQ with Amazon MQ, DNS and certificates with Route 53 and ACM, object storage and CDN for the frontend, and Secrets Manager for operational secrets.
-
-AWS provides all of these as managed services. We could achieve the same architecture on GCP with GKE, Cloud SQL, Pub/Sub, Memorystore, and Cloud Monitoring. We could do it on Azure with AKS, Azure Database, Service Bus, Azure Cache, and Azure Monitor.
-
-The cloud provider is less important than the architecture. What matters is that we have clear service boundaries, proper observability, and infrastructure that matches our operational model.
 
 ---
 
@@ -85,8 +71,6 @@ Why managed? Because database operations are hard. Backups, failover, patching, 
 Could we run PostgreSQL in Kubernetes? Yes. Should we? Probably not. Databases are stateful, and Kubernetes is designed for stateless workloads. Running databases in Kubernetes adds complexity without adding value. The operational burden of managing PostgreSQL in Kubernetes outweighs the benefits of keeping everything in one place.
 
 The same logic applies to RabbitMQ, which is provisioned as Amazon MQ. Redis is different here. In this repo, Redis stays inside Kubernetes as a chart-managed stateful component, so not every infrastructure dependency is pushed to a managed service.
-
-This doesn't mean managed services are always the right choice. The actual mix here is deliberate: use managed services where they reduce the most operational burden, and self-host the pieces that we still want to keep explicit and teachable in the platform.
 
 ---
 

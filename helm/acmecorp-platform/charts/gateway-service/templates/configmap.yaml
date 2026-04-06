@@ -6,9 +6,9 @@ metadata:
   labels:
     {{- include "gateway-service.labels" . | nindent 4 }}
 data:
-  ORDERS_BASE_URL: {{ .Values.config.ordersBaseUrl | quote }}
-  CATALOG_BASE_URL: {{ .Values.config.catalogBaseUrl | quote }}
-  BILLING_BASE_URL: {{ .Values.config.billingBaseUrl | quote }}
-  NOTIFICATION_BASE_URL: {{ .Values.config.notificationBaseUrl | quote }}
-  ANALYTICS_BASE_URL: {{ .Values.config.analyticsBaseUrl | quote }}
+  ORDERS_BASE_URL: {{ printf "http://%s-orders-service:8081" .Release.Name | quote }}
+  CATALOG_BASE_URL: {{ printf "http://%s-catalog-service:8085" .Release.Name | quote }}
+  BILLING_BASE_URL: {{ printf "http://%s-billing-service:8082" .Release.Name | quote }}
+  NOTIFICATION_BASE_URL: {{ printf "http://%s-notification-service:8083" .Release.Name | quote }}
+  ANALYTICS_BASE_URL: {{ printf "http://%s-analytics-service:8084" .Release.Name | quote }}
   SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfilesActive | quote }}
