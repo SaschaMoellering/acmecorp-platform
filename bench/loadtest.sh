@@ -8,6 +8,9 @@ duration="${2:-120}"
 warmup="${3:-60}"
 concurrency="${4:-25}"
 threads="${5:-4}"
+method="${LOAD_METHOD:-GET}"
+body_file="${LOAD_BODY_FILE:-}"
+header_file="${LOAD_HEADER_FILE:-}"
 
 if [[ "$duration" -lt 5 ]]; then
   echo "measurement duration must be at least 5 seconds" >&2
@@ -37,18 +40,62 @@ else
 fi
 
 tmpfile="$(mktemp)"
-trap 'rm -f "$tmpfile"' EXIT
+tmp_lua="$(mktemp)"
+trap 'rm -f "$tmpfile" "$tmp_lua"' EXIT
 
-echo "Running ${tool} load test against ${url} (warmup=${warmup}s, duration=${duration}s, concurrency=${concurrency})..." >&2
+echo "Running ${tool} load test against ${url} (method=${method}, warmup=${warmup}s, duration=${duration}s, concurrency=${concurrency})..." >&2
 
 run_ok=1
 run_err=""
 
+build_wrk_script() {
+  "$PYTHON_BIN" - <<PY >"$tmp_lua"
+import json
+from pathlib import Path
+
+method = ${method@Q}
+body_file = ${body_file@Q}
+header_file = ${header_file@Q}
+
+print(f'wrk.method = {json.dumps(method)}')
+
+if header_file:
+    for raw in Path(header_file).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        name, value = line.split(":", 1)
+        print(f'wrk.headers[{json.dumps(name.strip())}] = {json.dumps(value.strip())}')
+
+if body_file:
+    body = Path(body_file).read_text(encoding="utf-8")
+    print("wrk.body = [=[")
+    print(body, end="" if body.endswith("\n") else "\n")
+    print("]=]")
+PY
+}
+
+add_hey_args() {
+  local -n out_ref=$1
+  out_ref=(-m "$method")
+  if [[ -n "$header_file" && -f "$header_file" ]]; then
+    while IFS= read -r raw; do
+      local line="${raw#"${raw%%[![:space:]]*}"}"
+      [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+      out_ref+=(-H "$line")
+    done <"$header_file"
+  fi
+  if [[ -n "$body_file" ]]; then
+    out_ref+=(-D "$body_file")
+  fi
+}
+
 if [[ "$tool" == "wrk" ]]; then
+  build_wrk_script
   # Warmup (do not fail the whole script if warmup fails)
   if [[ "$warmup" -gt 0 ]]; then
     set +e
-    wrk -t"$threads" -c"$concurrency" -d"${warmup}s" "$url" >/dev/null 2>&1
+    wrk -t"$threads" -c"$concurrency" -d"${warmup}s" -s "$tmp_lua" "$url" >/dev/null 2>&1
     warmup_rc=$?
     set -e
     if [[ $warmup_rc -ne 0 ]]; then
@@ -58,7 +105,7 @@ if [[ "$tool" == "wrk" ]]; then
 
   # Measurement (capture output; if it fails, still parse what we got)
   set +e
-  wrk -t"$threads" -c"$concurrency" -d"${duration}s" --latency "$url" >"$tmpfile" 2>&1
+  wrk -t"$threads" -c"$concurrency" -d"${duration}s" --latency -s "$tmp_lua" "$url" >"$tmpfile" 2>&1
   rc=$?
   set -e
   if [[ $rc -ne 0 ]]; then
@@ -67,9 +114,11 @@ if [[ "$tool" == "wrk" ]]; then
   fi
 
 elif [[ "$tool" == "hey" ]]; then
+  hey_args=()
+  add_hey_args hey_args
   if [[ "$warmup" -gt 0 ]]; then
     set +e
-    hey -c "$concurrency" -z "${warmup}s" "$url" >/dev/null 2>&1
+    hey "${hey_args[@]}" -c "$concurrency" -z "${warmup}s" "$url" >/dev/null 2>&1
     warmup_rc=$?
     set -e
     if [[ $warmup_rc -ne 0 ]]; then
@@ -78,7 +127,7 @@ elif [[ "$tool" == "hey" ]]; then
   fi
 
   set +e
-  hey -c "$concurrency" -z "${duration}s" "$url" >"$tmpfile" 2>&1
+  hey "${hey_args[@]}" -c "$concurrency" -z "${duration}s" "$url" >"$tmpfile" 2>&1
   rc=$?
   set -e
   if [[ $rc -ne 0 ]]; then
@@ -103,6 +152,9 @@ duration = int("${duration}")
 warmup = int("${warmup}")
 concurrency = int("${concurrency}")
 threads = int("${threads}")
+method = "${method}"
+body_file = "${body_file}"
+header_file = "${header_file}"
 run_ok = int("${run_ok}")
 run_err = "${run_err}"
 
@@ -135,10 +187,13 @@ result = {
     "ok": True,
     "tool": tool,
     "url": url,
+    "method": method,
     "duration_s": duration,
     "warmup_s": warmup,
     "concurrency": concurrency,
     "threads": threads,
+    "body_file": body_file or None,
+    "header_file": header_file or None,
     "requests_per_sec": "na",
     "p50": "na",
     "p95": "na",
