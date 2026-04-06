@@ -6,6 +6,7 @@ RESULT_ROOT="$ROOT_DIR/bench/results"
 COMPOSE_FILE="$ROOT_DIR/infra/local/docker-compose.yml"
 HEALTH_URL="${HEALTH_URL:-http://localhost:8080/api/gateway/status}"
 LOAD_URL="${LOAD_URL:-http://localhost:8080/api/gateway/orders}"
+SCENARIO="${SCENARIO:-mixed}"
 
 WARMUP="${WARMUP:-60}"
 DURATION="${DURATION:-120}"
@@ -50,7 +51,11 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
 fi
 
 timestamp="$(date -u +"%Y%m%dT%H%M%SZ")"
-matrix_dir="$RESULT_ROOT/$timestamp"
+matrix_label="$timestamp"
+if [[ "$SCENARIO" != "mixed" ]]; then
+  matrix_label="${timestamp}--${SCENARIO}"
+fi
+matrix_dir="$RESULT_ROOT/$matrix_label"
 mkdir -p "$matrix_dir"
 
 branches=(java11 java17)
@@ -64,6 +69,10 @@ if [[ -n "${ONLY_BRANCH:-}" ]]; then
 fi
 
 initial_branch="$(git rev-parse --abbrev-ref HEAD)"
+
+if [[ "$SCENARIO" == "methodology-check" && -z "${ONLY_BRANCH:-}" ]]; then
+  branches=("$initial_branch")
+fi
 
 ensure_compose_down() {
   docker compose -f "$COMPOSE_FILE" down >/dev/null 2>&1 || true
@@ -165,7 +174,7 @@ wait_for_http_codes() {
     if [[ -n "$code" ]]; then
       for ok in $codes; do
         if [[ "$code" == "$ok" ]]; then
-          echo "$(date +%s)"
+          echo "$(date +%s%3N)"
           return 0
         fi
       done
@@ -207,6 +216,227 @@ dump_compose_debug() {
   docker compose -f "$COMPOSE_FILE" logs --tail=200 orders-service >&2 || true
 }
 
+capture_orders_startup_trace() {
+  local output_file="$1"
+
+  if curl -fsS "$ORDERS_STARTUP_URL" >"$output_file"; then
+    return 0
+  fi
+
+  local container_ip
+  container_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' local-orders-service-1 2>/dev/null || true)"
+  if [[ -n "$container_ip" ]] && curl -fsS "http://${container_ip}:8080/api/orders/startup" >"$output_file"; then
+    return 0
+  fi
+
+  echo "{\"error\":\"startup instrumentation unavailable\",\"url\":\"$ORDERS_STARTUP_URL\",\"container_ip\":\"${container_ip:-}\"}" >"$output_file"
+  return 1
+}
+
+write_request_body() {
+  local path="$1"
+  cat >"$path" <<'EOF'
+{
+  "customerEmail": "bench@example.com",
+  "items": [
+    {"productId":"11111111-1111-1111-1111-111111111111","quantity":1}
+  ]
+}
+EOF
+}
+
+write_headers_file() {
+  local path="$1"
+  shift || true
+  : >"$path"
+  for header in "$@"; do
+    [[ -n "$header" ]] || continue
+    printf '%s\n' "$header" >>"$path"
+  done
+}
+
+post_json() {
+  local url="$1"
+  local body="${2:-}"
+  local tmp
+  tmp="$(mktemp)"
+  local curl_args=(-fsS -X POST "$url")
+  if [[ -n "$body" ]]; then
+    curl_args+=(-H "Content-Type: application/json" --data "$body")
+  fi
+  if curl "${curl_args[@]}" >"$tmp"; then
+    cat "$tmp"
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+prepare_seed_data() {
+  wait_for_http_codes "http://localhost:8080/api/gateway/status" "$HEALTH_TIMEOUT_SECONDS" "200" >/dev/null
+  post_json "http://localhost:8080/api/gateway/seed" "" >/dev/null
+}
+
+resolve_seed_order_id() {
+  "$PYTHON_BIN" - <<'PY'
+import json
+import urllib.request
+
+with urllib.request.urlopen("http://localhost:8080/api/gateway/orders/latest", timeout=10) as response:
+    payload = json.load(response)
+
+if not payload:
+    raise SystemExit("No seeded orders returned by gateway latest endpoint")
+
+first = payload[0]
+order_id = first.get("id")
+if order_id is None:
+    raise SystemExit("Seeded order missing id field")
+
+print(order_id)
+PY
+}
+
+configure_scenario() {
+  local branch="$1"
+  local branch_dir="$2"
+
+  SCENARIO_NAME="$SCENARIO"
+  SCENARIO_CAPTURE_STARTUP=1
+  SCENARIO_RUN_LOAD=1
+  SCENARIO_BRANCH_MODE="branch-comparison"
+  SCENARIO_HEALTH_URL="$HEALTH_URL"
+  SCENARIO_LOAD_URL="$LOAD_URL"
+  SCENARIO_LOAD_READY_URL="$LOAD_READY_URL"
+  SCENARIO_LOAD_READY_CODES="$LOAD_READY_CODES"
+  SCENARIO_LOAD_METHOD="GET"
+  SCENARIO_LOAD_BODY_FILE=""
+  SCENARIO_LOAD_HEADER_FILE=""
+  SCENARIO_IDEMPOTENCY_ENABLED=0
+  SCENARIO_INCLUDE_HISTORY=0
+  SCENARIO_METADATA_NOTES=""
+  SCENARIO_PREPARE="none"
+
+  local body_file="$branch_dir/request.body.json"
+  local header_file="$branch_dir/request.headers.txt"
+  local idem_key=""
+
+  case "$SCENARIO_NAME" in
+    mixed)
+      ;;
+    orders-startup)
+      SCENARIO_HEALTH_URL="http://localhost:8081/api/orders/status"
+      SCENARIO_RUN_LOAD=0
+      SCENARIO_METADATA_NOTES="startup-only"
+      ;;
+    orders-list)
+      SCENARIO_HEALTH_URL="http://localhost:8081/api/orders/status"
+      SCENARIO_LOAD_URL="http://localhost:8081/api/orders?page=0&size=20"
+      SCENARIO_LOAD_READY_URL="$SCENARIO_LOAD_URL"
+      SCENARIO_PREPARE="seed"
+      ;;
+    orders-create)
+      SCENARIO_HEALTH_URL="http://localhost:8081/api/orders/status"
+      SCENARIO_LOAD_URL="http://localhost:8081/api/orders"
+      SCENARIO_LOAD_READY_URL="$SCENARIO_LOAD_URL"
+      SCENARIO_LOAD_METHOD="POST"
+      SCENARIO_PREPARE="seed"
+      write_request_body "$body_file"
+      write_headers_file "$header_file" "Content-Type: application/json"
+      SCENARIO_LOAD_BODY_FILE="$body_file"
+      SCENARIO_LOAD_HEADER_FILE="$header_file"
+      ;;
+    orders-create-idempotent)
+      SCENARIO_HEALTH_URL="http://localhost:8081/api/orders/status"
+      SCENARIO_LOAD_URL="http://localhost:8081/api/orders"
+      SCENARIO_LOAD_READY_URL="$SCENARIO_LOAD_URL"
+      SCENARIO_LOAD_METHOD="POST"
+      SCENARIO_PREPARE="seed"
+      SCENARIO_IDEMPOTENCY_ENABLED=1
+      idem_key="bench-${branch}-${SCENARIO_NAME}-${timestamp}"
+      write_request_body "$body_file"
+      write_headers_file "$header_file" \
+        "Content-Type: application/json" \
+        "Idempotency-Key: ${idem_key}"
+      SCENARIO_LOAD_BODY_FILE="$body_file"
+      SCENARIO_LOAD_HEADER_FILE="$header_file"
+      SCENARIO_METADATA_NOTES="idempotency-key=${idem_key}"
+      ;;
+    gateway-order-details)
+      SCENARIO_LOAD_READY_URL="http://localhost:8080/api/gateway/orders/latest"
+      SCENARIO_PREPARE="seed-order-id"
+      ;;
+    gateway-order-details-history)
+      SCENARIO_LOAD_READY_URL="http://localhost:8080/api/gateway/orders/latest"
+      SCENARIO_PREPARE="seed-order-id"
+      SCENARIO_INCLUDE_HISTORY=1
+      ;;
+    methodology-check)
+      SCENARIO_BRANCH_MODE="java25-only"
+      SCENARIO_METADATA_NOTES="records external-ready and load-ready markers side-by-side"
+      ;;
+    *)
+      echo "Unknown SCENARIO='$SCENARIO_NAME'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+prepare_scenario_runtime() {
+  case "$SCENARIO_PREPARE" in
+    none)
+      ;;
+    seed)
+      prepare_seed_data
+      ;;
+    seed-order-id)
+      prepare_seed_data
+      local order_id
+      order_id="$(resolve_seed_order_id)"
+      if [[ "$SCENARIO_INCLUDE_HISTORY" == "1" ]]; then
+        SCENARIO_LOAD_URL="http://localhost:8080/api/gateway/orders/${order_id}?includeHistory=true"
+      else
+        SCENARIO_LOAD_URL="http://localhost:8080/api/gateway/orders/${order_id}?includeHistory=false"
+      fi
+      SCENARIO_LOAD_READY_URL="$SCENARIO_LOAD_URL"
+      SCENARIO_METADATA_NOTES="orderId=${order_id}"
+      ;;
+    *)
+      echo "Unknown scenario prepare step '$SCENARIO_PREPARE'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+write_scenario_metadata() {
+  local output_file="$1"
+  local notes_json="null"
+  if [[ -n "$SCENARIO_METADATA_NOTES" ]]; then
+    notes_json="$(printf '%s' "$SCENARIO_METADATA_NOTES" | "$PYTHON_BIN" -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
+  fi
+  cat >"$output_file" <<EOF
+{
+  "timestamp": "${timestamp}",
+  "branch": "${branch}",
+  "java_version": "$(branch_java_version "$branch")",
+  "scenario": "${SCENARIO_NAME}",
+  "branch_mode": "${SCENARIO_BRANCH_MODE}",
+  "capture_startup": ${SCENARIO_CAPTURE_STARTUP},
+  "run_load": ${SCENARIO_RUN_LOAD},
+  "health_url": "${SCENARIO_HEALTH_URL}",
+  "load_url": "${SCENARIO_LOAD_URL}",
+  "load_ready_url": "${SCENARIO_LOAD_READY_URL}",
+  "load_method": "${SCENARIO_LOAD_METHOD}",
+  "load_body_file": "${SCENARIO_LOAD_BODY_FILE}",
+  "load_header_file": "${SCENARIO_LOAD_HEADER_FILE}",
+  "idempotency_enabled": ${SCENARIO_IDEMPOTENCY_ENABLED},
+  "include_history": ${SCENARIO_INCLUDE_HISTORY},
+  "notes": ${notes_json}
+}
+EOF
+}
+
 for branch in "${branches[@]}"; do
   if ! git show-ref --verify --quiet "refs/heads/$branch"; then
     echo "branch '$branch' missing, skipping" >&2
@@ -227,8 +457,13 @@ for branch in "${branches[@]}"; do
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
-  branch_dir="$RESULT_ROOT/$branch/$timestamp"
+  run_label="$timestamp"
+  if [[ "$SCENARIO" != "mixed" ]]; then
+    run_label="${timestamp}--${SCENARIO}"
+  fi
+  branch_dir="$RESULT_ROOT/$branch/$run_label"
   mkdir -p "$branch_dir"
+  configure_scenario "$branch" "$branch_dir"
 
   if [[ "$BUILD_MODE" == "hybrid" ]]; then
     if ! build_branch_hybrid "$branch"; then
@@ -243,14 +478,18 @@ for branch in "${branches[@]}"; do
   compose_up_build
 
   start_ts="$(date +%s%3N)"
-  if ! ready_ts="$(wait_for_health "$HEALTH_URL" "$HEALTH_TIMEOUT_SECONDS")"; then
+  if ! ready_ts="$(wait_for_health "$SCENARIO_HEALTH_URL" "$HEALTH_TIMEOUT_SECONDS")"; then
     echo "health endpoint did not become ready for $branch" >&2
     dump_compose_debug
     ensure_compose_down
     if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
   fi
 
-  if ! load_ready_ts="$(wait_for_http_codes "$LOAD_READY_URL" "$LOAD_READY_TIMEOUT_SECONDS" "$LOAD_READY_CODES")"; then
+  prepare_scenario_runtime
+  scenario_metadata_file="$branch_dir/scenario.json"
+  write_scenario_metadata "$scenario_metadata_file"
+
+  if [[ "$SCENARIO_RUN_LOAD" == "1" ]] && ! load_ready_ts="$(wait_for_http_codes "$SCENARIO_LOAD_READY_URL" "$LOAD_READY_TIMEOUT_SECONDS" "$SCENARIO_LOAD_READY_CODES")"; then
     echo "load endpoint did not become ready for $branch" >&2
     dump_compose_debug
     ensure_compose_down
@@ -259,37 +498,50 @@ for branch in "${branches[@]}"; do
 
   startup_ms=$((ready_ts - start_ts))
   startup_seconds="$(awk "BEGIN { printf \"%.3f\", ${startup_ms}/1000 }")"
-  startup_trace_file="$branch_dir/orders-startup.json"
-  if ! curl -fsS "$ORDERS_STARTUP_URL" >"$startup_trace_file"; then
-    echo "{\"error\":\"startup instrumentation unavailable\",\"url\":\"$ORDERS_STARTUP_URL\"}" >"$startup_trace_file"
+  load_ready_delay_ms="na"
+  startup_to_load_ready_ms="na"
+  if [[ "${load_ready_ts:-}" =~ ^[0-9]+$ ]]; then
+    load_ready_delay_ms=$((load_ready_ts - ready_ts))
+    startup_to_load_ready_ms=$((load_ready_ts - start_ts))
   fi
-
-  echo "Running load test: warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}" >&2
+  startup_trace_file="$branch_dir/orders-startup.json"
   load_stdout="$branch_dir/load.stdout.txt"
   load_stderr="$branch_dir/load.stderr.txt"
   load_json="$branch_dir/load.json"
+  capture_orders_startup_trace "$startup_trace_file" || true
 
-  # loadtest emits JSON to stdout; we decide based on JSON.ok
-  bash "$ROOT_DIR/bench/loadtest.sh" "$LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_stdout" 2>"$load_stderr"
+  requests_per_sec="na"
+  p50="na"
+  p95="na"
+  p99="na"
+  errors="na"
 
-  if [[ ! -s "$load_stdout" ]]; then
-    echo "loadtest produced empty stdout for $branch" >&2
-    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
-    ensure_compose_down
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
-  fi
+  if [[ "$SCENARIO_RUN_LOAD" == "1" ]]; then
+    echo "Running load test: scenario=${SCENARIO_NAME} method=${SCENARIO_LOAD_METHOD} warmup=${WARMUP}s duration=${DURATION}s concurrency=${CONCURRENCY}" >&2
+    # loadtest emits JSON to stdout; we decide based on JSON.ok
+    LOAD_METHOD="$SCENARIO_LOAD_METHOD" \
+    LOAD_BODY_FILE="$SCENARIO_LOAD_BODY_FILE" \
+    LOAD_HEADER_FILE="$SCENARIO_LOAD_HEADER_FILE" \
+    bash "$ROOT_DIR/bench/loadtest.sh" "$SCENARIO_LOAD_URL" "$DURATION" "$WARMUP" "$CONCURRENCY" >"$load_stdout" 2>"$load_stderr"
 
-  # Validate JSON + canonicalize to load.json
-  if ! "$PYTHON_BIN" -c 'import json,sys; raw=sys.stdin.read().strip();
+    if [[ ! -s "$load_stdout" ]]; then
+      echo "loadtest produced empty stdout for $branch" >&2
+      dump_load_debug "$branch" "$load_stdout" "$load_stderr"
+      ensure_compose_down
+      if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+    fi
+
+    # Validate JSON + canonicalize to load.json
+    if ! "$PYTHON_BIN" -c 'import json,sys; raw=sys.stdin.read().strip();
 if not raw: raise SystemExit("empty stdout from loadtest");
 obj=json.loads(raw); print(json.dumps(obj))' <"$load_stdout" >"$load_json"; then
-    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
-    ensure_compose_down
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
-  fi
+      dump_load_debug "$branch" "$load_stdout" "$load_stderr"
+      ensure_compose_down
+      if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+    fi
 
-  # Parse metrics (+ ok) from canonical JSON file
-  mapfile -t metrics < <("$PYTHON_BIN" - <<PY
+    # Parse metrics (+ ok) from canonical JSON file
+    mapfile -t metrics < <("$PYTHON_BIN" - <<PY
 import json
 
 data = json.load(open("$load_json"))
@@ -317,20 +569,25 @@ print(p95)
 print(p99)
 print(err)
 PY
-)
+    )
 
-  load_ok="${metrics[0]:-0}"
-  requests_per_sec="${metrics[1]:-0}"
-  p50="${metrics[2]:-na}"
-  p95="${metrics[3]:-na}"
-  p99="${metrics[4]:-na}"
-  errors="${metrics[5]:-na}"
+    load_ok="${metrics[0]:-0}"
+    requests_per_sec="${metrics[1]:-0}"
+    p50="${metrics[2]:-na}"
+    p95="${metrics[3]:-na}"
+    p99="${metrics[4]:-na}"
+    errors="${metrics[5]:-na}"
 
-  if [[ "$load_ok" != "1" ]]; then
-    echo "loadtest reported ok=false for $branch: ${errors}" >&2
-    dump_load_debug "$branch" "$load_stdout" "$load_stderr"
-    ensure_compose_down
-    if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+    if [[ "$load_ok" != "1" ]]; then
+      echo "loadtest reported ok=false for $branch: ${errors}" >&2
+      dump_load_debug "$branch" "$load_stdout" "$load_stderr"
+      ensure_compose_down
+      if [[ "$MATRIX_FAIL_FAST" == "1" ]]; then exit 1; else continue; fi
+    fi
+  else
+    echo '{"ok":true,"skipped":true,"reason":"startup-only scenario"}' >"$load_json"
+    : >"$load_stdout"
+    : >"$load_stderr"
   fi
 
   sleep 5
@@ -357,8 +614,15 @@ PY
   cat <<EOF > "$branch_dir/summary.md"
 # Benchmark results for $branch
 
+- Scenario: ${SCENARIO_NAME}
+- Branch mode: ${SCENARIO_BRANCH_MODE}
 - Startup: ${startup_seconds}s
 - Startup raw: ${startup_ms} ms
+- Load ready delay after health: ${load_ready_delay_ms} ms
+- Startup to load-ready: ${startup_to_load_ready_ms} ms
+- Health endpoint: ${SCENARIO_HEALTH_URL}
+- Load target: ${SCENARIO_LOAD_METHOD} ${SCENARIO_LOAD_URL}
+- Scenario metadata: [scenario.json](scenario.json)
 - Orders startup trace: [orders-startup.json](orders-startup.json)
 - Load: ${requests_per_sec} req/s (p50=${p50}, p95=${p95}, p99=${p99}, errors=${errors})
 - Memory snapshot: ${mem_summary}
@@ -366,22 +630,23 @@ PY
 - Load stdout: [load.stdout.txt](load.stdout.txt)
 - Load stderr: [load.stderr.txt](load.stderr.txt)
 - Containers: [containers.json](containers.json)
+- DB query count: not collected by the current harness
 EOF
 
-  summary_rows+=("$branch|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
+  summary_rows+=("$branch|$SCENARIO_NAME|$startup_seconds|$requests_per_sec|$p50|$p95|$p99|$errors|$mem_summary")
 done
 
 matrix_file="$matrix_dir/matrix-summary.md"
 {
   echo "# Java benchmark matrix (${timestamp})"
   echo
-  echo "| Branch | Java | Startup (s) | Req/s | P50 | P95 | P99 | Errors | Memory | Details |"
-  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+  echo "| Branch | Scenario | Java | Startup (s) | Req/s | P50 | P95 | P99 | Errors | Memory | Details |"
+  echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
   for row in "${summary_rows[@]}"; do
-    IFS='|' read -r b startup requests p50 p95 p99 errors memory <<< "$row"
+    IFS='|' read -r b scenario startup requests p50 p95 p99 errors memory <<< "$row"
     version="$(branch_java_version "$b")"
-    details="[link](../${b}/${timestamp}/summary.md)"
-    echo "| ${b} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${errors} | ${memory} | ${details} |"
+    details="[link](../${b}/${run_label}/summary.md)"
+    echo "| ${b} | ${scenario} | ${version} | ${startup} | ${requests} | ${p50} | ${p95} | ${p99} | ${errors} | ${memory} | ${details} |"
   done
 } > "$matrix_file"
 
