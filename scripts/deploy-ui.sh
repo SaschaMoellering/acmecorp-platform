@@ -33,6 +33,7 @@ section "Read Terraform Outputs"
 TF_OUTPUT_JSON="$(terraform -chdir="$TF_DIR" output -json)"
 UI_BUCKET="$(jq -er '.ui_bucket_name.value' <<<"$TF_OUTPUT_JSON")"
 UI_DISTRIBUTION_ID="$(jq -er '.ui_cloudfront_distribution_id.value // empty' <<<"$TF_OUTPUT_JSON" || true)"
+UI_CUSTOM_URL="$(jq -er '.ui_custom_url.value // empty' <<<"$TF_OUTPUT_JSON" || true)"
 
 if [[ -z "$UI_BUCKET" || "$UI_BUCKET" == "null" ]]; then
   echo "ERROR: terraform output ui_bucket_name is required for UI deployment." >&2
@@ -56,3 +57,7 @@ fi
 
 section "UI Deployment Complete"
 echo "UI assets uploaded to s3://${UI_BUCKET}"
+if [[ -n "$UI_CUSTOM_URL" && "$UI_CUSTOM_URL" != "null" ]]; then
+  echo "Canonical UI URL: ${UI_CUSTOM_URL}"
+  echo "Use the UI alias domain for production testing and CORS-sensitive flows."
+fi
