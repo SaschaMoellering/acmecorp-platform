@@ -128,8 +128,8 @@ output "ecr_repository_urls" {
 
 # ACM / DNS
 output "route53_zone_id" {
-  description = "Route53 hosted zone ID used for ingress DNS and ACM validation"
-  value       = module.dns.zone_id
+  description = "Route53 hosted zone ID for the public hosted zone managed by this stack and used for ingress DNS and ACM validation"
+  value       = module.acm.zone_id
 }
 
 output "gateway_ingress_host" {

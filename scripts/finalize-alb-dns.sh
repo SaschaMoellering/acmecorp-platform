@@ -17,6 +17,7 @@ GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-acmecorp}"
 GRAFANA_NAMESPACE="${GRAFANA_NAMESPACE:-observability}"
 GATEWAY_INGRESS_NAME="${GATEWAY_INGRESS_NAME:-${RELEASE_NAME}-gateway-service-ingress}"
 GRAFANA_INGRESS_NAME="${GRAFANA_INGRESS_NAME:-grafana}"
+AUTO_APPROVE="${AUTO_APPROVE:-false}"
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -37,6 +38,17 @@ require_value() {
 require_cmd aws
 require_cmd kubectl
 require_cmd terraform
+
+resolve_tf_vars_file() {
+  local requested_path="$1"
+
+  if [[ "$requested_path" = /* ]]; then
+    printf '%s\n' "$requested_path"
+    return
+  fi
+
+  printf '%s\n' "$TF_DIR/$requested_path"
+}
 
 if [[ -z "$AWS_REGION" ]]; then
   AWS_REGION="$(terraform -chdir="$TF_DIR" console <<'EOF' | tr -d '\r'
@@ -68,7 +80,19 @@ GRAFANA_ALB_ZONE_ID="$(lookup_zone_id "$GRAFANA_ALB_DNS")"
 require_value "gateway ALB hosted zone ID" "$GATEWAY_ALB_ZONE_ID"
 require_value "grafana ALB hosted zone ID" "$GRAFANA_ALB_ZONE_ID"
 
-terraform -chdir="$TF_DIR" apply -var-file="$TF_VARS_FILE" \
+TF_VARS_PATH="$(resolve_tf_vars_file "$TF_VARS_FILE")"
+
+if [[ ! -f "$TF_VARS_PATH" ]]; then
+  echo "ERROR: requested TF_VARS_FILE not found: $TF_VARS_PATH" >&2
+  exit 1
+fi
+
+TF_APPLY_ARGS=()
+if [[ "$AUTO_APPROVE" == "true" ]]; then
+  TF_APPLY_ARGS+=(-auto-approve)
+fi
+
+terraform -chdir="$TF_DIR" apply "${TF_APPLY_ARGS[@]}" -var-file="$TF_VARS_PATH" \
   -var="gateway_alb_dns_name=${GATEWAY_ALB_DNS}" \
   -var="gateway_alb_zone_id=${GATEWAY_ALB_ZONE_ID}" \
   -var="grafana_alb_dns_name=${GRAFANA_ALB_DNS}" \

@@ -10,6 +10,7 @@ TF_DIR="${TF_DIR:-$ROOT_DIR/infra/terraform}"
 CHART_DIR="${CHART_DIR:-$ROOT_DIR/helm/acmecorp-platform}"
 EXTERNAL_SECRETS_CHART_DIR="${EXTERNAL_SECRETS_CHART_DIR:-$CHART_DIR/charts/external-secrets}"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-300s}"
+RELEASE_NAME="${RELEASE_NAME:-acmecorp-platform}"
 
 section() {
   printf '\n==> %s\n' "$1"
@@ -57,12 +58,12 @@ section "Update Helm Dependencies"
 helm dependency update "$CHART_DIR"
 
 section "Create Required Namespaces"
-helm template acmecorp-platform "$CHART_DIR" \
+helm template "$RELEASE_NAME" "$CHART_DIR" \
   --show-only templates/namespaces/namespaces.yaml \
   | kubectl apply -f -
 
 section "Create Auto Mode StorageClass"
-helm template acmecorp-platform "$CHART_DIR" \
+helm template "$RELEASE_NAME" "$CHART_DIR" \
   --show-only templates/storage-class.yaml \
   | kubectl apply -f -
 

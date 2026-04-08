@@ -11,4 +11,5 @@ data:
   BILLING_BASE_URL: {{ printf "http://%s-billing-service:8082" .Release.Name | quote }}
   NOTIFICATION_BASE_URL: {{ printf "http://%s-notification-service:8083" .Release.Name | quote }}
   ANALYTICS_BASE_URL: {{ printf "http://%s-analytics-service:8084" .Release.Name | quote }}
+  GATEWAY_CORS_ORIGIN_UI: {{ .Values.config.gatewayCorsOriginUi | quote }}
   SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfilesActive | quote }}

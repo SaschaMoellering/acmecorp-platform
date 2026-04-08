@@ -134,7 +134,7 @@ First, right-sizing. We're using t3.medium instances for the EKS worker nodes. T
 
 Second, autoscaling. We're using the Kubernetes Horizontal Pod Autoscaler, HPA, to scale services based on CPU and memory usage. When traffic increases, HPA adds more pods. When traffic decreases, HPA removes pods. This ensures we're only running the capacity we need.
 
-Third, Spot Instances. For non-critical workloads like batch jobs or development environments, we're using EC2 Spot Instances. These are spare AWS capacity sold at a discount, up to 90% off. They can be interrupted, but for workloads that can tolerate interruptions, they're a huge cost saver.
+Third, Spot Instances. For interruptable workloads like batch jobs, web appications or development environments, we're using EC2 Spot Instances. These are spare AWS capacity sold at a discount, up to 90% off. They can be interrupted, but for workloads that can tolerate interruptions, they're a huge cost saver.
 
 Fourth, reserved capacity. For baseline capacity that we know we'll need 24/7, we're using Reserved Instances or Savings Plans. These offer significant discounts, up to 72% off, in exchange for a commitment to use a certain amount of capacity for one or three years.
 

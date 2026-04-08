@@ -33,6 +33,32 @@ docker compose up -d
 ./validate-health.sh
 ```
 
+## RabbitMQ DLQ demo
+
+The local notification pipeline now declares its RabbitMQ topology on startup:
+
+- main exchange: `notifications-exchange`
+- main queue: `notifications-queue`
+- dead-letter exchange: `notifications-dlx`
+- dead-letter queue: `notifications-queue.dlq`
+
+Inspect the topology from the repo root:
+
+```bash
+docker compose -f infra/local/docker-compose.yml exec rabbitmq rabbitmqctl list_queues name arguments
+docker compose -f infra/local/docker-compose.yml exec rabbitmq rabbitmqctl list_exchanges name type
+```
+
+To demonstrate bounded retry followed by dead-lettering, restart `notification-service` with a deterministic local failure target:
+
+```bash
+docker compose -f infra/local/docker-compose.yml stop notification-service
+NOTIFICATION_FAIL_ON_RECIPIENT=dlq-demo@acme.test \
+docker compose -f infra/local/docker-compose.yml up -d notification-service
+```
+
+Then publish a matching notification, for example by creating an order that uses `dlq-demo@acme.test` as the customer email. The notification listener will retry a bounded number of times, reject the message, and RabbitMQ will route it to `notifications-queue.dlq` instead of requeueing it forever.
+
 ## Load tests (k6)
 
 The `k6` service is behind the `load` profile, so it only appears when the profile is enabled.

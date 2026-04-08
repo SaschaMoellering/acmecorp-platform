@@ -74,6 +74,7 @@ run_yq_inplace() {
     -e MQ_HOST \
     -e GATEWAY_HOST \
     -e GRAFANA_HOST \
+    -e UI_CUSTOM_URL \
     -e GATEWAY_CERT_ARN \
     -e GRAFANA_CERT_ARN \
     -e ECR_GATEWAY \
@@ -125,6 +126,7 @@ MQ_ENDPOINT="$(tf_output_value mq_broker_endpoint)"
 MQ_HOST="$(normalize_host "$MQ_ENDPOINT")"
 GATEWAY_HOST="$(tf_output_value gateway_ingress_host)"
 GRAFANA_HOST="$(tf_output_value grafana_ingress_host)"
+UI_CUSTOM_URL="$(tf_output_value ui_custom_url)"
 GATEWAY_CERT_ARN="$(tf_output_value gateway_certificate_arn)"
 GRAFANA_CERT_ARN="$(tf_output_value grafana_certificate_arn)"
 ECR_GATEWAY="$(tf_output_ecr acmecorp/gateway-service)"
@@ -140,6 +142,7 @@ require_value "mq_broker_endpoint" "$MQ_ENDPOINT"
 require_value "mq_host" "$MQ_HOST"
 require_value "gateway_ingress_host" "$GATEWAY_HOST"
 require_value "grafana_ingress_host" "$GRAFANA_HOST"
+require_value "ui_custom_url" "$UI_CUSTOM_URL"
 require_value "gateway_certificate_arn" "$GATEWAY_CERT_ARN"
 require_value "grafana_certificate_arn" "$GRAFANA_CERT_ARN"
 require_value "ecr_repository_urls[acmecorp/gateway-service]" "$ECR_GATEWAY"
@@ -155,6 +158,7 @@ export MQ_ENDPOINT
 export MQ_HOST
 export GATEWAY_HOST
 export GRAFANA_HOST
+export UI_CUSTOM_URL
 export GATEWAY_CERT_ARN
 export GRAFANA_CERT_ARN
 export ECR_GATEWAY
@@ -174,6 +178,7 @@ run_yq_inplace '
   .["gateway-service"].image.repository = env(ECR_GATEWAY) |
   .["gateway-service"].image.tag = env(IMAGE_TAG) |
   .["gateway-service"].image.pullPolicy = "Always" |
+  .["gateway-service"].config.gatewayCorsOriginUi = env(UI_CUSTOM_URL) |
   .["gateway-service"].ingress.host = env(GATEWAY_HOST) |
   .["gateway-service"].ingress.tls.enabled = true |
   .["gateway-service"].ingress.tls.certificateArn = env(GATEWAY_CERT_ARN) |

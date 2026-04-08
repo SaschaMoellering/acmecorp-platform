@@ -47,6 +47,7 @@ gateway-service:
     internal: true
     annotations: {}
   config:
+    gatewayCorsOriginUi: https://app.acmecorp.autoscaling.io
     springProfilesActive: default
   resources:
     limits:

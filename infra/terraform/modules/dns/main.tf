@@ -1,4 +1,4 @@
-variable "route53_zone_name" {
+variable "public_hosted_zone_name" {
   type = string
 }
 
@@ -35,15 +35,22 @@ variable "enable_grafana_dns" {
   default = false
 }
 
+locals {
+  manage_gateway_dns = var.gateway_alb_dns_name != null && var.gateway_alb_zone_id != null
+  manage_grafana_dns = var.enable_grafana_dns && var.grafana_alb_dns_name != null && var.grafana_alb_zone_id != null
+  manage_public_dns  = local.manage_gateway_dns || local.manage_grafana_dns
+}
+
 data "aws_route53_zone" "public" {
-  name         = var.route53_zone_name
+  count        = local.manage_public_dns ? 1 : 0
+  name         = var.public_hosted_zone_name
   private_zone = false
 }
 
 resource "aws_route53_record" "gateway_alias" {
-  count = var.gateway_alb_dns_name != null && var.gateway_alb_zone_id != null ? 1 : 0
+  count = local.manage_gateway_dns ? 1 : 0
 
-  zone_id = data.aws_route53_zone.public.zone_id
+  zone_id = data.aws_route53_zone.public[0].zone_id
   name    = var.gateway_ingress_host
   type    = "A"
 
@@ -55,9 +62,9 @@ resource "aws_route53_record" "gateway_alias" {
 }
 
 resource "aws_route53_record" "grafana_alias" {
-  count = var.enable_grafana_dns && var.grafana_alb_dns_name != null && var.grafana_alb_zone_id != null ? 1 : 0
+  count = local.manage_grafana_dns ? 1 : 0
 
-  zone_id = data.aws_route53_zone.public.zone_id
+  zone_id = data.aws_route53_zone.public[0].zone_id
   name    = var.grafana_ingress_host
   type    = "A"
 
@@ -69,7 +76,7 @@ resource "aws_route53_record" "grafana_alias" {
 }
 
 output "zone_id" {
-  value = data.aws_route53_zone.public.zone_id
+  value = try(data.aws_route53_zone.public[0].zone_id, null)
 }
 
 output "gateway_hostname" {

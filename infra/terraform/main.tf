@@ -5,6 +5,7 @@ locals {
   caller_assumed_role_name_parts   = length(local.caller_resource_parts) > 2 && local.caller_resource_parts[0] == "assumed-role" ? slice(local.caller_resource_parts, 1, length(local.caller_resource_parts) - 1) : []
   default_admin_principal_arn      = local.caller_resource_parts[0] == "assumed-role" ? format("arn:aws:iam::%s:role/%s", data.aws_caller_identity.current.account_id, join("/", local.caller_assumed_role_name_parts)) : data.aws_caller_identity.current.arn
   resolved_admin_principal_arn     = var.admin_principal_arn != "" ? var.admin_principal_arn : local.default_admin_principal_arn
+  public_hosted_zone_name          = coalesce(var.public_hosted_zone_name, var.route53_zone_name, "acmecorp.example.com")
   eks_auto_mode_security_group_ids = [module.eks.cluster_security_group_id]
 
   aurora_ingress_source_security_group_ids = var.eks_database_client_sg_id_override != null ? [
@@ -135,23 +136,23 @@ module "ecr" {
 module "acm" {
   source = "./modules/acm"
 
-  name_prefix          = local.name_prefix
-  route53_zone_name    = var.route53_zone_name
-  gateway_ingress_host = var.gateway_ingress_host
-  grafana_ingress_host = var.grafana_ingress_host
+  name_prefix             = local.name_prefix
+  public_hosted_zone_name = local.public_hosted_zone_name
+  gateway_ingress_host    = var.gateway_ingress_host
+  grafana_ingress_host    = var.grafana_ingress_host
 }
 
 module "dns" {
   source = "./modules/dns"
 
-  route53_zone_name    = var.route53_zone_name
-  gateway_ingress_host = var.gateway_ingress_host
-  grafana_ingress_host = var.grafana_ingress_host
-  gateway_alb_dns_name = var.gateway_alb_dns_name
-  gateway_alb_zone_id  = var.gateway_alb_zone_id
-  enable_grafana_dns   = var.enable_grafana_dns
-  grafana_alb_dns_name = var.grafana_alb_dns_name
-  grafana_alb_zone_id  = var.grafana_alb_zone_id
+  public_hosted_zone_name = local.public_hosted_zone_name
+  gateway_ingress_host    = var.gateway_ingress_host
+  grafana_ingress_host    = var.grafana_ingress_host
+  gateway_alb_dns_name    = var.gateway_alb_dns_name
+  gateway_alb_zone_id     = var.gateway_alb_zone_id
+  enable_grafana_dns      = var.enable_grafana_dns
+  grafana_alb_dns_name    = var.grafana_alb_dns_name
+  grafana_alb_zone_id     = var.grafana_alb_zone_id
 }
 
 module "ui" {
@@ -162,10 +163,10 @@ module "ui" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  name_prefix          = local.name_prefix
-  aws_region           = var.aws_region
-  route53_zone_name    = var.route53_zone_name
-  ui_subdomain         = var.ui_subdomain
-  bucket_name_override = var.ui_bucket_name_override
-  force_destroy_bucket = var.force_destroy_ui_bucket
+  name_prefix             = local.name_prefix
+  aws_region              = var.aws_region
+  public_hosted_zone_name = local.public_hosted_zone_name
+  ui_subdomain            = var.ui_subdomain
+  bucket_name_override    = var.ui_bucket_name_override
+  force_destroy_bucket    = var.force_destroy_ui_bucket
 }
