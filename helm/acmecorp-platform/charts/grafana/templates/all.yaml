@@ -11,11 +11,52 @@ data:
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus
         type: prometheus
         url: http://prometheus:9090
         access: proxy
         isDefault: true
         editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-providers
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: acmecorp-platform
+        orgId: 1
+        folder: AcmeCorp Platform
+        type: file
+        disableDeletion: false
+        editable: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  acmecorp-platform-overview.json: |
+{{ .Files.Get "files/dashboards/acmecorp-platform-overview.json" | indent 4 }}
+  gateway-traffic-breakdown.json: |
+{{ .Files.Get "files/dashboards/gateway-traffic-breakdown.json" | indent 4 }}
+  jvm-gc-breakdown.json: |
+{{ .Files.Get "files/dashboards/jvm-gc-breakdown.json" | indent 4 }}
+  jvm-thread-memory-breakdown.json: |
+{{ .Files.Get "files/dashboards/jvm-thread-memory-breakdown.json" | indent 4 }}
 ---
 {{- if .Values.serviceAccount.create }}
 apiVersion: v1
@@ -106,10 +147,20 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-providers
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
       volumes:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboard-providers
+          configMap:
+            name: grafana-dashboard-providers
+        - name: dashboards
+          configMap:
+            name: grafana-dashboards
 ---
 apiVersion: v1
 kind: Service
