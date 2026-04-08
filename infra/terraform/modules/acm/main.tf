@@ -2,7 +2,7 @@ variable "name_prefix" {
   type = string
 }
 
-variable "route53_zone_name" {
+variable "public_hosted_zone_name" {
   type = string
 }
 
@@ -15,7 +15,7 @@ variable "grafana_ingress_host" {
 }
 
 data "aws_route53_zone" "public" {
-  name         = var.route53_zone_name
+  name         = var.public_hosted_zone_name
   private_zone = false
 }
 

@@ -31,6 +31,7 @@ gateway-service:
       certificateArn: "<arn:aws:acm:us-east-1:ACCOUNT:certificate/CERT-ID>"
     internal: false
   config:
+    gatewayCorsOriginUi: https://app.acmecorp.autoscaling.io
     springProfilesActive: eks
   prometheus:
     serviceMonitor:

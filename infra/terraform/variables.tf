@@ -143,10 +143,16 @@ variable "gateway_ingress_host" {
   default     = "api.acmecorp.example.com"
 }
 
-variable "route53_zone_name" {
-  description = "Public Route53 hosted zone name used for ACM validation and ingress DNS records"
+variable "public_hosted_zone_name" {
+  description = "Public Route53 hosted zone name managed by this stack and used for ACM validation and DNS records. For delegated-subdomain setups, set this to the delegated hosted zone name, not the parent domain."
   type        = string
-  default     = "acmecorp.example.com"
+  default     = null
+}
+
+variable "route53_zone_name" {
+  description = "Deprecated alias for public_hosted_zone_name. Use the delegated public hosted zone name managed by this stack, not the parent domain."
+  type        = string
+  default     = null
 }
 
 variable "gateway_alb_dns_name" {

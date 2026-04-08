@@ -16,7 +16,7 @@ variable "force_destroy_bucket" {
   default = false
 }
 
-variable "route53_zone_name" {
+variable "public_hosted_zone_name" {
   type = string
 }
 
@@ -27,7 +27,7 @@ variable "ui_subdomain" {
 data "aws_caller_identity" "current" {}
 
 data "aws_route53_zone" "public" {
-  name         = var.route53_zone_name
+  name         = var.public_hosted_zone_name
   private_zone = false
 }
 
@@ -41,7 +41,7 @@ locals {
     lower("${var.name_prefix}-ui-${data.aws_caller_identity.current.account_id}-${var.aws_region}")
   )
   origin_id     = "${var.name_prefix}-ui-origin"
-  custom_domain = "${var.ui_subdomain}.${trim(var.route53_zone_name, ".")}"
+  custom_domain = "${var.ui_subdomain}.${trim(var.public_hosted_zone_name, ".")}"
 }
 
 resource "aws_s3_bucket" "ui" {

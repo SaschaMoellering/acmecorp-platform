@@ -70,6 +70,11 @@ spec:
                 configMapKeyRef:
                   name: {{ include "gateway-service.fullname" . }}-config
                   key: ANALYTICS_BASE_URL
+            - name: GATEWAY_CORS_ORIGIN_UI
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "gateway-service.fullname" . }}-config
+                  key: GATEWAY_CORS_ORIGIN_UI
             - name: SPRING_PROFILES_ACTIVE
               valueFrom:
                 configMapKeyRef:

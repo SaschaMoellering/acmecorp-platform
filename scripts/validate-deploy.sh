@@ -35,6 +35,17 @@ require_file() {
   fi
 }
 
+resolve_tf_vars_file() {
+  local requested_path="$1"
+
+  if [[ "$requested_path" = /* ]]; then
+    printf '%s\n' "$requested_path"
+    return
+  fi
+
+  printf '%s\n' "$TF_DIR/$requested_path"
+}
+
 require_cmd terraform
 require_cmd helm
 require_cmd aws
@@ -65,10 +76,11 @@ cluster_has_crd() {
 require_file "$BASE_VALUES"
 
 TF_VAR_ARGS=()
-if [[ -f "$TF_DIR/$TF_VARS_FILE" ]]; then
-  TF_VAR_ARGS=(-var-file="$TF_VARS_FILE")
+TF_VARS_PATH="$(resolve_tf_vars_file "$TF_VARS_FILE")"
+if [[ -f "$TF_VARS_PATH" ]]; then
+  TF_VAR_ARGS=(-var-file="$TF_VARS_PATH")
 elif [[ -n "${TF_VARS_FILE:-}" && "$TF_VARS_FILE" != "terraform.tfvars" ]]; then
-  echo "ERROR: requested TF_VARS_FILE not found: $TF_DIR/$TF_VARS_FILE" >&2
+  echo "ERROR: requested TF_VARS_FILE not found: $TF_VARS_PATH" >&2
   exit 1
 fi
 
