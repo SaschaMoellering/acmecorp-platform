@@ -37,12 +37,12 @@ subgraph AWS["AWS Cloud"]
     subgraph Data["Data Layer"]
         RDS[(RDS PostgreSQL<br/>Multi-AZ)]:::infra
         MQ[(Amazon MQ<br/>RabbitMQ)]:::infra
-        ElastiCache[(ElastiCache<br/>Redis)]:::infra
+        Redis[(Redis)]:::infra
     end
     
     subgraph Observability["Observability Layer"]
-        Prometheus[Managed<br/>Prometheus]:::observability
-        Grafana[Managed<br/>Grafana]:::observability
+        Prometheus[Prometheus]:::observability
+        Grafana[Mrafana]:::observability
         CloudWatch[CloudWatch<br/>Logs]:::observability
     end
     
