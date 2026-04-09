@@ -89,6 +89,24 @@ resource "aws_rds_cluster" "this" {
     min_capacity = 0.5
     max_capacity = 8.0
   }
+
+  provisioner "local-exec" {
+    when        = destroy
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -Eeuo pipefail
+
+      snapshot_id='${self.final_snapshot_identifier}'
+
+      if aws rds describe-db-cluster-snapshots --db-cluster-snapshot-identifier "$snapshot_id" >/dev/null 2>&1; then
+        aws rds delete-db-cluster-snapshot \
+          --db-cluster-snapshot-identifier "$snapshot_id" \
+          >/dev/null
+        aws rds wait db-cluster-snapshot-deleted \
+          --db-cluster-snapshot-identifier "$snapshot_id"
+      fi
+    EOT
+  }
 }
 
 # ── Aurora Serverless v2 instance ───────────────────────────────────────────
