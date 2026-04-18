@@ -3,8 +3,10 @@ package com.acmecorp.notification.service;
 import com.acmecorp.notification.config.RabbitConfig;
 import com.acmecorp.notification.client.AnalyticsClient;
 import com.acmecorp.notification.domain.Notification;
+import com.acmecorp.notification.domain.NotificationDeduplication;
 import com.acmecorp.notification.domain.NotificationStatus;
 import com.acmecorp.notification.domain.NotificationType;
+import com.acmecorp.notification.repository.NotificationDeduplicationRepository;
 import com.acmecorp.notification.repository.NotificationRepository;
 import com.acmecorp.notification.web.NotificationRequest;
 import com.acmecorp.notification.web.NotificationResponse;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -30,6 +34,7 @@ public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository notificationRepository;
+    private final NotificationDeduplicationRepository deduplicationRepository;
     private final RabbitTemplate rabbitTemplate;
     private final AnalyticsClient analyticsClient;
 
@@ -37,9 +42,11 @@ public class NotificationService {
     private String failOnRecipient;
 
     public NotificationService(NotificationRepository notificationRepository,
+                               NotificationDeduplicationRepository deduplicationRepository,
                                RabbitTemplate rabbitTemplate,
                                AnalyticsClient analyticsClient) {
         this.notificationRepository = notificationRepository;
+        this.deduplicationRepository = deduplicationRepository;
         this.rabbitTemplate = rabbitTemplate;
         this.analyticsClient = analyticsClient;
     }
@@ -68,16 +75,31 @@ public class NotificationService {
             throw new IllegalStateException("Forced notification failure for recipient " + recipient);
         }
 
+        String orderNumber = (String) payload.getOrDefault("orderNumber", null);
+        String invoiceNumber = (String) payload.getOrDefault("invoiceNumber", null);
+        String type = (String) payload.getOrDefault("type", NotificationType.GENERIC.name());
+        String fingerprint = messageFingerprint(recipient, type, orderNumber, invoiceNumber);
+
+        if (deduplicationRepository.existsByMessageFingerprint(fingerprint)) {
+            log.info("Duplicate message detected for recipient {} fingerprint {} — skipping", recipient, fingerprint);
+            return;
+        }
+
         Notification notification = new Notification();
         notification.setRecipient(recipient);
         notification.setMessage((String) payload.getOrDefault("message", "No message"));
-        notification.setOrderNumber((String) payload.getOrDefault("orderNumber", null));
-        notification.setInvoiceNumber((String) payload.getOrDefault("invoiceNumber", null));
-        String type = (String) payload.getOrDefault("type", NotificationType.GENERIC.name());
+        notification.setOrderNumber(orderNumber);
+        notification.setInvoiceNumber(invoiceNumber);
         notification.setType(NotificationType.valueOf(type));
         notification.setStatus(NotificationStatus.QUEUED);
         notification.setCreatedAt(Instant.now());
         Notification saved = notificationRepository.save(notification);
+
+        NotificationDeduplication dedup = new NotificationDeduplication();
+        dedup.setMessageFingerprint(fingerprint);
+        dedup.setNotification(saved);
+        dedup.setCreatedAt(Instant.now());
+        deduplicationRepository.save(dedup);
 
         // Simulate sending
         saved.setStatus(NotificationStatus.SENT);
@@ -85,6 +107,30 @@ public class NotificationService {
         notificationRepository.save(saved);
         analyticsClient.track("notification.sent", Map.of("notificationId", saved.getId(), "type", saved.getType().name()));
         log.info("Notification {} sent successfully for recipient {}", saved.getId(), saved.getRecipient());
+    }
+
+    private String messageFingerprint(String recipient, String type, String orderNumber, String invoiceNumber) {
+        String raw = String.join("|",
+                recipient != null ? recipient : "",
+                type != null ? type : "",
+                orderNumber != null ? orderNumber : "",
+                invoiceNumber != null ? invoiceNumber : ""
+        );
+        return sha256(raw);
+    }
+
+    private String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to compute message fingerprint", ex);
+        }
     }
 
     @Transactional(readOnly = true)
