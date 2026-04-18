@@ -4,13 +4,13 @@
 
 In the previous episode, we built the vocabulary for reading JVM performance signals. We talked about what startup time, latency percentiles, heap behavior, and GC pauses actually mean, and what each of those signals does and does not tell you. That vocabulary matters now, because this episode is about applying it to a real decision.
 
-Java 25 is a new major JVM release. The release notes are long. The JEP list is impressive. The blog posts are enthusiastic. And none of that is a reason to upgrade.
+Java 25 is a new major JVM release. The release notes are long. The JEP list is impressive and blog posts are enthusiastic - for good reasons. 
 
-A JVM upgrade is not a performance lottery ticket. You do not pull the lever and hope for a better number. It is a risk-managed decision, and like any risk-managed decision, it requires evidence. What changed? What does that change mean for your specific workload? What could go wrong? And is the potential upside worth the operational cost of finding out?
+A JVM upgrade is not a performance lottery ticket. You do not pull the lever and hope for a better number. It is a risk-managed decision, and like any risk-managed decision, it requires evidence. What changed? What does that change mean for your specific workload? What could go wrong?
 
 This episode is about how to answer those questions for the AcmeCorp platform, using the benchmark infrastructure we have built and the signals we learned to read in the previous episode. We are going to look at what changed between Java 21 and Java 25, run the comparison, interpret the results honestly, and apply a structured go/no-go check before making a recommendation.
 
-The goal is not to tell you that Java 25 is better or worse. The goal is to show you how to find out for yourself, on your own workload, with your own evidence.
+The goal is not to tell you that Java 25 is better or worse - usually this is the case of course. The goal is to show you how to find out for yourself, on your own workload, with your own evidence.
 
 ---
 
@@ -52,7 +52,7 @@ The memory footprint picture is similar. RSS differences between Java 21 and Jav
 
 On the language side, virtual threads are not a Java 25 feature. They became stable in Java 21. If the platform has not yet adopted them, that is a separate migration decision, not something Java 25 introduces. Structured concurrency is still in preview in Java 25. It is not a stable API, and it should not be treated as a production-ready feature for this platform.
 
-The compatibility surface is where the risk lives. Java 25 continues the trend of tightening access to internal APIs, removing deprecated methods, and restricting reflection in ways that affect frameworks. The platform runs Spring Boot 3.3.4 and Quarkus 3.15.0. Java 25 support for those specific versions should be treated as provisional until explicitly verified. Before the benchmark results matter at all, the platform has to actually run on Java 25 without errors. That is the first gate, and it is not a performance question.
+The compatibility surface is where the risk lives. Java 25 continues the trend of tightening access to internal APIs, removing deprecated methods, and restricting reflection in ways that affect frameworks. The platform runs Spring Boot 4 and a compatible version of Quarkus for Java 25. 
 
 ---
 
@@ -158,7 +158,7 @@ flowchart TD
 
 Let me walk through the checklist against the AcmeCorp platform. Not to declare a verdict, but to show what each check actually requires and where the current state of the repository leaves open questions.
 
-The first check is whether the tests pass on Java 25. This is the gate that everything else depends on. Run the full test suite, including integration tests that exercise the database connection, the message broker, and the observability wiring. A unit test suite that passes is not sufficient. The compatibility risk lives in the integration surface. For this platform, with Spring Boot 3.3.4 and Quarkus 3.15.0, that verification has not yet been completed. It is the first thing that needs to happen before any other check is meaningful.
+The first check is whether the tests pass on Java 25. This is the gate that everything else depends on. Run the full test suite, including integration tests that exercise the database connection, the message broker, and the observability wiring. A unit test suite that passes is not sufficient. The compatibility risk lives in the integration surface.
 
 The second check is whether the service runs without crash loops under load. Start the service on Java 25, send it representative traffic, and watch the restart count. A service that crashes and restarts under load is not ready for production regardless of what the benchmarks show. Crash loops under load often indicate memory pressure that the benchmark environment did not reproduce, or a runtime error triggered by a specific code path that the load generator did not exercise. This check requires a deliberate staging run, not just a benchmark pass.
 
@@ -175,8 +175,6 @@ The sixth check is whether the rollback path has been tested. Before applying th
 ## Applying the checklist to the platform
 
 Let me be direct about where the platform stands against this checklist right now.
-
-The compatibility check is open. Spring Boot 3.3.4 and Quarkus 3.15.0 have not been verified against Java 25 in this repository. That is the first thing to resolve. Until the test suite runs cleanly on Java 25, the remaining checks are premature.
 
 The benchmark results from the harness give partial answers to checks three, four, and five. The offline measurements show startup time, p95 latency, and RSS for both versions. Those numbers are directional signals. Whether they hold under a more sustained load, with the full service graph running, is a separate question that the benchmark harness alone cannot answer.
 

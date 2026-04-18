@@ -22,69 +22,82 @@ But IAM auth introduces its own constraints. Tokens are short-lived, which means
 sequenceDiagram
     participant Pod as Application Pod
     participant STS as AWS STS
-    participant IAM as IAM Policy
     participant Aurora as Aurora PostgreSQL
 
-    Pod->>STS: AssumeRole / GetCallerIdentity (via IRSA or Pod Identity)
-    STS-->>Pod: Temporary credentials (AK/SK/token)
-    Pod->>IAM: GenerateAuthToken(hostname, port, region, user)
-    IAM-->>Pod: Signed auth token (15-min TTL)
-    Pod->>Aurora: Connect (username + token as password)
-    Aurora->>IAM: Validate token signature
-    IAM-->>Aurora: Valid / Invalid
+    Note over Pod,STS: Identity exchange (IRSA shown — Pod Identity follows same outcome)
+    Pod->>STS: Exchange projected ServiceAccount token for temporary credentials
+    STS-->>Pod: Temporary credentials (access key, secret key, session token)
+
+    Note over Pod: Token generation is LOCAL — no network call
+    Pod->>Pod: AWS SDK SigV4-signs auth token using temp credentials\n(hostname, port, region, DB user encoded in signature)
+
+    Pod->>Aurora: Connect (username + SigV4 token as password field)
+
+    Note over Aurora: Aurora validates SigV4 signature internally\nNo live IAM call per connection
     Aurora-->>Pod: Connection accepted / rejected
 ```
 
 Let me walk through what actually happens when a pod connects to Aurora using IAM authentication.
 
-The pod does not have a password. It has an IAM identity, which we will cover in the next section. Using that identity, it calls the AWS RDS API to generate an authentication token. This is not a network call to Aurora. It is a local cryptographic operation that produces a signed URL, essentially a presigned request that proves the caller has permission to connect as a specific database user.
+The pod does not use a database password. Instead, it uses an AWS identity. Using that identity, the AWS SDK generates an authentication token using the caller’s AWS credentials. The authentication token is a string that includes a signature using AWS Signature Version 4 (SigV4) and incorporates the database endpoint, port, AWS Region, and database user name.
 
-That token is then used as the password field in the PostgreSQL connection string. Aurora validates the token signature against IAM. If the signature is valid and the IAM policy permits the connection, Aurora accepts it. If the token has expired, or the IAM policy has been revoked, Aurora rejects it.
+The authentication token is used as the password when establishing the PostgreSQL connection. Amazon Aurora verifies that the token was generated using AWS Signature Version 4 (SigV4) and that the AWS identity is authorized to connect to the specified database user.
 
-The token is valid for fifteen minutes. After fifteen minutes, it cannot be used to open a new connection. Existing connections that were opened with a valid token remain open, PostgreSQL does not terminate live connections when a token expires. But if your connection pool tries to open a new connection after the token has expired, it will fail.
+To connect using IAM database authentication, the IAM principal must have the required permissions, including the ability to connect as the target database user. If the token is valid and the permissions are in place, the connection is established. If the token is expired or the required permissions are not granted, the connection attempt fails.
 
-This is the constraint that shapes everything else in this episode. Fifteen minutes is short. Your application has to be prepared to refresh the token before it expires, and your connection pool has to be configured to use the refreshed token when it opens new connections.
+The authentication token is valid for 15 minutes and must be generated before establishing a new database connection. After the token expires, it cannot be used to create new connections. Connections that were successfully established with a valid token are not affected by the expiration of that token.
+
+Because of this limited validity period, applications must generate a new authentication token before opening new database connections. Connection management must ensure that new connections use a current token.
 
 ---
 
 ## Kubernetes identity – Pod Identity and IRSA
 
-**[DIAGRAM: E09-D02-pod-identity-to-db]**
+**[DIAGRAM: E09-D02-irsa-binding]**
 
 ```mermaid
 flowchart TD
     subgraph EKS Cluster
-        SA[Kubernetes ServiceAccount\nacmecorp-orders]
-        Pod[Orders Pod\nenvFrom: serviceAccountToken]
+        Pod[Orders Pod]
+        SA[Kubernetes ServiceAccount\nacmecorp-orders\nannotated with IAM Role ARN]
+        Pod -->|associated with| SA
     end
 
-    subgraph AWS IAM
+    subgraph AWS
+        OIDC[EKS OIDC Provider]
+        STS[AWS STS]
         Role[IAM Role\nacmecorp-orders-role]
-        Policy[IAM Policy\nrds-db:connect on orders DB user]
+        Policy[IAM Policy\nrds-db:connect — orders_app]
     end
 
-    subgraph Aurora
-        DBUser[DB User: orders_app\nIAM auth enabled]
+    subgraph Aurora PostgreSQL
+        DBUser[DB User: orders_app\nrds_iam role granted\nIAM auth enabled on cluster]
     end
 
-    SA -->|annotated with role ARN| Role
-    Pod -->|mounts projected token| SA
-    Role -->|trust policy allows| SA
+    SA -->|OIDC trust — role ARN annotation| OIDC
+    OIDC -->|validates projected token| STS
+    STS -->|issues temp credentials| Pod
     Role -->|attached policy| Policy
-    Policy -->|grants| DBUser
+    Policy -->|authorises| DBUser
+    SA -->|trust policy references| Role
+
+    note1[EKS Pod Identity uses PodIdentityAssociation\nvia EKS API instead of SA annotation.\nTrust flow differs but outcome is the same.]
+    style note1 fill:#f9f,stroke:#999,color:#000
 ```
 
-Before a pod can generate an auth token, it needs an IAM identity. There are two mechanisms for this on EKS: IRSA, which stands for IAM Roles for Service Accounts, and the newer EKS Pod Identity.
+Before a pod can generate an authentication token, it must use an AWS identity. On Amazon EKS, there are two supported mechanisms to provide AWS credentials to pods: IAM Roles for Service Accounts (IRSA) and EKS Pod Identity.
 
-Both mechanisms solve the same problem. A pod running in Kubernetes needs AWS credentials without those credentials being hardcoded or injected as environment variables. The solution is to bind a Kubernetes ServiceAccount to an IAM Role. When a pod uses that ServiceAccount, it gets a projected token that can be exchanged for temporary AWS credentials scoped to that role.
+Both mechanisms enable pods to access AWS services without embedding long-term credentials. Instead, a Kubernetes ServiceAccount is associated with an IAM role, and pods that use that ServiceAccount can obtain temporary AWS credentials for that role.
 
-With IRSA, the ServiceAccount is annotated with the IAM Role ARN. The OIDC provider for the EKS cluster is configured as a trusted identity provider in IAM. When the pod presents its projected token to STS, IAM validates it against the OIDC provider and issues temporary credentials for the annotated role.
+With IAM Roles for Service Accounts (IRSA), the ServiceAccount is associated with an IAM role, and the EKS cluster is configured with an OpenID Connect (OIDC) identity provider. The pod uses a projected service account token, which AWS Security Token Service (STS) can use to provide temporary credentials for the associated IAM role.
 
-With EKS Pod Identity, the binding is managed through the EKS API rather than IAM trust policies. The operational model is slightly simpler because you do not need to manage OIDC trust relationships manually, but the end result is the same. The pod gets temporary credentials scoped to a specific IAM role.
+With EKS Pod Identity, the association between a Kubernetes ServiceAccount and an IAM role is managed through the EKS API. This removes the need to configure and manage the OIDC provider and trust relationship directly. Pods receive AWS credentials for the associated IAM role through this managed integration.
 
-For Aurora IAM auth, the IAM role needs a single permission: `rds-db:connect` on the specific database resource and user. The resource ARN encodes the region, account, cluster identifier, and database username. This means the permission is scoped precisely. The Orders service can connect as the `orders_app` database user. It cannot connect as the `billing_app` user. It cannot connect to a different cluster. The IAM policy enforces the same service boundary at the database layer that we established at the application layer.
+For Amazon Aurora IAM database authentication, the IAM role must allow the appropriate permissions to connect to the database as a specific database user. The permissions are defined using IAM policies and can be scoped to a particular database resource and user.
 
-On the Aurora side, the database user must be created with IAM authentication enabled. This is a PostgreSQL-level configuration. The user exists in the database, but it has no password. Authentication is handled entirely through IAM token validation.
+On the Aurora PostgreSQL side, IAM database authentication must be enabled at the cluster level. In addition, the database user must be granted the `rds_iam` role.
+
+Without that grant, IAM auth will not work even if the IAM policy is correctly configured. The user may still exist with password metadata in the database, but for Aurora PostgreSQL a given application user should be configured for a single authentication method. When the `rds_iam` role is assigned, IAM authentication takes precedence over password authentication for that user.
 
 ---
 
@@ -95,240 +108,69 @@ On the Aurora side, the database user must be created with IAM authentication en
 ```mermaid
 flowchart TD
     subgraph Token Lifecycle
-        T0[t=0: Token generated\nTTL = 15 min]
-        T14[t=14 min: Refresh token\nbefore expiry]
-        T15[t=15 min: Token expires\nnew connections rejected]
+        T0[t=0 min\nToken A generated\nvalid for 15 minutes]
+        T13[t=13 min\nPool retires connection\nexample maxLifetime reached]
+        T15[t=15 min\nToken A expired\nnew connections require a new token]
     end
 
     subgraph Connection Pool
-        Pool[HikariCP Pool\nmax-lifetime < 14 min]
-        Conn1[Connection 1\nopened with token A]
-        Conn2[Connection 2\nopened with token B]
+        Conn1[Connection 1\nopened with Token A]
+        NewConn[New connection needed]
+        TokenGen[Application / JDBC wrapper\ngets Token B]
+        Conn2[Connection 2\nopened with Token B]
     end
 
-    T0 -->|used to open connections| Conn1
-    T14 -->|new token generated| Conn2
-    T15 -->|existing connections survive| Conn1
-    T15 -->|new connections use new token| Conn2
-    Pool -->|evicts connections before TTL| T14
-    Pool --> Conn1
-    Pool --> Conn2
+    T0 -->|used to open| Conn1
+    T13 -->|connection retired| Conn1
+    Conn1 -->|pool opens replacement| NewConn
+    NewConn -->|before connect| TokenGen
+    TokenGen -->|fresh token used| Conn2
+    T15 -->|existing sessions not affected| Conn1
+    T15 -->|new connections must use Token B| Conn2
 ```
 
-The fifteen-minute token TTL is not a problem if you understand it. It becomes a problem when you ignore it and let your connection pool behave as if it has a static password.
+The fifteen-minute validity period of the authentication token is not a problem by itself. It becomes a problem only when the application behaves as if it were still using a static password.
 
-A typical connection pool like HikariCP is configured to keep connections alive for a long time. The default `maxLifetime` in HikariCP is thirty minutes. If you use a token to open a connection at time zero, and that connection stays in the pool until time thirty, the token that was used to open it expired at time fifteen. The connection itself is still alive, PostgreSQL does not close it. But if HikariCP tries to open a new connection at time twenty using the same token, Aurora will reject it.
+Most applications rely on a connection pool. That pool keeps database connections open and reuses them over time. This works well when authentication does not change. But with IAM database authentication, every new connection must be established using a valid authentication token.
 
-The fix has two parts. First, the token must be refreshed before it expires. The application needs a mechanism to generate a new token and use it when opening new connections. Second, the connection pool must be configured so that connections are evicted and reopened before the token they were opened with expires. Setting `maxLifetime` to something under fourteen minutes ensures that when HikariCP opens a replacement connection, it calls the token generation code again and gets a fresh token.
+An existing connection remains usable after it has been established. The expiration of the token does not affect connections that are already open. But the moment the pool needs to create a new connection, a valid token is required. If the token is no longer valid, the connection attempt fails.
 
-This is the critical insight. The token is not injected once at startup. It is generated dynamically, every time the pool opens a new connection. The pool's `maxLifetime` controls how often that happens. If `maxLifetime` is shorter than the token TTL, the pool will always be opening new connections with valid tokens.
+This is the shift in thinking. The token is not something that is provided once at application startup. It is something that must be generated whenever a new connection is established.
 
----
+That requirement directly affects how the application manages connections. The application must ensure that a current authentication token is used whenever a new connection is opened. At the same time, connections should be refreshed periodically so that new connections are established using valid tokens.
 
-## Code walkthrough – Token generation and injection
+This configuration ensures that connections are not reused indefinitely and that the pool regularly establishes new connections using a current authentication token.
 
-Let me show you how this works in practice for a Spring Boot service using HikariCP.
+There is one more constraint that becomes visible only under load. IAM database authentication is designed for controlled connection rates. Workloads that create a high number of new connections in a short period of time need to manage connection behavior carefully.
 
-The token generation uses the AWS SDK. The RDS utilities class provides a method that takes the hostname, port, region, and database username and returns a signed token string. This is a local operation. It does not make a network call to Aurora. It uses the credentials available in the environment, which come from the pod's IAM identity through IRSA or Pod Identity, to sign the token.
-
-```java
-public class IamAuthDataSourceConfig {
-
-    @Value("${spring.datasource.url}")
-    private String jdbcUrl;
-
-    @Value("${cloud.aws.region.static}")
-    private String region;
-
-    @Value("${spring.datasource.username}")
-    private String dbUsername;
-
-    @Bean
-    public DataSource dataSource() {
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(jdbcUrl);
-        config.setUsername(dbUsername);
-        config.setMaxLifetime(Duration.ofMinutes(13).toMillis());
-        config.setConnectionTimeout(Duration.ofSeconds(10).toMillis());
-        config.setPasswordProvider(this::generateAuthToken);
-        return new HikariDataSource(config);
-    }
-
-    private String generateAuthToken() {
-        RdsUtilities rdsUtilities = RdsUtilities.builder()
-                .region(Region.of(region))
-                .build();
-
-        GenerateAuthenticationTokenRequest request = GenerateAuthenticationTokenRequest.builder()
-                .hostname(extractHostname(jdbcUrl))
-                .port(extractPort(jdbcUrl))
-                .username(dbUsername)
-                .build();
-
-        return rdsUtilities.generateAuthenticationToken(request);
-    }
-}
-```
-
-The key detail here is `setPasswordProvider`. HikariCP calls this supplier every time it opens a new connection. Because `maxLifetime` is set to thirteen minutes, connections are evicted and reopened before the fifteen-minute token TTL is reached. Every new connection gets a freshly generated token. The pool never tries to open a connection with an expired token.
-
-The JDBC URL also needs SSL enabled. Aurora IAM auth requires an encrypted connection. The certificate authority bundle for RDS needs to be trusted by the JVM, either by importing it into the trust store or by pointing the JDBC driver at the bundle directly.
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}?ssl=true&sslmode=verify-full&sslrootcert=/etc/ssl/rds/rds-ca-bundle.pem
-    username: orders_app
-    hikari:
-      maximum-pool-size: 10
-      max-lifetime: 780000   # 13 minutes in milliseconds
-      connection-timeout: 10000
-```
-
-The `sslrootcert` path points to the RDS CA bundle, which is mounted into the pod as a ConfigMap volume. This ensures the connection is encrypted and the certificate is verified against the known Aurora CA.
-
----
-
-## Kubernetes identity binding – The ServiceAccount and role wiring
-
-Let me show you the Kubernetes side of the identity binding. This is what connects the pod to the IAM role.
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: acmecorp-orders
-  namespace: acmecorp
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/acmecorp-orders-role
-```
-
-The ServiceAccount annotation is the binding point for IRSA. When a pod uses this ServiceAccount, the IRSA webhook injects the projected token volume and the environment variables that the AWS SDK uses to exchange the token for temporary credentials.
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: orders
-  namespace: acmecorp
-spec:
-  template:
-    spec:
-      serviceAccountName: acmecorp-orders
-      volumes:
-        - name: rds-ca
-          configMap:
-            name: rds-ca-bundle
-      containers:
-        - name: orders
-          image: acmecorp/orders:latest
-          volumeMounts:
-            - name: rds-ca
-              mountPath: /etc/ssl/rds
-              readOnly: true
-          env:
-            - name: DB_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: aurora-endpoint
-                  key: host
-            - name: DB_NAME
-              value: orders
-            - name: CLOUD_AWS_REGION_STATIC
-              value: eu-west-1
-```
-
-Notice what is absent. There is no `DB_PASSWORD` environment variable. There is no secret reference for a database password. The pod has an identity, and that identity is what Aurora will authenticate. The password field in the connection string is generated at runtime from that identity.
-
-The IAM role itself needs two things. A trust policy that allows the EKS OIDC provider to assume it on behalf of the ServiceAccount, and an attached policy that grants `rds-db:connect`.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "rds-db:connect",
-      "Resource": "arn:aws:rds-db:eu-west-1:123456789012:dbuser:cluster-ABCDEFGHIJKLMNOP/orders_app"
-    }
-  ]
-}
-```
-
-The resource ARN in this policy is specific to the cluster identifier and the database username. The Orders service can connect as `orders_app`. It cannot connect as `billing_app`. IAM enforces the service boundary at the database layer.
-
----
-
-## Validation – Connectivity and failure modes
-
-Let me walk through how to validate that IAM auth is working, and what failure looks like when it is not.
-
-The first validation is confirming that the pod can generate a token at all. You can do this by exec-ing into the pod and running the AWS CLI directly.
-
-```bash
-aws rds generate-db-auth-token \
-  --hostname $DB_HOST \
-  --port 5432 \
-  --region eu-west-1 \
-  --username orders_app
-```
-
-If this returns a long signed token string, the pod's IAM identity is working and the `rds-db:connect` permission is in place. If it returns an access denied error, the IAM role binding is broken, either the ServiceAccount annotation is wrong, the trust policy does not match, or the permission is missing.
-
-The second validation is a direct connection test using the generated token as the password.
-
-```bash
-TOKEN=$(aws rds generate-db-auth-token \
-  --hostname $DB_HOST \
-  --port 5432 \
-  --region eu-west-1 \
-  --username orders_app)
-
-PGPASSWORD="$TOKEN" psql \
-  "host=$DB_HOST port=5432 dbname=orders user=orders_app \
-   sslmode=verify-full sslrootcert=/etc/ssl/rds/rds-ca-bundle.pem"
-```
-
-If this connects, the full chain is working. Aurora is accepting the token, the SSL certificate is valid, and the database user exists with IAM auth enabled.
-
-Now let me show you what failure looks like. The most common failure mode is an expired token. If you generate a token, wait sixteen minutes, and then try to connect, Aurora will reject it with a `PAM authentication failed` error. This is the error you will see in your application logs if `maxLifetime` is set too high and the pool tries to open a new connection with a stale token.
-
-```
-FATAL: PAM authentication failed for user "orders_app"
-```
-
-This error is distinct from a wrong password error. It means the token was syntactically valid but expired or the IAM policy was revoked. When you see this in production, the first thing to check is whether `maxLifetime` is configured correctly and whether the pod's IAM identity is still valid.
-
-The second failure mode is a pool exhaustion scenario during token refresh. If all connections in the pool expire at the same time, and token generation is slow because STS is under load, the pool can temporarily run out of connections. This is why `connectionTimeout` matters. Setting it to ten seconds gives the pool time to generate a new token and open a connection before the caller times out.
-
-The third failure mode is a missing or expired IRSA token. The projected ServiceAccount token that IRSA uses also has a TTL, but it is managed by Kubernetes and rotated automatically. If the pod cannot reach the OIDC endpoint to exchange the token, token generation will fail. This is a network-level failure, not an IAM failure, and it will surface as an STS connectivity error rather than an Aurora authentication error.
+In these scenarios, Amazon RDS Proxy provides a managed connection layer. It maintains database connections on behalf of the application and reduces the number of direct connection attempts. This allows applications to continue using IAM authentication while stabilizing connection management under load.
 
 ---
 
 ## Operational implications – What changes and what stays the same
 
-Adopting IAM auth changes the operational model in a few specific ways, and it is worth being explicit about what those changes are.
+Adopting IAM authentication changes the operational model in a few specific ways, and it is worth being explicit about what those changes are.
 
-Secret rotation disappears as a concern for database passwords. There are no database passwords for application users. The IAM policy is the access control mechanism, and revoking access means removing the IAM permission, not rotating a password and hoping every consumer has picked up the new value.
+Secret rotation largely disappears as a concern for application-level database access. Applications do not need to use database passwords when IAM database authentication is enabled. Access control is managed through IAM policies, and revoking access means removing IAM permissions rather than rotating credentials and ensuring that all consumers have updated their configuration.
 
-Audit improves. Every token generation is an IAM API call, and IAM API calls are logged in CloudTrail. You can see exactly which pod, with which identity, generated a token to connect to which database user, at what time. This is a level of audit detail that password-based auth cannot provide.
+Audit improves, but the picture is more nuanced than it might first appear. The call to AWS Security Token Service (STS) that provides temporary credentials is recorded in AWS CloudTrail, allowing you to see which AWS identity assumed which role and when. However, database connection events themselves are not recorded in CloudTrail. CloudTrail provides visibility into the identity plane, not database-level activity. For database-level audit logging, you need Aurora database activity streams or PostgreSQL's `pgaudit` extension. These mechanisms provide visibility into connections and executed statements, depending on the configured audit settings. A complete audit posture requires both layers.
 
-The connection pool configuration becomes a first-class concern. With password auth, you set up the pool once and forget it. With IAM auth, `maxLifetime` is a correctness constraint, not just a performance tuning knob. If it is wrong, connections fail. This needs to be documented, tested, and validated as part of the deployment process.
+The connection pool configuration becomes a first-class concern. With password-based authentication, connection pool settings are often treated primarily as performance tuning parameters. With IAM authentication, connection management also affects correctness. Each new connection must be established using a valid authentication token. If the pool attempts to open new connections using an expired token, those connection attempts can fail. This behavior needs to be understood, documented, and validated as part of the deployment process.
 
-Local development changes slightly. Developers running services locally cannot use IAM auth unless they have AWS credentials configured and the appropriate IAM permissions. The practical approach is to keep password auth available for local development through a Spring profile, and use IAM auth only in the deployed environments. The `application-local.yaml` profile uses a password. The `application-prod.yaml` profile uses the IAM auth data source configuration.
+Local development changes slightly. Developers running services locally cannot use IAM authentication unless they have AWS credentials configured and the appropriate IAM permissions. A common approach is to keep password-based authentication available for local development through a Spring profile, and to use IAM authentication only in deployed environments. The `application-local.yaml` profile uses a password, while the `application-prod.yaml` profile uses the IAM authentication data source configuration.
 
-The observability story stays the same. Prometheus still scrapes the services. Grafana still shows connection pool metrics. HikariCP exposes pool size, active connections, pending threads, and connection acquisition time as metrics. If token refresh is causing connection acquisition latency spikes, you will see it in the Grafana dashboard before it becomes a user-facing problem.
+The observability story stays largely the same. Prometheus continues to scrape the services, and Grafana continues to visualize connection pool metrics. HikariCP exposes metrics such as pool size, active connections, pending threads, and connection acquisition time. These metrics can help identify increases in connection acquisition latency related to authentication or connection management before they become user-visible issues.
 
 ---
 
 ## Closing – Identity over secrets
 
-We started this episode with a simple observation. Passwords do not scale operationally. They leak, they live too long, and rotation is a tax that teams defer.
+We started this episode with a simple observation. Passwords do not scale well operationally. They can be difficult to manage, they may be long-lived, and rotation introduces coordination overhead that teams often defer.
 
-IAM authentication for Aurora replaces the password with an identity. The pod proves who it is through its Kubernetes ServiceAccount, which is bound to an IAM role, which has a precisely scoped permission to connect as a specific database user. The token that results from this chain is valid for fifteen minutes and then it is gone. There is nothing to rotate, nothing to leak long-term, and nothing to copy.
+IAM authentication for Aurora replaces the need for database passwords with an identity-based model. The pod uses an AWS identity associated with its Kubernetes ServiceAccount, which is linked to an IAM role. That role is granted permissions to connect to the database as a specific database user. The authentication token generated from this identity is valid for a limited time. It must be generated before establishing a new connection and is not reused indefinitely.
 
-But adopting IAM auth is not just a configuration change. It requires understanding the token TTL and its implications for connection pooling. It requires configuring `maxLifetime` correctly. It requires validating the full identity chain before deploying to production. And it requires knowing what failure looks like so you can diagnose it quickly when it happens.
+Adopting IAM authentication is not just a configuration change. It requires understanding the token validity period and its implications for connection management. Each new connection must be established using a valid token. Connection pool settings therefore influence not only performance, but also correctness. This requires validating the full identity and connectivity flow before deploying to production, and understanding how authentication-related failures manifest at runtime.
 
-The pattern we followed in this episode is the same pattern we have followed throughout this series. Understand the constraint first. Then design the implementation around it. The fifteen-minute TTL is not a limitation to work around. It is a property of the system that shapes how you configure the pool, how you structure the data source bean, and how you validate the deployment.
+The pattern we followed in this episode is the same pattern we have used throughout this series. Understand the constraint first, and then design the implementation around it. The limited validity period of the authentication token is not a limitation to work around. It is a property of the system that shapes how connections are managed, how the data source is configured, and how deployments are validated.
 
-Identity-based authentication is one part of a broader principle. In a well-operated system, access is granted through identity, scoped precisely, and auditable by default. IAM auth for Aurora is that principle applied to the database layer.
+Identity-based authentication is part of a broader principle. In a well-operated system, access is granted through identity, scoped through policy, and supported by audit mechanisms. IAM authentication for Aurora applies this principle to the database layer.
