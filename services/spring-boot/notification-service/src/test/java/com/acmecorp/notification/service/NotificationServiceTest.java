@@ -3,8 +3,10 @@ package com.acmecorp.notification.service;
 import com.acmecorp.notification.client.AnalyticsClient;
 import com.acmecorp.notification.config.RabbitConfig;
 import com.acmecorp.notification.domain.Notification;
+import com.acmecorp.notification.domain.NotificationDeduplication;
 import com.acmecorp.notification.domain.NotificationStatus;
 import com.acmecorp.notification.domain.NotificationType;
+import com.acmecorp.notification.repository.NotificationDeduplicationRepository;
 import com.acmecorp.notification.repository.NotificationRepository;
 import com.acmecorp.notification.web.NotificationRequest;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,9 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Mock
+    private NotificationDeduplicationRepository deduplicationRepository;
 
     @Mock
     private RabbitTemplate rabbitTemplate;
@@ -67,6 +72,9 @@ class NotificationServiceTest {
             field.set(n, 10L);
             return n;
         }).thenReturn(persisted);
+        when(deduplicationRepository.existsByMessageFingerprint(anyString())).thenReturn(false);
+        when(deduplicationRepository.save(any(NotificationDeduplication.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
 
         notificationService.handleMessage(Map.of(
                 "recipient", "persist@acme.test",
@@ -75,6 +83,7 @@ class NotificationServiceTest {
         ));
 
         verify(notificationRepository, times(2)).save(any(Notification.class));
+        verify(deduplicationRepository).save(any(NotificationDeduplication.class));
         verify(analyticsClient).track(eq("notification.sent"), anyMap());
     }
 
