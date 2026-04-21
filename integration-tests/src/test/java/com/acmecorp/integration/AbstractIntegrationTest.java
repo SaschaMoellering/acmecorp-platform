@@ -23,6 +23,7 @@ public abstract class AbstractIntegrationTest {
 
     protected static String gatewayBase;
     protected static String gatewayApiBase;
+    protected static String ordersBase;
     private static final Set<String> EXPECTED_SERVICES = Set.of(
             "orders",
             "billing",
@@ -35,10 +36,11 @@ public abstract class AbstractIntegrationTest {
     static void setupBase() {
         gatewayBase = resolveBaseUrl();
         gatewayApiBase = gatewayBase + "/api/gateway";
+        ordersBase = resolveOrdersBaseUrl();
         RestAssured.baseURI = gatewayBase;
 
-        waitForServiceHealth("gateway-service", gatewayBase + "/actuator/health");
         waitForGatewaySystemStatus();
+        seedDemoData();
     }
 
     private static void waitForServiceHealth(String serviceName, String url) {
@@ -83,10 +85,27 @@ public abstract class AbstractIntegrationTest {
     private static String resolveBaseUrl() {
         String base = System.getProperty("acmecorp.baseUrl");
         if (base == null || base.isBlank()) {
+            base = System.getenv("GATEWAY_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
             base = System.getenv("ACMECORP_BASE_URL");
         }
         if (base == null || base.isBlank()) {
             base = "http://localhost:8080";
+        }
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    private static String resolveOrdersBaseUrl() {
+        String base = System.getProperty("acmecorp.ordersBaseUrl");
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ORDERS_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = System.getenv("ACMECORP_ORDERS_BASE_URL");
+        }
+        if (base == null || base.isBlank()) {
+            base = "http://localhost:8081";
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
@@ -145,13 +164,7 @@ public abstract class AbstractIntegrationTest {
                     .atMost(Duration.ofSeconds(120))
                     .pollInterval(Duration.ofSeconds(2))
                     .until(() -> {
-                        List<Map<String, Object>> statuses = given()
-                                .when()
-                                .get(url)
-                                .then()
-                                .statusCode(200)
-                                .extract()
-                                .as(new TypeRef<List<Map<String, Object>>>() {});
+                        List<Map<String, Object>> statuses = fetchSystemStatus(url);
 
                         if (statuses == null || statuses.isEmpty()) {
                             return false;
@@ -164,14 +177,83 @@ public abstract class AbstractIntegrationTest {
                             if (service != null) {
                                 seen.add(service.toString());
                             }
-                            if (health == null || !"UP".equalsIgnoreCase(health.toString())) {
+                            if (health == null || !isHealthyState(health.toString())) {
                                 return false;
                             }
                         }
                         return seen.containsAll(EXPECTED_SERVICES);
                     });
         } catch (ConditionTimeoutException ex) {
-            throw new IllegalStateException("Timed out waiting for gateway system status at " + url, ex);
+            String statusBody = safeBody(given().when().get(url));
+            throw new IllegalStateException("Timed out waiting for gateway system status at " + url
+                    + "; last response=" + statusBody, ex);
+        }
+    }
+
+    private static void seedDemoData() {
+        var response = given()
+                .when()
+                .post(gatewayApiBase + "/seed");
+        assertStatus(response, 200, "POST " + gatewayApiBase + "/seed");
+    }
+
+    protected static List<Map<String, Object>> fetchSystemStatus(String url) {
+        return given()
+                .when()
+                .get(url)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<List<Map<String, Object>>>() {});
+    }
+
+    protected static boolean isHealthyState(String status) {
+        if (status == null) {
+            return false;
+        }
+        String normalized = status.trim().toUpperCase();
+        return "UP".equals(normalized) || "READY".equals(normalized);
+    }
+
+    protected static void assertStatus(io.restassured.response.Response response, int expected, String endpoint) {
+        int actual = response.getStatusCode();
+        if (actual != expected) {
+            String body = safeBody(response);
+            String systemStatus = fetchSystemStatusRaw();
+            String message = "Request failed: " + endpoint
+                    + " status=" + actual
+                    + " body=" + body
+                    + " systemStatus=" + systemStatus
+                    + " urls=" + serviceUrls();
+            throw new AssertionError(message);
+        }
+    }
+
+    protected static String fetchSystemStatusRaw() {
+        try {
+            return safeBody(given().when().get(gatewayApiBase + "/system/status"));
+        } catch (Exception ex) {
+            return "unavailable (" + ex.getMessage() + ")";
+        }
+    }
+
+    protected static Map<String, String> serviceUrls() {
+        return Map.of(
+                "gateway", gatewayBase,
+                "orders", ordersBase,
+                "gatewayApi", gatewayApiBase
+        );
+    }
+
+    protected static String safeBody(io.restassured.response.Response response) {
+        if (response == null) {
+            return "<no response>";
+        }
+        try {
+            String body = response.getBody() != null ? response.getBody().asString() : null;
+            return body == null ? "<empty>" : body;
+        } catch (Exception ex) {
+            return "<unreadable body>";
         }
     }
 

@@ -3,17 +3,23 @@ package com.acmecorp.orders.service;
 import com.acmecorp.orders.client.AnalyticsClient;
 import com.acmecorp.orders.client.BillingClient;
 import com.acmecorp.orders.client.CatalogClient;
+import com.acmecorp.orders.domain.OrderIdempotency;
 import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
+import com.acmecorp.orders.domain.OrderStatusHistory;
 import com.acmecorp.orders.messaging.NotificationPublisher;
+import com.acmecorp.orders.repository.OrderIdempotencyRepository;
 import com.acmecorp.orders.repository.OrderRepository;
+import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import com.acmecorp.orders.web.OrderRequest;
 import com.acmecorp.orders.web.OrderResponse;
+import com.acmecorp.orders.web.OrderStatusHistoryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +28,15 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.Year;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,19 +47,30 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    private static final int DEFAULT_SEED_ORDER_COUNT = 1000;
+    private static final int MIN_SEED_ITEMS_PER_ORDER = 5;
+    private static final int MAX_SEED_ITEMS_PER_ORDER = 30;
+    private static final long SEED_RANDOM_SEED = 20240205L;
+    private static final String SEED_ORDER_PREFIX = "ORD-SEED-";
 
     private final OrderRepository orderRepository;
+    private final OrderIdempotencyRepository idempotencyRepository;
+    private final OrderStatusHistoryRepository historyRepository;
     private final CatalogClient catalogClient;
     private final BillingClient billingClient;
     private final AnalyticsClient analyticsClient;
     private final NotificationPublisher notificationPublisher;
 
     public OrderService(OrderRepository orderRepository,
+                        OrderIdempotencyRepository idempotencyRepository,
+                        OrderStatusHistoryRepository historyRepository,
                         CatalogClient catalogClient,
                         BillingClient billingClient,
                         AnalyticsClient analyticsClient,
                         NotificationPublisher notificationPublisher) {
         this.orderRepository = orderRepository;
+        this.idempotencyRepository = idempotencyRepository;
+        this.historyRepository = historyRepository;
         this.catalogClient = catalogClient;
         this.billingClient = billingClient;
         this.analyticsClient = analyticsClient;
@@ -58,9 +78,24 @@ public class OrderService {
     }
 
     @Transactional
-    public Order createOrder(OrderRequest request) {
+    public Order createOrder(OrderRequest request, String idempotencyKey) {
         if (request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(BAD_REQUEST, "Order must contain at least one item");
+        }
+
+        String requestHash = requestHash(request);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            var existing = idempotencyRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                OrderIdempotency record = existing.get();
+                if (!record.getRequestHash().equals(requestHash)) {
+                    throw new ResponseStatusException(
+                            org.springframework.http.HttpStatus.CONFLICT,
+                            "Idempotency-Key reuse with different request"
+                    );
+                }
+                return getOrder(record.getOrder().getId());
+            }
         }
 
         Order order = new Order();
@@ -73,8 +108,22 @@ public class OrderService {
         applyItems(order, request.items());
 
         Order saved = orderRepository.save(order);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            OrderIdempotency record = new OrderIdempotency();
+            record.setIdempotencyKey(idempotencyKey);
+            record.setRequestHash(requestHash);
+            record.setOrder(saved);
+            record.setCreatedAt(Instant.now());
+            idempotencyRepository.save(record);
+        }
+        recordStatusChange(saved, null, saved.getStatus(), "created");
         analyticsClient.track("orders.created", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
+    }
+
+    @Transactional
+    public Order createOrder(OrderRequest request) {
+        return createOrder(request, null);
     }
 
     @Transactional(readOnly = true)
@@ -92,7 +141,10 @@ public class OrderService {
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
+        Page<Order> ordersPage = orderRepository.findAll(
+                spec,
+                PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
+        );
         preloadItems(ordersPage.getContent());
         return ordersPage;
     }
@@ -122,9 +174,11 @@ public class OrderService {
             if (order.getStatus() != OrderStatus.NEW) {
                 throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be confirmed");
             }
+            OrderStatus oldStatus = order.getStatus();
             order.setStatus(OrderStatus.CONFIRMED);
             order.setUpdatedAt(Instant.now());
             Order saved = orderRepository.save(order);
+            recordStatusChange(saved, oldStatus, saved.getStatus(), "confirmed");
 
             billingClient.createInvoice(saved);
             analyticsClient.track("orders.confirmed", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
@@ -145,9 +199,11 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.NEW) {
             throw new ResponseStatusException(BAD_REQUEST, "Only NEW orders can be cancelled");
         }
+        OrderStatus oldStatus = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         order.setUpdatedAt(Instant.now());
         Order saved = orderRepository.save(order);
+        recordStatusChange(saved, oldStatus, saved.getStatus(), "cancelled");
         analyticsClient.track("orders.cancelled", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
     }
@@ -168,6 +224,7 @@ public class OrderService {
     @Transactional
     public Order updateOrder(Long id, OrderRequest request) {
         Order order = getOrder(id);
+        OrderStatus oldStatus = order.getStatus();
 
         if (request.customerEmail() != null) {
             order.setCustomerEmail(request.customerEmail());
@@ -186,6 +243,9 @@ public class OrderService {
         }
 
         Order saved = orderRepository.save(order);
+        if (request.status() != null && oldStatus != saved.getStatus()) {
+            recordStatusChange(saved, oldStatus, saved.getStatus(), "updated");
+        }
         analyticsClient.track("orders.updated", Map.of("orderId", saved.getId(), "orderNumber", saved.getOrderNumber()));
         return saved;
     }
@@ -193,15 +253,44 @@ public class OrderService {
     @Transactional
     public void deleteOrder(Long id) {
         Order order = getOrder(id);
+        historyRepository.deleteByOrderId(id);
+        idempotencyRepository.deleteByOrderId(id);
         orderRepository.delete(order);
+        orderRepository.flush();
         analyticsClient.track("orders.deleted", Map.of("orderId", order.getId(), "orderNumber", order.getOrderNumber()));
     }
 
-    @Transactional
-    public List<OrderResponse> seedDemoData(List<OrderRequest> requests) {
-        orderRepository.deleteAll();
+    @Transactional(readOnly = true)
+    public List<OrderStatusHistoryResponse> history(Long orderId) {
+        getOrder(orderId);
+        return historyRepository.findByOrderIdOrderByChangedAtAsc(orderId)
+                .stream()
+                .map(OrderStatusHistoryResponse::from)
+                .toList();
+    }
 
-        List<OrderRequest> seeds = (requests == null || requests.isEmpty()) ? defaultSeeds() : requests;
+    @Transactional
+    public List<OrderResponse> seedDemoData() {
+        return seedDemoData(DEFAULT_SEED_ORDER_COUNT);
+    }
+
+    @Transactional
+    public List<OrderResponse> seedDemoData(int orderCount) {
+        if (orderCount <= 0) {
+            throw new IllegalArgumentException("orderCount must be greater than 0");
+        }
+        List<Order> existing = orderRepository.findByOrderNumberStartingWith(SEED_ORDER_PREFIX);
+        if (!existing.isEmpty()) {
+            List<Long> ids = existing.stream().map(Order::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            if (!ids.isEmpty()) {
+                historyRepository.deleteByOrderIdIn(ids);
+                idempotencyRepository.deleteByOrderIdIn(ids);
+            }
+            orderRepository.deleteAll(existing);
+            orderRepository.flush();
+        }
+
+        List<SeedOrderSpec> seeds = defaultSeedSpecs(orderCount);
         return seeds.stream()
                 .map(this::createSeedOrder)
                 .map(OrderResponse::from)
@@ -263,37 +352,61 @@ public class OrderService {
         order.setTotalAmount(total);
     }
 
-    private Order createSeedOrder(OrderRequest request) {
+    private Order createSeedOrder(SeedOrderSpec spec) {
         Order order = new Order();
-        order.setOrderNumber(generateOrderNumber());
-        order.setCustomerEmail(request.customerEmail());
-        order.setStatus(Optional.ofNullable(request.status()).orElse(OrderStatus.NEW));
-        order.setCreatedAt(Instant.now());
-        order.setUpdatedAt(order.getCreatedAt());
+        order.setOrderNumber(spec.orderNumber());
+        order.setCustomerEmail(spec.customerEmail());
+        order.setStatus(OrderStatus.NEW);
+        order.setCreatedAt(spec.createdAt());
+        order.setUpdatedAt(spec.createdAt());
 
         BigDecimal total = BigDecimal.ZERO;
-        for (OrderRequest.Item itemRequest : request.items()) {
+        for (SeedOrderItemSpec specItem : spec.items()) {
             OrderItem item = new OrderItem();
-            item.setProductId(itemRequest.productId());
-            item.setProductName(itemRequest.productId());
-            item.setUnitPrice(BigDecimal.TEN);
-            item.setQuantity(itemRequest.quantity());
-            item.setLineTotal(BigDecimal.TEN.multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            item.setProductId(specItem.productId());
+            item.setProductName(specItem.productName());
+            item.setUnitPrice(specItem.unitPrice());
+            item.setQuantity(specItem.quantity());
+            item.setLineTotal(specItem.lineTotal());
             order.addItem(item);
-            total = total.add(item.getLineTotal());
+            total = total.add(specItem.lineTotal());
         }
 
         order.setCurrency("USD");
         order.setTotalAmount(total);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        recordStatusChangeAt(saved, null, saved.getStatus(), "seeded", spec.createdAt());
+        return saved;
     }
 
-    private List<OrderRequest> defaultSeeds() {
-        return List.of(
-                new OrderRequest("seed+1@acme.test", List.of(new OrderRequest.Item("SKU-1", 1)), OrderStatus.NEW),
-                new OrderRequest("seed+2@acme.test", List.of(new OrderRequest.Item("SKU-2", 2)), OrderStatus.CONFIRMED),
-                new OrderRequest("seed+3@acme.test", List.of(new OrderRequest.Item("SKU-3", 1)), OrderStatus.CANCELLED)
-        );
+    private List<SeedOrderSpec> defaultSeedSpecs(int orderCount) {
+        Instant base = Instant.parse("2024-01-01T00:00:00Z");
+        Random random = new Random(SEED_RANDOM_SEED);
+        List<SeedOrderSpec> specs = new java.util.ArrayList<>();
+
+        for (int i = 1; i <= orderCount; i++) {
+            int itemCount = MIN_SEED_ITEMS_PER_ORDER
+                    + random.nextInt((MAX_SEED_ITEMS_PER_ORDER - MIN_SEED_ITEMS_PER_ORDER) + 1);
+            List<SeedOrderItemSpec> items = new java.util.ArrayList<>(itemCount);
+            for (int j = 1; j <= itemCount; j++) {
+                BigDecimal unitPrice = BigDecimal.valueOf(4L + i + (j * 2L));
+                int quantity = 1 + ((i + j) % 5);
+                items.add(new SeedOrderItemSpec(
+                        String.format("SEED-PROD-%05d-%02d", i, j),
+                        String.format("Product-%05d-%02d", i, j),
+                        unitPrice,
+                        quantity
+                ));
+            }
+            specs.add(new SeedOrderSpec(
+                    String.format(SEED_ORDER_PREFIX + "%05d", i),
+                    String.format("seed+%d@acme.test", i),
+                    items,
+                    base.plusSeconds(i * 60L)
+            ));
+        }
+
+        return specs;
     }
 
     private void preloadItems(List<Order> orders) {
@@ -319,5 +432,121 @@ public class OrderService {
                     return prefix + String.format("%05d", next);
                 })
                 .orElse(prefix + "00001");
+    }
+
+    private String requestHash(OrderRequest request) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(Objects.toString(request.customerEmail(), ""));
+        builder.append('|');
+        builder.append(request.status() != null ? request.status().name() : "");
+        builder.append('|');
+        if (request.items() != null) {
+            request.items().stream()
+                    .sorted(Comparator.comparing(OrderRequest.Item::productId)
+                            .thenComparingInt(OrderRequest.Item::quantity))
+                    .forEach(item -> builder.append(item.productId()).append(':').append(item.quantity()).append(';'));
+        }
+        return sha256(builder.toString());
+    }
+
+    private String sha256(String input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to compute request hash", ex);
+        }
+    }
+
+    private void recordStatusChange(Order order, OrderStatus oldStatus, OrderStatus newStatus, String reason) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setOldStatus(oldStatus);
+        history.setNewStatus(newStatus);
+        history.setReason(reason);
+        history.setChangedAt(Instant.now());
+        historyRepository.save(history);
+    }
+
+    private void recordStatusChangeAt(Order order, OrderStatus oldStatus, OrderStatus newStatus, String reason, Instant changedAt) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order);
+        history.setOldStatus(oldStatus);
+        history.setNewStatus(newStatus);
+        history.setReason(reason);
+        history.setChangedAt(changedAt);
+        historyRepository.save(history);
+    }
+
+    private static final class SeedOrderSpec {
+        private final String orderNumber;
+        private final String customerEmail;
+        private final List<SeedOrderItemSpec> items;
+        private final Instant createdAt;
+
+        private SeedOrderSpec(String orderNumber,
+                              String customerEmail,
+                              List<SeedOrderItemSpec> items,
+                              Instant createdAt) {
+            this.orderNumber = orderNumber;
+            this.customerEmail = customerEmail;
+            this.items = List.copyOf(items);
+            this.createdAt = createdAt;
+        }
+
+        private String orderNumber() {
+            return orderNumber;
+        }
+
+        private String customerEmail() {
+            return customerEmail;
+        }
+
+        private List<SeedOrderItemSpec> items() {
+            return items;
+        }
+
+        private Instant createdAt() {
+            return createdAt;
+        }
+    }
+
+    private static final class SeedOrderItemSpec {
+        private final String productId;
+        private final String productName;
+        private final BigDecimal unitPrice;
+        private final int quantity;
+
+        private SeedOrderItemSpec(String productId, String productName, BigDecimal unitPrice, int quantity) {
+            this.productId = productId;
+            this.productName = productName;
+            this.unitPrice = unitPrice;
+            this.quantity = quantity;
+        }
+
+        private String productId() {
+            return productId;
+        }
+
+        private String productName() {
+            return productName;
+        }
+
+        private BigDecimal unitPrice() {
+            return unitPrice;
+        }
+
+        private int quantity() {
+            return quantity;
+        }
+
+        private BigDecimal lineTotal() {
+            return unitPrice.multiply(BigDecimal.valueOf(quantity));
+        }
     }
 }
