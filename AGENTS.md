@@ -154,3 +154,83 @@ If in doubt:
 - choose the smallest safe change
 - validate with the closest existing test or script
 - document what you changed and what you did not verify
+
+## Cross-Branch Porting Rules
+
+This repository uses long-lived Java version branches (e.g. java17, java21, java25).
+The main branch is the source of truth for functional behavior.
+
+When porting changes between branches, agents must follow these rules:
+
+### General Principles
+
+- Do NOT perform blind merges from main into version branches.
+- Always treat porting as an adaptation task, not a merge operation.
+- Prefer minimal, reviewable diffs.
+- Preserve the intent of the original change, not necessarily the exact implementation.
+
+### What Must Be Preserved
+
+The target branch defines its own runtime characteristics. Never overwrite:
+
+- Java version and toolchain configuration
+- Maven/Gradle compiler targets and plugin versions
+- Docker base images and JVM flags
+- Framework versions (Spring Boot, Quarkus, etc.)
+- CI/CD pipeline assumptions
+- Benchmark harness behavior and configuration
+
+### What Should Be Ported
+
+- Business logic changes
+- Bug fixes
+- Test improvements (if compatible)
+- Documentation updates
+- Non-runtime-specific refactorings
+
+### What Requires Adaptation
+
+The following areas often require branch-specific adjustments:
+
+- Build files (Maven/Gradle)
+- Dependency versions
+- Dockerfiles
+- JVM flags and runtime tuning
+- Framework-specific APIs
+- Observability wiring if it differs between branches
+
+Agents must adapt changes instead of forcing incompatible implementations.
+
+### What Should NOT Be Ported Automatically
+
+Unless explicitly requested:
+
+- Java version upgrades or language feature changes
+- Framework major version upgrades
+- Benchmark methodology changes
+- Branch-specific performance optimizations
+- Experimental or preview feature usage
+
+### Workflow Expectations
+
+For every porting task:
+
+1. Identify the sync base between branches.
+2. Determine relevant changes from the source branch.
+3. Apply only necessary changes to the target branch.
+4. Preserve branch-specific configuration and behavior.
+5. Run the closest available verification (build, tests, scripts).
+6. Provide a clear summary of:
+   - what was ported
+   - what was adapted
+   - what could not be ported
+   - any required follow-up
+
+### Definition of Done
+
+A port is considered complete only if:
+
+- The build passes
+- Relevant tests pass (or limitations are explicitly stated)
+- Branch-specific configuration remains intact
+- Changes are minimal and suitable for pull request review
