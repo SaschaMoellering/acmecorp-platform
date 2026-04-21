@@ -126,6 +126,9 @@ function Orders() {
     }
     setCreating(true);
     try {
+      if (!createKeyRef.current && globalThis.crypto?.randomUUID) {
+        createKeyRef.current = globalThis.crypto.randomUUID();
+      }
       await createOrder({
         customerEmail: createForm.customerEmail.trim(),
         status: createForm.status,

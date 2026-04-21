@@ -17,6 +17,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findTopByOrderNumberStartingWithOrderByOrderNumberDesc(String prefix);
     List<Order> findByOrderNumberIn(List<String> orderNumbers);
+    List<Order> findByOrderNumberStartingWith(String prefix);
 
     @Query("""
         select distinct o

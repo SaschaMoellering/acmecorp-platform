@@ -94,7 +94,7 @@ class OrdersControllerTest {
         order.setCurrency("USD");
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
-        Mockito.when(orderService.createOrder(Mockito.any())).thenReturn(order);
+        Mockito.when(orderService.createOrder(Mockito.any(), Mockito.nullable(String.class))).thenReturn(order);
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -235,6 +235,7 @@ class OrdersControllerTest {
                 new BigDecimal("29.00"), "USD", Instant.now(), Instant.now(), List.of()
         );
         Mockito.when(orderService.seedDemoData()).thenReturn(List.of(seed1, seed2, seed3));
+
         mockMvc.perform(post("/api/orders/seed"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seeded").value(true))

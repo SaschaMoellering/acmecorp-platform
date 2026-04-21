@@ -7,7 +7,9 @@ import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.messaging.NotificationPublisher;
+import com.acmecorp.orders.repository.OrderIdempotencyRepository;
 import com.acmecorp.orders.repository.OrderRepository;
+import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
@@ -45,6 +47,12 @@ class OrderServiceQueryCountTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
+    @Autowired
+    private OrderIdempotencyRepository idempotencyRepository;
+
+    @Autowired
     private EntityManagerFactory emf;
 
     @Autowired
@@ -72,6 +80,8 @@ class OrderServiceQueryCountTest {
         var sessionFactory = emf.unwrap(SessionFactory.class);
         statistics = sessionFactory.getStatistics();
         statistics.setStatisticsEnabled(true);
+        historyRepository.deleteAll();
+        idempotencyRepository.deleteAll();
         orderRepository.deleteAll();
     }
 
