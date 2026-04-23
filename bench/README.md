@@ -35,3 +35,18 @@ bash bench/run-matrix.sh
 ```
 
 Runs through the Java branches (`java11`, `java17`, `java21`, `main`, `java25`), capturing startup time, RSS, latency p50/p95/p99, and throughput. Matrix-wide results appear under `bench/results/<timestamp>/matrix-summary.md`.
+
+For the branch-to-branch Java 21 vs Java 25 comparison only, use the dedicated wrapper:
+
+```bash
+RUNS_PER_BRANCH=5 WARMUP=60 DURATION=120 CONCURRENCY=25 bash bench/run-java21-vs-java25.sh
+```
+
+That script:
+
+- benchmarks only `java21` and `java25`
+- uses separate git worktrees under `/tmp/`
+- runs `docker compose down -v --remove-orphans` before each run
+- reuses `bench/run-matrix.sh` inside each branch worktree
+- copies timestamped results back into `bench/results/<branch>/`
+- writes a small campaign summary to `bench/results/<timestamp>--java21-vs-java25/comparison-summary.md`
