@@ -1,6 +1,0 @@
-/tmp/acmecorp-java21-vs-java25-20260423T183159Z/java21/bench/loadtest.sh: line 15: [[: 15s: value too great for base (error token is "15s")
-Running wrk load test against http://localhost:8080/api/gateway/orders (method=GET, warmup=10ss, duration=15ss, concurrency=10)...
-/tmp/acmecorp-java21-vs-java25-20260423T183159Z/java21/bench/loadtest.sh: line 96: [[: 10s: value too great for base (error token is "10s")
-Traceback (most recent call last):
-  File "<stdin>", line 6, in <module>
-ValueError: invalid literal for int() with base 10: '15s'
