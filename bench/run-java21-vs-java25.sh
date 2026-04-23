@@ -22,10 +22,26 @@ for cmd in git docker python3; do
   fi
 done
 
+normalize_seconds() {
+  local name="$1"
+  local value="$2"
+
+  if [[ "$value" =~ ^([1-9][0-9]*|0)s?$ ]]; then
+    printf '%s\n' "${value%s}"
+    return 0
+  fi
+
+  echo "$name must be an integer number of seconds, optionally suffixed with 's'" >&2
+  exit 1
+}
+
 if ! [[ "$RUNS_PER_BRANCH" =~ ^[1-9][0-9]*$ ]]; then
   echo "RUNS_PER_BRANCH must be a positive integer" >&2
   exit 1
 fi
+
+WARMUP="$(normalize_seconds WARMUP "$WARMUP")"
+DURATION="$(normalize_seconds DURATION "$DURATION")"
 
 cd "$ROOT_DIR"
 
@@ -99,16 +115,27 @@ done
 
 comparison_file="$CAMPAIGN_DIR/comparison-summary.md"
 
-python3 - <<PY > "$comparison_file"
+RUN_MANIFEST="$run_manifest" \
+START_UTC="$START_UTC" \
+RUNS_PER_BRANCH="$RUNS_PER_BRANCH" \
+WARMUP="$WARMUP" \
+DURATION="$DURATION" \
+CONCURRENCY="$CONCURRENCY" \
+ROOT_DIR="$ROOT_DIR" \
+python3 - <<'PY' > "$comparison_file"
+import json
+import os
 import pathlib
 import re
 
 entries = []
-for raw in pathlib.Path(${run_manifest@Q}).read_text(encoding="utf-8").splitlines():
+for raw in pathlib.Path(os.environ["RUN_MANIFEST"]).read_text(encoding="utf-8").splitlines():
     if raw.strip():
         entries.append(tuple(raw.split("|", 1)))
 
 def parse_summary(path: pathlib.Path):
+    if not path.exists():
+        return None
     text = path.read_text(encoding="utf-8")
     startup = re.search(r"^- Startup: ([0-9]+(?:\\.[0-9]+)?)s$", text, re.M)
     load = re.search(r"^- Load: (.+)$", text, re.M)
@@ -119,24 +146,45 @@ def parse_summary(path: pathlib.Path):
         "memory": memory.group(1) if memory else "na",
     }
 
+def parse_summary_json(path: pathlib.Path):
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    startup_seconds = data.get("startup_time_seconds")
+    startup = f"{startup_seconds}s" if startup_seconds is not None else "na"
+    return {
+        "startup": startup,
+        "load": "na",
+        "memory": "na",
+    }
+
+def load_run_summary(run_dir: pathlib.Path):
+    return (
+        parse_summary(run_dir / "summary.md")
+        or parse_summary_json(run_dir / "summary.json")
+        or {"startup": "na", "load": "na", "memory": "na"}
+    )
+
 lines = [
-    f"# Java 21 vs Java 25 benchmark campaign ({pathlib.Path(${START_UTC@Q}).name})",
+    f"# Java 21 vs Java 25 benchmark campaign ({os.environ['START_UTC']})",
     "",
-    f"- Runs per branch: ${RUNS_PER_BRANCH}",
-    f"- Warmup: ${WARMUP}s",
-    f"- Duration: ${DURATION}s",
-    f"- Concurrency: ${CONCURRENCY}",
+    f"- Runs per branch: {os.environ['RUNS_PER_BRANCH']}",
+    f"- Warmup: {os.environ['WARMUP']}s",
+    f"- Duration: {os.environ['DURATION']}s",
+    f"- Concurrency: {os.environ['CONCURRENCY']}",
     f"- Branches: java21, java25",
     "",
     "| Branch | Run Dir | Startup | Load | Memory |",
     "| --- | --- | --- | --- | --- |",
 ]
 
+root_dir = pathlib.Path(os.environ["ROOT_DIR"])
+
 for branch, run_dir_str in entries:
     run_dir = pathlib.Path(run_dir_str)
-    summary = parse_summary(run_dir / "summary.md")
+    summary = load_run_summary(run_dir)
     lines.append(
-        f"| {branch} | `{run_dir.relative_to(pathlib.Path(${ROOT_DIR@Q}))}` | "
+        f"| {branch} | `{run_dir.relative_to(root_dir)}` | "
         f"{summary['startup']} | {summary['load']} | {summary['memory']} |"
     )
 
