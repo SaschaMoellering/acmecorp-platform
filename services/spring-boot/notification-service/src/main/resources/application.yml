@@ -36,16 +36,17 @@ management:
     health:
       probes:
         enabled: true
+      show-details: always
 
 acmecorp:
+  messaging:
+    notification:
+      retry:
+        max-attempts: ${NOTIFICATION_RETRY_MAX_ATTEMPTS:3}
+        initial-interval: ${NOTIFICATION_RETRY_INITIAL_INTERVAL:1000}
+        multiplier: ${NOTIFICATION_RETRY_MULTIPLIER:2.0}
+        max-interval: ${NOTIFICATION_RETRY_MAX_INTERVAL:5000}
+      demo:
+        fail-on-recipient: ${NOTIFICATION_FAIL_ON_RECIPIENT:}
   services:
     analytics: http://analytics-service:8084
-
----
-spring:
-  config:
-    activate:
-      on-profile: docker
-acmecorp:
-  services:
-    analytics: http://analytics-service:8080

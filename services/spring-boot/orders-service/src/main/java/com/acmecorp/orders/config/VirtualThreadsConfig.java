@@ -2,8 +2,7 @@ package com.acmecorp.orders.config;
 
 import org.apache.coyote.ProtocolHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.tomcat.servlet.TomcatServletWebServerFactory;
-import org.springframework.boot.web.server.WebServerFactoryCustomizer;
+import org.springframework.boot.tomcat.TomcatProtocolHandlerCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -24,12 +23,9 @@ public class VirtualThreadsConfig implements AsyncConfigurer {
     }
 
     @Bean
-    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> virtualThreadTomcatCustomizer(
+    public TomcatProtocolHandlerCustomizer<ProtocolHandler> virtualThreadTomcatCustomizer(
             ExecutorService virtualThreadExecutor) {
-
-        return factory -> factory.addProtocolHandlerCustomizers((ProtocolHandler protocolHandler) ->
-                protocolHandler.setExecutor(virtualThreadExecutor)
-        );
+        return protocolHandler -> protocolHandler.setExecutor(virtualThreadExecutor);
     }
 
     @Override
