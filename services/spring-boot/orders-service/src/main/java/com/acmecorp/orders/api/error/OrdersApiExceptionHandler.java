@@ -2,6 +2,7 @@ package com.acmecorp.orders.api.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -59,6 +60,15 @@ public class OrdersApiExceptionHandler {
         String message = Optional.ofNullable(ex.getReason()).orElse(resolved.getReasonPhrase());
         String errorCode = mapStatusToError(resolved);
         return buildResponse(request, resolved, errorCode, message, null);
+    }
+
+    @ExceptionHandler({DataIntegrityViolationException.class, org.hibernate.exception.ConstraintViolationException.class})
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(Exception ex, HttpServletRequest request) {
+        String message = "Request violates data integrity constraints";
+        if ("DELETE".equalsIgnoreCase(request.getMethod()) && request.getRequestURI().contains("/api/orders/")) {
+            message = "Order cannot be deleted because dependent records exist";
+        }
+        return buildResponse(request, HttpStatus.CONFLICT, "CONFLICT", message, null);
     }
 
     @ExceptionHandler(Exception.class)

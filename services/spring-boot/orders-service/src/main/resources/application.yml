@@ -19,9 +19,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        format_sql: true
   flyway:
     baseline-on-migrate: true
     baseline-version: 0
@@ -39,6 +36,7 @@ management:
     health:
       probes:
         enabled: true
+      show-details: always
 
 acmecorp:
   services:
