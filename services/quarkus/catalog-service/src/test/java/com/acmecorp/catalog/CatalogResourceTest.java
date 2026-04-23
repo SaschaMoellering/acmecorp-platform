@@ -1,6 +1,7 @@
 package com.acmecorp.catalog;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.common.QuarkusTestResource;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
@@ -13,6 +14,7 @@ import static org.hamcrest.Matchers.is;
 import java.util.UUID;
 
 @QuarkusTest
+@QuarkusTestResource(value = RedisTestResource.class, restrictToAnnotatedClass = true)
 class CatalogResourceTest {
 
     @Test
@@ -126,7 +128,7 @@ class CatalogResourceTest {
     }
 
     @Test
-    void deleteProductShouldRemoveFromActiveList() {
+    void logicalDeactivationShouldRemoveProductFromActiveList() {
         var productId = given()
                 .contentType("application/json")
                 .body("""

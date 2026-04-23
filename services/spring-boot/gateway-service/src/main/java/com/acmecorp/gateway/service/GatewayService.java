@@ -519,32 +519,13 @@ public class GatewayService {
             body.put("status", status);
         }
 
-        switch (items) {
-            case List itemList when !itemList.isEmpty() -> body.put("items", itemList);
-            case null -> {
-                if (productId != null && quantity != null) {
-                    Map<String, Object> item = new java.util.HashMap<>();
-                    item.put("productId", productId);
-                    item.put("quantity", quantity);
-                    body.put("items", List.of(item));
-                }
-            }
-            case List ignored -> {
-                if (productId != null && quantity != null) {
-                    Map<String, Object> item = new java.util.HashMap<>();
-                    item.put("productId", productId);
-                    item.put("quantity", quantity);
-                    body.put("items", List.of(item));
-                }
-            }
-            default -> {
-                if (productId != null && quantity != null) {
-                    Map<String, Object> item = new java.util.HashMap<>();
-                    item.put("productId", productId);
-                    item.put("quantity", quantity);
-                    body.put("items", List.of(item));
-                }
-            }
+        if (items instanceof List<?> itemList && !itemList.isEmpty()) {
+            body.put("items", itemList);
+        } else if (productId != null && quantity != null) {
+            Map<String, Object> item = new java.util.HashMap<>();
+            item.put("productId", productId);
+            item.put("quantity", quantity);
+            body.put("items", List.of(item));
         }
 
         return body;

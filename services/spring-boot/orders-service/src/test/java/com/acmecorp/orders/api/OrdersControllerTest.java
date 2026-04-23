@@ -7,10 +7,11 @@ import com.acmecorp.orders.startup.StartupTimeline;
 import com.acmecorp.orders.web.OrderRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -143,6 +144,26 @@ class OrdersControllerTest {
                 .andExpect(status().isNoContent());
 
         Mockito.verify(orderService).deleteOrder(Mockito.eq(3L));
+    }
+
+    @Test
+    void deleteOrderShouldReturnNotFoundWhenMissing() throws Exception {
+        Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Order not found"))
+                .when(orderService).deleteOrder(404L);
+
+        mockMvc.perform(delete("/api/orders/404"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteOrderShouldReturnConflictWhenDependentRecordsExist() throws Exception {
+        Mockito.doThrow(new DataIntegrityViolationException("fk violation"))
+                .when(orderService).deleteOrder(3L);
+
+        mockMvc.perform(delete("/api/orders/3"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value("Order cannot be deleted because dependent records exist"));
     }
 
     @Test
