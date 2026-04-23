@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -45,6 +47,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    private static final int DEFAULT_SEED_ORDER_COUNT = 1000;
+    private static final int MIN_SEED_ITEMS_PER_ORDER = 5;
+    private static final int MAX_SEED_ITEMS_PER_ORDER = 30;
+    private static final long SEED_RANDOM_SEED = 20240205L;
+    private static final String SEED_ORDER_PREFIX = "ORD-SEED-";
 
     private final OrderRepository orderRepository;
     private final OrderIdempotencyRepository idempotencyRepository;
@@ -134,7 +141,10 @@ public class OrderService {
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        Page<Order> ordersPage = orderRepository.findAll(spec, PageRequest.of(page, size));
+        Page<Order> ordersPage = orderRepository.findAll(
+                spec,
+                PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
+        );
         preloadItems(ordersPage.getContent());
         return ordersPage;
     }
@@ -243,7 +253,10 @@ public class OrderService {
     @Transactional
     public void deleteOrder(Long id) {
         Order order = getOrder(id);
+        historyRepository.deleteByOrderId(id);
+        idempotencyRepository.deleteByOrderId(id);
         orderRepository.delete(order);
+        orderRepository.flush();
         analyticsClient.track("orders.deleted", Map.of("orderId", order.getId(), "orderNumber", order.getOrderNumber()));
     }
 
@@ -258,12 +271,15 @@ public class OrderService {
 
     @Transactional
     public List<OrderResponse> seedDemoData() {
-        List<SeedOrderSpec> seeds = defaultSeedSpecs();
-        List<String> seedOrderNumbers = seeds.stream()
-                .map(SeedOrderSpec::orderNumber)
-                .collect(Collectors.toList());
+        return seedDemoData(DEFAULT_SEED_ORDER_COUNT);
+    }
 
-        List<Order> existing = orderRepository.findByOrderNumberIn(seedOrderNumbers);
+    @Transactional
+    public List<OrderResponse> seedDemoData(int orderCount) {
+        if (orderCount <= 0) {
+            throw new IllegalArgumentException("orderCount must be greater than 0");
+        }
+        List<Order> existing = orderRepository.findByOrderNumberStartingWith(SEED_ORDER_PREFIX);
         if (!existing.isEmpty()) {
             List<Long> ids = existing.stream().map(Order::getId).filter(Objects::nonNull).collect(Collectors.toList());
             if (!ids.isEmpty()) {
@@ -271,8 +287,10 @@ public class OrderService {
                 idempotencyRepository.deleteByOrderIdIn(ids);
             }
             orderRepository.deleteAll(existing);
+            orderRepository.flush();
         }
 
+        List<SeedOrderSpec> seeds = defaultSeedSpecs(orderCount);
         return seeds.stream()
                 .map(this::createSeedOrder)
                 .map(OrderResponse::from)
@@ -342,52 +360,53 @@ public class OrderService {
         order.setCreatedAt(spec.createdAt());
         order.setUpdatedAt(spec.createdAt());
 
-        OrderItem item = new OrderItem();
-        item.setProductId(spec.productId());
-        item.setProductName(spec.productName());
-        item.setUnitPrice(spec.unitPrice());
-        item.setQuantity(spec.quantity());
-        item.setLineTotal(spec.unitPrice().multiply(BigDecimal.valueOf(spec.quantity())));
-        order.addItem(item);
+        BigDecimal total = BigDecimal.ZERO;
+        for (SeedOrderItemSpec specItem : spec.items()) {
+            OrderItem item = new OrderItem();
+            item.setProductId(specItem.productId());
+            item.setProductName(specItem.productName());
+            item.setUnitPrice(specItem.unitPrice());
+            item.setQuantity(specItem.quantity());
+            item.setLineTotal(specItem.lineTotal());
+            order.addItem(item);
+            total = total.add(specItem.lineTotal());
+        }
 
         order.setCurrency("USD");
-        order.setTotalAmount(item.getLineTotal());
+        order.setTotalAmount(total);
         Order saved = orderRepository.save(order);
         recordStatusChangeAt(saved, null, saved.getStatus(), "seeded", spec.createdAt());
         return saved;
     }
 
-    private List<SeedOrderSpec> defaultSeedSpecs() {
+    private List<SeedOrderSpec> defaultSeedSpecs(int orderCount) {
         Instant base = Instant.parse("2024-01-01T00:00:00Z");
-        return List.of(
-                new SeedOrderSpec(
-                        "ORD-SEED-00001",
-                        "seed+1@acme.test",
-                        "11111111-1111-1111-1111-111111111111",
-                        "Acme Streamer Pro",
-                        new BigDecimal("49.00"),
-                        1,
-                        base
-                ),
-                new SeedOrderSpec(
-                        "ORD-SEED-00002",
-                        "seed+2@acme.test",
-                        "22222222-2222-2222-2222-222222222222",
-                        "Alerting Add-on",
-                        new BigDecimal("19.00"),
-                        2,
-                        base.plusSeconds(60)
-                ),
-                new SeedOrderSpec(
-                        "ORD-SEED-00003",
-                        "seed+3@acme.test",
-                        "33333333-3333-3333-3333-333333333333",
-                        "Secure Storage 1TB",
-                        new BigDecimal("29.00"),
-                        1,
-                        base.plusSeconds(120)
-                )
-        );
+        Random random = new Random(SEED_RANDOM_SEED);
+        List<SeedOrderSpec> specs = new java.util.ArrayList<>();
+
+        for (int i = 1; i <= orderCount; i++) {
+            int itemCount = MIN_SEED_ITEMS_PER_ORDER
+                    + random.nextInt((MAX_SEED_ITEMS_PER_ORDER - MIN_SEED_ITEMS_PER_ORDER) + 1);
+            List<SeedOrderItemSpec> items = new java.util.ArrayList<>(itemCount);
+            for (int j = 1; j <= itemCount; j++) {
+                BigDecimal unitPrice = BigDecimal.valueOf(4L + i + (j * 2L));
+                int quantity = 1 + ((i + j) % 5);
+                items.add(new SeedOrderItemSpec(
+                        String.format("SEED-PROD-%05d-%02d", i, j),
+                        String.format("Product-%05d-%02d", i, j),
+                        unitPrice,
+                        quantity
+                ));
+            }
+            specs.add(new SeedOrderSpec(
+                    String.format(SEED_ORDER_PREFIX + "%05d", i),
+                    String.format("seed+%d@acme.test", i),
+                    items,
+                    base.plusSeconds(i * 60L)
+            ));
+        }
+
+        return specs;
     }
 
     private void preloadItems(List<Order> orders) {
@@ -467,25 +486,16 @@ public class OrderService {
     private static final class SeedOrderSpec {
         private final String orderNumber;
         private final String customerEmail;
-        private final String productId;
-        private final String productName;
-        private final BigDecimal unitPrice;
-        private final int quantity;
+        private final List<SeedOrderItemSpec> items;
         private final Instant createdAt;
 
         private SeedOrderSpec(String orderNumber,
                               String customerEmail,
-                              String productId,
-                              String productName,
-                              BigDecimal unitPrice,
-                              int quantity,
+                              List<SeedOrderItemSpec> items,
                               Instant createdAt) {
             this.orderNumber = orderNumber;
             this.customerEmail = customerEmail;
-            this.productId = productId;
-            this.productName = productName;
-            this.unitPrice = unitPrice;
-            this.quantity = quantity;
+            this.items = List.copyOf(items);
             this.createdAt = createdAt;
         }
 
@@ -495,6 +505,28 @@ public class OrderService {
 
         private String customerEmail() {
             return customerEmail;
+        }
+
+        private List<SeedOrderItemSpec> items() {
+            return items;
+        }
+
+        private Instant createdAt() {
+            return createdAt;
+        }
+    }
+
+    private static final class SeedOrderItemSpec {
+        private final String productId;
+        private final String productName;
+        private final BigDecimal unitPrice;
+        private final int quantity;
+
+        private SeedOrderItemSpec(String productId, String productName, BigDecimal unitPrice, int quantity) {
+            this.productId = productId;
+            this.productName = productName;
+            this.unitPrice = unitPrice;
+            this.quantity = quantity;
         }
 
         private String productId() {
@@ -513,8 +545,8 @@ public class OrderService {
             return quantity;
         }
 
-        private Instant createdAt() {
-            return createdAt;
+        private BigDecimal lineTotal() {
+            return unitPrice.multiply(BigDecimal.valueOf(quantity));
         }
     }
 }
