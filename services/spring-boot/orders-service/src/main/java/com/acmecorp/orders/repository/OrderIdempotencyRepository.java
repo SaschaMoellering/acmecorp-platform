@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface OrderIdempotencyRepository extends JpaRepository<OrderIdempotency, Long> {
     Optional<OrderIdempotency> findByIdempotencyKey(String idempotencyKey);
+    void deleteByOrderId(Long orderId);
     void deleteByOrderIdIn(List<Long> orderIds);
 }

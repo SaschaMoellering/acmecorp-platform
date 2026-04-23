@@ -1,5 +1,6 @@
 package com.acmecorp.gateway.api;
 
+import com.acmecorp.gateway.config.GatewayCorsConfig;
 import com.acmecorp.gateway.service.GatewayService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
@@ -7,9 +8,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.EntityExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -22,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 @WebFluxTest(GatewayController.class)
+@Import(GatewayCorsConfig.class)
 class GatewayControllerTest {
 
     @Autowired
@@ -351,6 +355,30 @@ class GatewayControllerTest {
                 .uri("/api/gateway/analytics/counters")
                 .exchange()
                 .expectStatus().isEqualTo(502);
+    }
+
+    @Test
+    void preflightShouldAllowConfiguredUiOrigin() {
+        webClient.options()
+                .uri("http://localhost/api/gateway/orders")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Idempotency-Key")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173")
+                .expectHeader().value(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, value ->
+                        Assertions.assertTrue(value.contains("Idempotency-Key"), "allow headers should include Idempotency-Key"));
+    }
+
+    @Test
+    void preflightShouldRejectUnknownOrigin() {
+        webClient.options()
+                .uri("http://localhost/api/gateway/orders")
+                .header(HttpHeaders.ORIGIN, "https://evil.example.com")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .exchange()
+                .expectStatus().isForbidden();
     }
 
     private String expectBody(WebTestClient.ResponseSpec spec, String context) {

@@ -7,16 +7,22 @@ import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.messaging.NotificationPublisher;
+import com.acmecorp.orders.repository.OrderIdempotencyRepository;
 import com.acmecorp.orders.repository.OrderRepository;
+import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -27,6 +33,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+        "spring.jpa.properties.hibernate.default_batch_fetch_size=0",
+        "spring.jpa.properties.hibernate.cache.use_second_level_cache=false",
+        "spring.jpa.properties.hibernate.cache.use_query_cache=false"
+})
 class OrderServiceQueryCountTest {
 
     @Autowired
@@ -36,7 +47,19 @@ class OrderServiceQueryCountTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
+    @Autowired
+    private OrderIdempotencyRepository idempotencyRepository;
+
+    @Autowired
     private EntityManagerFactory emf;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockitoBean
     private CatalogClient catalogClient;
@@ -57,17 +80,29 @@ class OrderServiceQueryCountTest {
         var sessionFactory = emf.unwrap(SessionFactory.class);
         statistics = sessionFactory.getStatistics();
         statistics.setStatisticsEnabled(true);
+        historyRepository.deleteAll();
+        idempotencyRepository.deleteAll();
         orderRepository.deleteAll();
     }
 
     @Test
     void listOrdersPrefetchesItemsToAvoidNPlusOne() {
         seedOrders(10, 5);
+        // Clear first-level cache so listOrders must hit DB, then measure only this execution.
+        entityManager.clear();
         statistics.clear();
 
-        orderService.listOrders(null, null, 0, 20);
+        int loadedItemCount = new TransactionTemplate(transactionManager).execute(status ->
+                orderService.listOrders(null, null, 0, 20)
+                        .getContent()
+                        // Force lazy collection initialization inside measured transaction.
+                        .stream()
+                        .mapToInt(order -> order.getItems().size())
+                        .sum()
+        );
 
         long queryCount = statistics.getPrepareStatementCount();
+        assertThat(loadedItemCount).isEqualTo(50);
         assertThat(queryCount)
                 .withFailMessage("Expected <=3 queries but statistics reported %d, indicates N+1", queryCount)
                 .isLessThanOrEqualTo(3);
@@ -100,5 +135,6 @@ class OrderServiceQueryCountTest {
             seeds.add(order);
         }
         orderRepository.saveAll(seeds);
+        orderRepository.flush();
     }
 }

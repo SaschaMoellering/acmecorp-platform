@@ -1,113 +1,63 @@
 package com.acmecorp.catalog;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import jakarta.transaction.Transactional;
+import com.acmecorp.catalog.service.CatalogService;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+
+import java.util.List;
+import java.util.UUID;
 
 @Path("/api/catalog")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class CatalogResource {
 
-    private final ProductRepository productRepository;
-    private static final Instant SEED_INSTANT = Instant.parse("2024-01-01T00:00:00Z");
+    private final CatalogService catalogService;
 
-    public CatalogResource(ProductRepository productRepository) {
-        this.productRepository = productRepository;
+    public CatalogResource(CatalogService catalogService) {
+        this.catalogService = catalogService;
     }
 
     @GET
     public List<Product> list(@QueryParam("category") String category,
                               @QueryParam("search") String search) {
-        return productRepository.active(category, search);
+        return catalogService.listProducts(category, search);
     }
 
     @GET
     @Path("/{id}")
     public Product get(@PathParam("id") UUID id) {
-        return productRepository.findByIdOptional(id)
-                .orElseThrow(() -> new NotFoundException("Product not found"));
+        return catalogService.getProductById(id);
     }
 
     @POST
-    @Transactional
     public Product create(@Valid ProductRequest request) {
-        Product product = new Product();
-        applyRequest(product, request);
-        product.persist();
-        return product;
+        return catalogService.createProduct(request);
     }
 
     @PUT
     @Path("/{id}")
-    @Transactional
     public Product update(@PathParam("id") UUID id, @Valid ProductRequest request) {
-        Product product = get(id);
-        applyRequest(product, request);
-        product.persist();
-        return product;
+        return catalogService.updateProduct(id, request);
     }
 
     @DELETE
     @Path("/{id}")
-    @Transactional
     public void delete(@PathParam("id") UUID id) {
-        Product product = get(id);
-        product.active = false;
-        product.persist();
+        // The product remains queryable by id after DELETE, but is removed from active list results.
+        catalogService.deleteProduct(id);
     }
 
     @POST
     @Path("/seed")
-    @Transactional
     public List<Product> seed() {
-        var products = List.of(
-                build(UUID.fromString("11111111-1111-1111-1111-111111111111"), "ACME-STREAM-001", "Acme Streamer Pro", "HD streaming subscription with analytics dashboard", "SAAS", new BigDecimal("49.00")),
-                build(UUID.fromString("22222222-2222-2222-2222-222222222222"), "ACME-ALERT-001", "Alerting Add-on", "Real-time alerts and incidents with on-call rotation", "ADDON", new BigDecimal("19.00")),
-                build(UUID.fromString("33333333-3333-3333-3333-333333333333"), "ACME-STORAGE-010", "Secure Storage 1TB", "Encrypted cloud storage for media and backups", "STORAGE", new BigDecimal("29.00")),
-                build(UUID.fromString("44444444-4444-4444-4444-444444444444"), "ACME-AI-001", "AI Insights", "Predictive recommendations for digital storefronts", "SAAS", new BigDecimal("59.00"))
-        );
-        var ids = products.stream().map(p -> p.id).toList();
-        productRepository.delete("id in ?1", ids);
-        products.forEach(productRepository::persist);
-        return products;
+        return catalogService.seedProducts();
     }
 
     @GET
     @Path("/status")
     public Object status() {
-        return Map.of("service", "catalog-service", "status", "OK");
-    }
-
-    private void applyRequest(Product product, ProductRequest request) {
-        product.sku = request.sku();
-        product.name = request.name();
-        product.description = request.description();
-        product.price = request.price();
-        product.currency = request.currency();
-        product.category = request.category();
-        product.active = request.active();
-        product.updatedAt = Instant.now();
-    }
-
-    private Product build(UUID id, String sku, String name, String description, String category, BigDecimal price) {
-        Product product = new Product();
-        product.id = id;
-        product.sku = sku;
-        product.name = name;
-        product.description = description;
-        product.category = category;
-        product.price = price;
-        product.currency = "USD";
-        product.active = true;
-        product.createdAt = SEED_INSTANT;
-        product.updatedAt = SEED_INSTANT;
-        return product;
+        return java.util.Map.of("service", "catalog-service", "status", "OK");
     }
 }
