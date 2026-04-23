@@ -2,6 +2,7 @@ package com.acmecorp.orders.api.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -61,6 +62,15 @@ public class OrdersApiExceptionHandler {
         return buildResponse(request, resolved, errorCode, message, null);
     }
 
+    @ExceptionHandler({DataIntegrityViolationException.class, org.hibernate.exception.ConstraintViolationException.class})
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(Exception ex, HttpServletRequest request) {
+        String message = "Request violates data integrity constraints";
+        if ("DELETE".equalsIgnoreCase(request.getMethod()) && request.getRequestURI().contains("/api/orders/")) {
+            message = "Order cannot be deleted because dependent records exist";
+        }
+        return buildResponse(request, HttpStatus.CONFLICT, "CONFLICT", message, null);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handle(Exception ex, HttpServletRequest request) {
         return buildResponse(request, HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error", null);
@@ -75,12 +85,21 @@ public class OrdersApiExceptionHandler {
     }
 
     private static String mapStatusToError(HttpStatus status) {
-        return switch (status) {
-            case BAD_GATEWAY, SERVICE_UNAVAILABLE, GATEWAY_TIMEOUT -> "UPSTREAM_ERROR";
-            case NOT_FOUND -> "NOT_FOUND";
-            case CONFLICT -> "CONFLICT";
-            default -> status.is4xxClientError() ? "BAD_REQUEST" : "INTERNAL_ERROR";
-        };
+        if (status == HttpStatus.BAD_GATEWAY
+                || status == HttpStatus.SERVICE_UNAVAILABLE
+                || status == HttpStatus.GATEWAY_TIMEOUT) {
+            return "UPSTREAM_ERROR";
+        }
+        if (status == HttpStatus.NOT_FOUND) {
+            return "NOT_FOUND";
+        }
+        if (status == HttpStatus.CONFLICT) {
+            return "CONFLICT";
+        }
+        if (status.is4xxClientError()) {
+            return "BAD_REQUEST";
+        }
+        return "INTERNAL_ERROR";
     }
 
     private ResponseEntity<ApiErrorResponse> buildResponse(HttpServletRequest request,
