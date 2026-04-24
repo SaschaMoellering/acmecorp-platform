@@ -4,11 +4,14 @@ import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
 
+    private static final Duration REDIS_READY_TIMEOUT = Duration.ofSeconds(90);
     private String containerId;
     private int hostPort;
 
@@ -31,26 +34,78 @@ public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
     }
 
     private void waitForRedis() {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        long deadline = System.nanoTime() + REDIS_READY_TIMEOUT.toNanos();
+        long sleepMillis = 200L;
+        String lastFailure = "Redis readiness probe did not run";
         while (System.nanoTime() < deadline) {
             try {
-                String result = runCommand("docker", "exec", containerId, "redis-cli", "ping").trim();
-                if ("PONG".equals(result)) {
-                    return;
+                if (!isContainerRunning()) {
+                    lastFailure = "Container is not running";
+                } else if (!isRedisPortOpen()) {
+                    lastFailure = "Redis port %d is not accepting connections yet".formatted(hostPort);
+                } else {
+                    String result = runCommand("docker", "exec", containerId, "redis-cli", "ping").trim();
+                    if ("PONG".equals(result)) {
+                        return;
+                    }
+                    lastFailure = "Unexpected redis-cli ping response: " + result;
                 }
-            } catch (RuntimeException ignored) {
-                // Redis is still starting.
+            } catch (RuntimeException exception) {
+                lastFailure = exception.getMessage();
             }
 
             try {
-                Thread.sleep(250L);
+                Thread.sleep(sleepMillis);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted while waiting for Redis to start", exception);
             }
+
+            sleepMillis = Math.min(sleepMillis + 100L, 1_000L);
         }
 
-        throw new RuntimeException("Timed out waiting for Redis test container to become ready");
+        throw new RuntimeException("""
+                Timed out waiting for Redis test container to become ready after %d seconds.
+                Container state: %s
+                Last readiness failure: %s
+                Container logs:
+                %s
+                """.formatted(
+                REDIS_READY_TIMEOUT.toSeconds(),
+                describeContainerState(),
+                lastFailure,
+                safeContainerLogs()
+        ));
+    }
+
+    private boolean isContainerRunning() {
+        String result = runCommand("docker", "inspect", "-f", "{{.State.Status}}", containerId).trim();
+        return "running".equalsIgnoreCase(result);
+    }
+
+    private boolean isRedisPortOpen() {
+        try (Socket socket = new Socket("127.0.0.1", hostPort)) {
+            return true;
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    private String describeContainerState() {
+        try {
+            return runCommand("docker", "inspect", "-f", "status={{.State.Status}} exitCode={{.State.ExitCode}} startedAt={{.State.StartedAt}} finishedAt={{.State.FinishedAt}}", containerId).trim();
+        } catch (RuntimeException exception) {
+            return "unavailable: " + exception.getMessage();
+        }
+    }
+
+    private String safeContainerLogs() {
+        try {
+            String logs = runCommand("docker", "logs", containerId);
+            return logs.isBlank() ? "<no container logs>" : logs;
+        } catch (RuntimeException exception) {
+            return "unavailable: " + exception.getMessage();
+        }
     }
 
     private static int findFreePort() {
