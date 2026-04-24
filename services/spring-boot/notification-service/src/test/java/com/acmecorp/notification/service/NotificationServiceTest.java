@@ -88,6 +88,87 @@ class NotificationServiceTest {
     }
 
     @Test
+    void handleMessageShouldSuppressExactDuplicates() {
+        String fingerprint = ReflectionTestUtils.invokeMethod(
+                notificationService,
+                "messageFingerprint",
+                "persist@acme.test",
+                "payload",
+                NotificationType.ORDER_CONFIRMATION.name(),
+                "ORD-1",
+                "INV-1"
+        );
+        when(deduplicationRepository.existsByMessageFingerprint(fingerprint)).thenReturn(true);
+
+        notificationService.handleMessage(Map.of(
+                "recipient", "persist@acme.test",
+                "message", "payload",
+                "type", "ORDER_CONFIRMATION",
+                "orderNumber", "ORD-1",
+                "invoiceNumber", "INV-1"
+        ));
+
+        verify(deduplicationRepository).existsByMessageFingerprint(fingerprint);
+        verifyNoInteractions(notificationRepository);
+        verify(deduplicationRepository, never()).save(any(NotificationDeduplication.class));
+        verifyNoInteractions(analyticsClient);
+    }
+
+    @Test
+    void handleMessageShouldDeliverDifferentMessagesWithSameRecipientTypeOrderAndInvoice() throws Exception {
+        Notification persisted = new Notification();
+        persisted.setRecipient("persist@acme.test");
+        persisted.setType(NotificationType.ORDER_CONFIRMATION);
+        persisted.setStatus(NotificationStatus.QUEUED);
+        persisted.setCreatedAt(Instant.now());
+
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(inv -> {
+            Notification n = inv.getArgument(0);
+            var field = Notification.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(n, 10L);
+            return n;
+        }).thenReturn(persisted);
+        when(deduplicationRepository.existsByMessageFingerprint(anyString())).thenReturn(false);
+        when(deduplicationRepository.save(any(NotificationDeduplication.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        String originalFingerprint = ReflectionTestUtils.invokeMethod(
+                notificationService,
+                "messageFingerprint",
+                "persist@acme.test",
+                "payload",
+                NotificationType.ORDER_CONFIRMATION.name(),
+                "ORD-1",
+                "INV-1"
+        );
+        String changedMessageFingerprint = ReflectionTestUtils.invokeMethod(
+                notificationService,
+                "messageFingerprint",
+                "persist@acme.test",
+                "payload updated",
+                NotificationType.ORDER_CONFIRMATION.name(),
+                "ORD-1",
+                "INV-1"
+        );
+
+        assertThat(changedMessageFingerprint).isNotEqualTo(originalFingerprint);
+
+        notificationService.handleMessage(Map.of(
+                "recipient", "persist@acme.test",
+                "message", "payload updated",
+                "type", "ORDER_CONFIRMATION",
+                "orderNumber", "ORD-1",
+                "invoiceNumber", "INV-1"
+        ));
+
+        verify(deduplicationRepository).existsByMessageFingerprint(changedMessageFingerprint);
+        verify(notificationRepository, times(2)).save(any(Notification.class));
+        verify(deduplicationRepository).save(any(NotificationDeduplication.class));
+        verify(analyticsClient).track(eq("notification.sent"), anyMap());
+    }
+
+    @Test
     void handleMessageShouldFailBeforePersistenceWhenDemoFailureIsEnabled() {
         ReflectionTestUtils.setField(notificationService, "failOnRecipient", "dlq-demo@acme.test");
 
