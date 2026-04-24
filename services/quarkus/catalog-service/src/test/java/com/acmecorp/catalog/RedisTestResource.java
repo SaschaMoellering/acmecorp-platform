@@ -4,7 +4,6 @@ import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -39,17 +38,11 @@ public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
         String lastFailure = "Redis readiness probe did not run";
         while (System.nanoTime() < deadline) {
             try {
-                if (!isContainerRunning()) {
-                    lastFailure = "Container is not running";
-                } else if (!isRedisPortOpen()) {
-                    lastFailure = "Redis port %d is not accepting connections yet".formatted(hostPort);
-                } else {
-                    String result = runCommand("docker", "exec", containerId, "redis-cli", "ping").trim();
-                    if ("PONG".equals(result)) {
-                        return;
-                    }
-                    lastFailure = "Unexpected redis-cli ping response: " + result;
+                String result = runCommand("docker", "exec", containerId, "redis-cli", "ping").trim();
+                if ("PONG".equals(result)) {
+                    return;
                 }
+                lastFailure = "Unexpected redis-cli ping response: " + result;
             } catch (RuntimeException exception) {
                 lastFailure = exception.getMessage();
             }
@@ -66,37 +59,14 @@ public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
 
         throw new RuntimeException("""
                 Timed out waiting for Redis test container to become ready after %d seconds.
-                Container state: %s
                 Last readiness failure: %s
                 Container logs:
                 %s
                 """.formatted(
                 REDIS_READY_TIMEOUT.toSeconds(),
-                describeContainerState(),
                 lastFailure,
                 safeContainerLogs()
         ));
-    }
-
-    private boolean isContainerRunning() {
-        String result = runCommand("docker", "inspect", "-f", "{{.State.Status}}", containerId).trim();
-        return "running".equalsIgnoreCase(result);
-    }
-
-    private boolean isRedisPortOpen() {
-        try (Socket socket = new Socket("127.0.0.1", hostPort)) {
-            return true;
-        } catch (IOException exception) {
-            return false;
-        }
-    }
-
-    private String describeContainerState() {
-        try {
-            return runCommand("docker", "inspect", "-f", "status={{.State.Status}} exitCode={{.State.ExitCode}} startedAt={{.State.StartedAt}} finishedAt={{.State.FinishedAt}}", containerId).trim();
-        } catch (RuntimeException exception) {
-            return "unavailable: " + exception.getMessage();
-        }
     }
 
     private String safeContainerLogs() {
