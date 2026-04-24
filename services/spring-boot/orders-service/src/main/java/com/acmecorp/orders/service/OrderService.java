@@ -134,17 +134,24 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public Page<Order> listOrders(String customerEmail, OrderStatus status, int page, int size) {
-        Specification<Order> spec = Specification.where(null);
+        var pageRequest = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+
+        if (customerEmail == null || customerEmail.isBlank()) {
+            if (status == null) {
+                Page<Order> ordersPage = orderRepository.findAllByOrderByCreatedAtDescIdDesc(pageRequest);
+                preloadItems(ordersPage.getContent());
+                return ordersPage;
+            }
+        }
+
+        Specification<Order> spec = (root, query, cb) -> cb.conjunction();
         if (customerEmail != null && !customerEmail.isBlank()) {
             spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("customerEmail")), "%" + customerEmail.toLowerCase(Locale.ROOT) + "%"));
         }
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        Page<Order> ordersPage = orderRepository.findAll(
-                spec,
-                PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")))
-        );
+        Page<Order> ordersPage = orderRepository.findAll(spec, pageRequest);
         preloadItems(ordersPage.getContent());
         return ordersPage;
     }

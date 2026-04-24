@@ -2,13 +2,18 @@ package com.acmecorp.catalog;
 
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
 
+    private static final Duration REDIS_READY_TIMEOUT = Duration.ofSeconds(90);
     private String containerId;
     private int hostPort;
 
@@ -31,26 +36,82 @@ public class RedisTestResource implements QuarkusTestResourceLifecycleManager {
     }
 
     private void waitForRedis() {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        long deadline = System.nanoTime() + REDIS_READY_TIMEOUT.toNanos();
+        long sleepMillis = 200L;
+        String lastFailure = "Redis readiness probe did not run";
         while (System.nanoTime() < deadline) {
             try {
-                String result = runCommand("docker", "exec", containerId, "redis-cli", "ping").trim();
-                if ("PONG".equals(result)) {
+                if (hostPingRedis()) {
                     return;
                 }
-            } catch (RuntimeException ignored) {
-                // Redis is still starting.
+                lastFailure = "Unexpected Redis PING response from localhost:%d".formatted(hostPort);
+            } catch (RuntimeException exception) {
+                lastFailure = exception.getMessage();
             }
 
             try {
-                Thread.sleep(250L);
+                Thread.sleep(sleepMillis);
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted while waiting for Redis to start", exception);
             }
+
+            sleepMillis = Math.min(sleepMillis + 100L, 1_000L);
         }
 
-        throw new RuntimeException("Timed out waiting for Redis test container to become ready");
+        throw new RuntimeException("""
+                Timed out waiting for Redis test container to become ready after %d seconds.
+                Last readiness failure: %s
+                Container logs:
+                %s
+                """.formatted(
+                REDIS_READY_TIMEOUT.toSeconds(),
+                lastFailure,
+                safeContainerLogs()
+        ));
+    }
+
+    private boolean hostPingRedis() {
+        try (Socket socket = new Socket("127.0.0.1", hostPort);
+             OutputStream outputStream = socket.getOutputStream();
+             BufferedInputStream inputStream = new BufferedInputStream(socket.getInputStream())) {
+            socket.setSoTimeout(1_000);
+            outputStream.write("*1\r\n$4\r\nPING\r\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            outputStream.flush();
+            String response = readLine(inputStream);
+            return "+PONG".equals(response);
+        } catch (IOException exception) {
+            throw new RuntimeException("Redis did not respond to host-side PING on localhost:%d".formatted(hostPort), exception);
+        }
+    }
+
+    private static String readLine(BufferedInputStream inputStream) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        int current;
+        while ((current = inputStream.read()) != -1) {
+            if (current == '\r') {
+                int next = inputStream.read();
+                if (next == '\n') {
+                    return builder.toString();
+                }
+                builder.append((char) current);
+                if (next != -1) {
+                    builder.append((char) next);
+                }
+            } else {
+                builder.append((char) current);
+            }
+        }
+        return builder.toString();
+    }
+
+    private String safeContainerLogs() {
+        try {
+            String logs = runCommand("docker", "logs", containerId);
+            return logs.isBlank() ? "<no container logs>" : logs;
+        } catch (RuntimeException exception) {
+            return "unavailable: " + exception.getMessage();
+        }
     }
 
     private static int findFreePort() {

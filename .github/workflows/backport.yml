@@ -1,0 +1,42 @@
+name: Backport
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to backport
+        required: true
+        type: string
+      branches:
+        description: Space-separated list of target branches (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  backport:
+    name: Backport commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run backport script
+        env:
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          BRANCHES: ${{ inputs.branches }}
+        run: |
+          if [ -n "$BRANCHES" ]; then
+            bash scripts/backport.sh "$COMMIT_SHA" "$BRANCHES"
+          else
+            bash scripts/backport.sh "$COMMIT_SHA"
+          fi
