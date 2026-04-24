@@ -7,8 +7,11 @@ import com.acmecorp.orders.domain.Order;
 import com.acmecorp.orders.domain.OrderItem;
 import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.messaging.NotificationPublisher;
+import com.acmecorp.orders.repository.OrderIdempotencyRepository;
 import com.acmecorp.orders.repository.OrderRepository;
+import com.acmecorp.orders.repository.OrderStatusHistoryRepository;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.EntityManager;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +20,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -27,6 +33,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+        "spring.jpa.properties.hibernate.default_batch_fetch_size=0",
+        "spring.jpa.properties.hibernate.cache.use_second_level_cache=false",
+        "spring.jpa.properties.hibernate.cache.use_query_cache=false"
+})
 class OrderServiceQueryCountTest {
 
     @Autowired
@@ -36,7 +47,19 @@ class OrderServiceQueryCountTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
+    @Autowired
+    private OrderIdempotencyRepository idempotencyRepository;
+
+    @Autowired
     private EntityManagerFactory emf;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockBean
     private CatalogClient catalogClient;
@@ -57,20 +80,47 @@ class OrderServiceQueryCountTest {
         var sessionFactory = emf.unwrap(SessionFactory.class);
         statistics = sessionFactory.getStatistics();
         statistics.setStatisticsEnabled(true);
+        historyRepository.deleteAll();
+        idempotencyRepository.deleteAll();
         orderRepository.deleteAll();
     }
 
     @Test
     void listOrdersPrefetchesItemsToAvoidNPlusOne() {
         seedOrders(10, 5);
+        entityManager.clear();
         statistics.clear();
 
-        orderService.listOrders(null, null, 0, 20);
+        int loadedItemCount = new TransactionTemplate(transactionManager).execute(status ->
+                orderService.listOrders(null, null, 0, 20)
+                        .getContent()
+                        .stream()
+                        .mapToInt(order -> order.getItems().size())
+                        .sum()
+        );
 
         long queryCount = statistics.getPrepareStatementCount();
+        assertThat(loadedItemCount).isEqualTo(50);
         assertThat(queryCount)
                 .withFailMessage("Expected <=3 queries but statistics reported %d, indicates N+1", queryCount)
                 .isLessThanOrEqualTo(3);
+    }
+
+    @Test
+    void listOrdersWithFiltersStillAppliesCustomerEmailAndStatusFilters() {
+        seedOrder("alpha@acme.test", OrderStatus.NEW, 1);
+        seedOrder("beta@acme.test", OrderStatus.CONFIRMED, 2);
+        seedOrder("alpha-filter@acme.test", OrderStatus.CONFIRMED, 3);
+        entityManager.clear();
+
+        var page = orderService.listOrders("alpha", OrderStatus.CONFIRMED, 0, 20);
+
+        assertThat(page.getContent())
+                .extracting(Order::getCustomerEmail)
+                .containsExactly("alpha-filter@acme.test");
+        assertThat(page.getContent())
+                .extracting(Order::getStatus)
+                .containsExactly(OrderStatus.CONFIRMED);
     }
 
     private void seedOrders(int orderCount, int itemsPerOrder) {
@@ -100,5 +150,27 @@ class OrderServiceQueryCountTest {
             seeds.add(order);
         }
         orderRepository.saveAll(seeds);
+        orderRepository.flush();
+    }
+
+    private void seedOrder(String customerEmail, OrderStatus status, int suffix) {
+        Order order = new Order();
+        order.setOrderNumber(String.format("ORD-FILTER-%05d", suffix));
+        order.setCustomerEmail(customerEmail);
+        order.setStatus(status);
+        order.setCreatedAt(Instant.now().plusSeconds(suffix));
+        order.setUpdatedAt(order.getCreatedAt());
+
+        OrderItem item = new OrderItem();
+        item.setProductId("SKU-FILTER-" + suffix);
+        item.setProductName("Filtered Product " + suffix);
+        item.setUnitPrice(BigDecimal.valueOf(10 + suffix));
+        item.setQuantity(1);
+        item.setLineTotal(item.getUnitPrice());
+        order.addItem(item);
+
+        order.setCurrency("USD");
+        order.setTotalAmount(item.getLineTotal());
+        orderRepository.saveAndFlush(order);
     }
 }
