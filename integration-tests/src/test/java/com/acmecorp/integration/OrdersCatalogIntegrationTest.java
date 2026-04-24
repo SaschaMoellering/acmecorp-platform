@@ -1,5 +1,6 @@
 package com.acmecorp.integration;
 
+import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,85 @@ class OrdersCatalogIntegrationTest extends AbstractIntegrationTest {
                 .when()
                 .post(gatewayApiBase + "/orders")
                 .then()
-                .statusCode(400);
+                .statusCode(400)
+                .body("error", org.hamcrest.Matchers.equalTo("VALIDATION_ERROR"))
+                .body("fields.items", org.hamcrest.Matchers.notNullValue());
+    }
+
+    @Test
+    void fetchingMissingOrderShouldReturnNotFound() {
+        given()
+                .when()
+                .get(ordersBase + "/api/orders/{id}", 999999L)
+                .then()
+                .statusCode(404)
+                .body("error", org.hamcrest.Matchers.equalTo("NOT_FOUND"));
+    }
+
+    @Test
+    void createOrderIsIdempotentWithSameKey() {
+        List<Map<String, Object>> catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+
+        UUID productId = UUID.fromString(catalog.get(0).get("id").toString());
+        String key = "idem-" + java.util.UUID.randomUUID();
+        String body = """
+                {
+                  "customerEmail": "idempotent@example.com",
+                  "items": [
+                    {"productId":"%s","quantity":1}
+                  ]
+                }
+                """.formatted(productId);
+
+        long firstId = given()
+                .contentType(ContentType.JSON)
+                .header("Idempotency-Key", key)
+                .body(body)
+                .when()
+                .post(gatewayApiBase + "/orders")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        long secondId = given()
+                .contentType(ContentType.JSON)
+                .header("Idempotency-Key", key)
+                .body(body)
+                .when()
+                .post(gatewayApiBase + "/orders")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+
+        assertThat(secondId).isEqualTo(firstId);
+    }
+
+    @Test
+    void orderHistoryTracksStatusChanges() {
+        List<Map<String, Object>> catalog = fetchCatalogItems();
+        assertThat(catalog).isNotEmpty();
+
+        UUID productId = UUID.fromString(catalog.get(0).get("id").toString());
+        var createResponse = createOrder("timeline@example.com", productId, 1);
+        long orderId = createResponse.getLong("id");
+
+        confirmOrder(orderId);
+
+        List<Map<String, Object>> history = given()
+                .when()
+                .get(gatewayApiBase + "/orders/{id}/history", orderId)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(new TypeRef<List<Map<String, Object>>>() {});
+
+        assertThat(history).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(history.get(0).get("newStatus")).isEqualTo("NEW");
+        assertThat(history.get(1).get("newStatus")).isEqualTo("CONFIRMED");
     }
 }
