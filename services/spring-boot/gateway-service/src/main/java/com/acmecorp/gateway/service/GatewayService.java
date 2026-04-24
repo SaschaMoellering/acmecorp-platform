@@ -50,7 +50,7 @@ public class GatewayService {
 
     public Mono<PageResponse<OrderSummary>> listOrders(int page, int size) {
         String url = UriComponentsBuilder
-                .fromHttpUrl(ordersBaseUrl + "/api/orders")
+                .fromUriString(ordersBaseUrl + "/api/orders")
                 .queryParam("page", page)
                 .queryParam("size", size)
                 .toUriString();
@@ -225,7 +225,7 @@ public class GatewayService {
 
     public Mono<List<ProductSummary>> catalog(String category, String search) {
         UriComponentsBuilder builder = UriComponentsBuilder
-                .fromHttpUrl(catalogBaseUrl + "/api/catalog");
+                .fromUriString(catalogBaseUrl + "/api/catalog");
 
         if (category != null && !category.isBlank()) {
             builder.queryParam("category", category);
