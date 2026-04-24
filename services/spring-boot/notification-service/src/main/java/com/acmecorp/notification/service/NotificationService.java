@@ -78,7 +78,8 @@ public class NotificationService {
         String orderNumber = (String) payload.getOrDefault("orderNumber", null);
         String invoiceNumber = (String) payload.getOrDefault("invoiceNumber", null);
         String type = (String) payload.getOrDefault("type", NotificationType.GENERIC.name());
-        String fingerprint = messageFingerprint(recipient, type, orderNumber, invoiceNumber);
+        String message = (String) payload.getOrDefault("message", "No message");
+        String fingerprint = messageFingerprint(recipient, message, type, orderNumber, invoiceNumber);
 
         if (deduplicationRepository.existsByMessageFingerprint(fingerprint)) {
             log.info("Duplicate message detected for recipient {} fingerprint {} — skipping", recipient, fingerprint);
@@ -87,7 +88,7 @@ public class NotificationService {
 
         Notification notification = new Notification();
         notification.setRecipient(recipient);
-        notification.setMessage((String) payload.getOrDefault("message", "No message"));
+        notification.setMessage(message);
         notification.setOrderNumber(orderNumber);
         notification.setInvoiceNumber(invoiceNumber);
         notification.setType(NotificationType.valueOf(type));
@@ -109,9 +110,10 @@ public class NotificationService {
         log.info("Notification {} sent successfully for recipient {}", saved.getId(), saved.getRecipient());
     }
 
-    private String messageFingerprint(String recipient, String type, String orderNumber, String invoiceNumber) {
+    private String messageFingerprint(String recipient, String message, String type, String orderNumber, String invoiceNumber) {
         String raw = String.join("|",
                 recipient != null ? recipient : "",
+                message != null ? message : "",
                 type != null ? type : "",
                 orderNumber != null ? orderNumber : "",
                 invoiceNumber != null ? invoiceNumber : ""
