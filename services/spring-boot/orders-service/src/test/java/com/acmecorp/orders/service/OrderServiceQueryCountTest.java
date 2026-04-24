@@ -108,6 +108,23 @@ class OrderServiceQueryCountTest {
                 .isLessThanOrEqualTo(3);
     }
 
+    @Test
+    void listOrdersWithFiltersStillAppliesCustomerEmailAndStatusFilters() {
+        seedOrder("alpha@acme.test", OrderStatus.NEW, 1);
+        seedOrder("beta@acme.test", OrderStatus.CONFIRMED, 2);
+        seedOrder("alpha-filter@acme.test", OrderStatus.CONFIRMED, 3);
+        entityManager.clear();
+
+        var page = orderService.listOrders("alpha", OrderStatus.CONFIRMED, 0, 20);
+
+        assertThat(page.getContent())
+                .extracting(Order::getCustomerEmail)
+                .containsExactly("alpha-filter@acme.test");
+        assertThat(page.getContent())
+                .extracting(Order::getStatus)
+                .containsExactly(OrderStatus.CONFIRMED);
+    }
+
     private void seedOrders(int orderCount, int itemsPerOrder) {
         List<Order> seeds = new ArrayList<>();
         Instant now = Instant.now();
@@ -136,5 +153,26 @@ class OrderServiceQueryCountTest {
         }
         orderRepository.saveAll(seeds);
         orderRepository.flush();
+    }
+
+    private void seedOrder(String customerEmail, OrderStatus status, int suffix) {
+        Order order = new Order();
+        order.setOrderNumber(String.format("ORD-FILTER-%05d", suffix));
+        order.setCustomerEmail(customerEmail);
+        order.setStatus(status);
+        order.setCreatedAt(Instant.now().plusSeconds(suffix));
+        order.setUpdatedAt(order.getCreatedAt());
+
+        OrderItem item = new OrderItem();
+        item.setProductId("SKU-FILTER-" + suffix);
+        item.setProductName("Filtered Product " + suffix);
+        item.setUnitPrice(BigDecimal.valueOf(10 + suffix));
+        item.setQuantity(1);
+        item.setLineTotal(item.getUnitPrice());
+        order.addItem(item);
+
+        order.setCurrency("USD");
+        order.setTotalAmount(item.getLineTotal());
+        orderRepository.saveAndFlush(order);
     }
 }
