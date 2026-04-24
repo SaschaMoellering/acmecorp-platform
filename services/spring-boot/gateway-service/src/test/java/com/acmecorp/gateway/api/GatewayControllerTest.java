@@ -6,6 +6,8 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
@@ -18,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 @WebFluxTest(GatewayController.class)
+@Import(com.acmecorp.gateway.config.GatewayCorsConfig.class)
 class GatewayControllerTest {
 
     @Autowired
@@ -104,7 +107,7 @@ class GatewayControllerTest {
 
         var orderWithInvoice = new GatewayService.OrderWithInvoice(order, List.of(invoice));
 
-        Mockito.when(gatewayService.orderDetails(2L)).thenReturn(Mono.just(orderWithInvoice));
+        Mockito.when(gatewayService.orderDetails(2L, false)).thenReturn(Mono.just(orderWithInvoice));
 
         webClient.get()
                 .uri("/api/gateway/orders/2")
@@ -207,9 +210,8 @@ class GatewayControllerTest {
     @Test
     void seedEndpointShouldTriggerServices() {
         var seed = new GatewayService.SeedResult();
-        seed.ordersCreated = 10;
-        seed.productsCreated = 5;
-        seed.message = "Seed completed";
+        seed.ordersSeeded = 10;
+        seed.catalogSeeded = 5;
 
         Mockito.when(gatewayService.seedData()).thenReturn(Mono.just(seed));
 
@@ -218,8 +220,8 @@ class GatewayControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.productsCreated").isEqualTo(5)
-                .jsonPath("$.ordersCreated").isEqualTo(10);
+                .jsonPath("$.catalogSeeded").isEqualTo(5)
+                .jsonPath("$.ordersSeeded").isEqualTo(10);
     }
 
     @Test
@@ -232,9 +234,9 @@ class GatewayControllerTest {
         summary.put("totalAmount", BigDecimal.TEN);
         summary.put("currency", "USD");
 
-        Mockito.when(gatewayService.createOrder(any(GatewayService.OrderRequest.class))).thenReturn(Mono.just(summary));
+        Mockito.when(gatewayService.createOrder(any(GatewayService.OrderRequest.class), Mockito.nullable(String.class))).thenReturn(Mono.just(summary));
         Mockito.when(gatewayService.updateOrder(eq(15L), any(GatewayService.OrderRequest.class))).thenReturn(Mono.just(summary));
-        Mockito.when(gatewayService.deleteOrder(15L)).thenReturn(Mono.empty());
+        Mockito.when(gatewayService.deleteOrder(15L)).thenReturn(Mono.just(Map.of("deleted", true, "orderId", 15L)));
 
         var requestBody = Map.of(
                 "customerEmail", "demo@acme.test",
@@ -261,7 +263,9 @@ class GatewayControllerTest {
         webClient.delete()
                 .uri("/api/gateway/orders/15")
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.deleted").isEqualTo(true);
     }
 
     @Test
@@ -278,7 +282,7 @@ class GatewayControllerTest {
 
         Mockito.when(gatewayService.createProduct(any(GatewayService.ProductRequest.class))).thenReturn(Mono.just(summary));
         Mockito.when(gatewayService.updateProduct(eq("2"), any(GatewayService.ProductRequest.class))).thenReturn(Mono.just(summary));
-        Mockito.when(gatewayService.deleteProduct("2")).thenReturn(Mono.empty());
+        Mockito.when(gatewayService.deleteProduct("2")).thenReturn(Mono.just(Map.of("deleted", true, "productId", "2")));
 
         var requestBody = Map.of(
                 "sku", "SKU-2",
@@ -309,7 +313,9 @@ class GatewayControllerTest {
         webClient.delete()
                 .uri("/api/gateway/catalog/2")
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.deleted").isEqualTo(true);
     }
 
     @Test
@@ -319,6 +325,34 @@ class GatewayControllerTest {
         webClient.get()
                 .uri("/api/gateway/analytics/counters")
                 .exchange()
-                .expectStatus().is5xxServerError();
+                .expectStatus().isEqualTo(502);
+    }
+
+    @Test
+    void orderHistoryShouldProxy() {
+        Mockito.when(gatewayService.orderHistory(22L)).thenReturn(Mono.just(List.of(Map.of(
+                "id", 1L,
+                "newStatus", "NEW",
+                "reason", "created"
+        ))));
+
+        webClient.get()
+                .uri("/api/gateway/orders/22/history")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].newStatus").isEqualTo("NEW");
+    }
+
+    @Test
+    void preflightShouldAllowConfiguredUiOrigin() {
+        webClient.options()
+                .uri("http://localhost/api/gateway/orders")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type,Idempotency-Key")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173");
     }
 }

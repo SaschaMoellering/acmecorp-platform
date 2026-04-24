@@ -5,8 +5,11 @@ import com.acmecorp.orders.domain.OrderStatus;
 import com.acmecorp.orders.service.OrderService;
 import com.acmecorp.orders.startup.StartupTimeline;
 import com.acmecorp.orders.web.OrderRequest;
+import com.acmecorp.orders.web.OrderResponse;
+import com.acmecorp.orders.web.OrderStatusHistoryResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -93,7 +96,7 @@ class OrdersControllerTest {
         order.setCurrency("USD");
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(order.getCreatedAt());
-        Mockito.when(orderService.createOrder(Mockito.any())).thenReturn(order);
+        Mockito.when(orderService.createOrder(Mockito.any(), Mockito.nullable(String.class))).thenReturn(order);
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -143,6 +146,17 @@ class OrdersControllerTest {
                 .andExpect(status().isNoContent());
 
         Mockito.verify(orderService).deleteOrder(Mockito.eq(3L));
+    }
+
+    @Test
+    void deleteOrderShouldReturnConflictWhenDependentRecordsExist() throws Exception {
+        Mockito.doThrow(new DataIntegrityViolationException("fk violation"))
+                .when(orderService).deleteOrder(3L);
+
+        mockMvc.perform(delete("/api/orders/3"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("CONFLICT"))
+                .andExpect(jsonPath("$.message").value("Order cannot be deleted because dependent records exist"));
     }
 
     @Test
@@ -201,12 +215,29 @@ class OrdersControllerTest {
 
     @Test
     void seedOrdersShouldReturnCount() throws Exception {
+        Mockito.when(orderService.seedDemoData()).thenReturn(List.of(
+                new OrderResponse(1L, "ORD-SEED-00001", "seed+1@acme.test", OrderStatus.NEW, new BigDecimal("10.00"), "USD", Instant.now(), Instant.now(), List.of()),
+                new OrderResponse(2L, "ORD-SEED-00002", "seed+2@acme.test", OrderStatus.CONFIRMED, new BigDecimal("20.00"), "USD", Instant.now(), Instant.now(), List.of()),
+                new OrderResponse(3L, "ORD-SEED-00003", "seed+3@acme.test", OrderStatus.CANCELLED, new BigDecimal("30.00"), "USD", Instant.now(), Instant.now(), List.of())
+        ));
+
         mockMvc.perform(post("/api/orders/seed"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seeded").value(true))
                 .andExpect(jsonPath("$.count").value(3));
 
-        Mockito.verify(orderService).seedDemoData(Mockito.<OrderRequest>anyList());
+        Mockito.verify(orderService).seedDemoData();
+    }
+
+    @Test
+    void historyShouldReturnStatusTimeline() throws Exception {
+        Mockito.when(orderService.history(7L)).thenReturn(List.of(
+                new OrderStatusHistoryResponse(1L, 7L, null, OrderStatus.NEW, "created", Instant.now())
+        ));
+
+        mockMvc.perform(get("/api/orders/7/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].newStatus").value("NEW"));
     }
 
     @Test

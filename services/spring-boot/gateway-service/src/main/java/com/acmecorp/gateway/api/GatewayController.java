@@ -9,6 +9,7 @@ import com.acmecorp.gateway.service.GatewayService.ProductRequest;
 import com.acmecorp.gateway.service.GatewayService.ProductSummary;
 import com.acmecorp.gateway.service.GatewayService.SeedResult;
 import com.acmecorp.gateway.service.GatewayService.SystemStatus;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,8 +49,9 @@ public class GatewayController {
     }
 
     @PostMapping(path = "/orders", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<OrderSummary> createOrder(@RequestBody OrderRequest request) {
-        return gatewayService.createOrder(request);
+    public Mono<OrderSummary> createOrder(@RequestBody OrderRequest request,
+                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        return gatewayService.createOrder(request, idempotencyKey);
     }
 
     @PutMapping(path = "/orders/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -58,7 +61,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/orders/{id}")
-    public Mono<Void> deleteOrder(@PathVariable("id") Long id) {
+    public Mono<Map<String, Object>> deleteOrder(@PathVariable("id") Long id) {
         return gatewayService.deleteOrder(id);
     }
 
@@ -83,8 +86,14 @@ public class GatewayController {
     }
 
     @GetMapping("/orders/{id}")
-    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id) {
-        return gatewayService.orderDetails(id);
+    public Mono<OrderWithInvoice> orderDetails(@PathVariable("id") Long id,
+                                               @RequestParam(name = "includeHistory", defaultValue = "false") boolean includeHistory) {
+        return gatewayService.orderDetails(id, includeHistory);
+    }
+
+    @GetMapping("/orders/{id}/history")
+    public Mono<List<Map<String, Object>>> orderHistory(@PathVariable("id") Long id) {
+        return gatewayService.orderHistory(id);
     }
 
     // -------------------------------------------------------------------------
@@ -120,7 +129,7 @@ public class GatewayController {
     }
 
     @DeleteMapping("/catalog/{id}")
-    public Mono<Void> deleteProduct(@PathVariable("id") String id) {
+    public Mono<Map<String, Object>> deleteProduct(@PathVariable("id") String id) {
         return gatewayService.deleteProduct(id);
     }
 
@@ -130,7 +139,12 @@ public class GatewayController {
 
     @GetMapping("/analytics/counters")
     public Mono<Map<String, Long>> analyticsCounters() {
-        return gatewayService.analyticsCounters();
+        return gatewayService.analyticsCounters()
+                .onErrorMap(ex -> new org.springframework.web.server.ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Downstream analytics failure",
+                        ex
+                ));
     }
 
     @GetMapping("/system/status")

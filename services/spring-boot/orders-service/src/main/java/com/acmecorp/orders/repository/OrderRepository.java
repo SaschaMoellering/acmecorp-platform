@@ -16,6 +16,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     long countByStatus(OrderStatus status);
 
     Optional<Order> findTopByOrderNumberStartingWithOrderByOrderNumberDesc(String prefix);
+    List<Order> findByOrderNumberStartingWith(String prefix);
 
     @Query("""
         select distinct o
