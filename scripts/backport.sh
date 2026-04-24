@@ -160,7 +160,6 @@ for branch in "${branches[@]}"; do
   results+=("${branch}:success")
   log "Done with ${branch}"
   echo
-
 done
 
 if [[ -n "${start_branch}" ]]; then
