@@ -4,21 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_DIR="${COMPOSE_DIR:-$ROOT_DIR/infra/local}"
 COMPOSE_FILE="${COMPOSE_FILE:-$COMPOSE_DIR/docker-compose.yml}"
-
-# Let users override, but default to the internal DNS name + port from compose network
 GATEWAY_URL="${GATEWAY_URL:-http://gateway-service:8080}"
-
-# Timeouts / polling
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-180}"
 SLEEP_SECONDS="${SLEEP_SECONDS:-2}"
-
-# Curl image version pin (reproducible)
 CURL_IMAGE="${CURL_IMAGE:-curlimages/curl:8.6.0}"
-
-# Maven runner (pin + reproducible)
 MAVEN_IMAGE="${MAVEN_IMAGE:-maven:3.9.9-eclipse-temurin-21}"
-
-# Optional: reuse local Maven cache (saves lots of time)
 M2_DIR="${M2_DIR:-$HOME/.m2}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -54,7 +44,6 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-# Best-effort teardown; never mask the test result.
 TEST_RC=0
 cleanup() {
   echo "[teardown] docker compose down (best-effort; may require docker socket access)"
@@ -66,8 +55,6 @@ trap cleanup EXIT
 echo "[setup] docker compose up -d --build"
 (cd "$COMPOSE_DIR" && docker compose -f "$COMPOSE_FILE" up -d --build)
 
-# Discover compose network name dynamically (avoid hardcoding *_default)
-# Pick the first network from the project (usually "<project>_default")
 echo "[setup] discovering compose network..."
 NETWORK_NAME="$(
   cd "$COMPOSE_DIR" && docker compose -f "$COMPOSE_FILE" ps -q \
@@ -85,17 +72,15 @@ fi
 
 echo "[setup] using network: $NETWORK_NAME"
 
-# Helper: run curl inside network
 curl_in_net() {
   local url="$1"
   docker run --rm --network "$NETWORK_NAME" "$CURL_IMAGE" -fsS "$url"
 }
 
-# Helper: wait until an endpoint returns expected content (or just 200 if no matcher)
 wait_for() {
   local name="$1"
   local url="$2"
-  local matcher="${3:-}" # optional grep -E pattern
+  local matcher="${3:-}"
   local start_ts
   start_ts="$(date +%s)"
 
@@ -106,7 +91,6 @@ wait_for() {
         return 0
       fi
     else
-      # fetch body and match semantics
       if curl_in_net "$url" 2>/dev/null | grep -Eq "$matcher"; then
         return 0
       fi
@@ -124,15 +108,10 @@ wait_for() {
   done
 }
 
-# 1) Spring readiness endpoint should be UP
 wait_for "readiness" "${GATEWAY_URL}/actuator/health/readiness" '"status"\s*:\s*"UP"'
-
-# 2) System status endpoint should be READY or UP (accept both)
 wait_for "system status" "${GATEWAY_URL}/api/gateway/system/status" '(READY|UP)'
 
 echo "[test] integration tests (in-network)"
-# Run Maven inside network; mount repo read-only, but allow Maven cache write if present
-# If M2_DIR doesn't exist, skip cache mount.
 M2_MOUNT_ARGS=()
 if [[ -d "$M2_DIR" ]]; then
   M2_MOUNT_ARGS=(-v "$M2_DIR:/root/.m2")
@@ -148,5 +127,3 @@ docker run --rm --network "$NETWORK_NAME" \
   mvn -q test
 TEST_RC=$?
 set -e
-
-# cleanup trap will exit with TEST_RC
