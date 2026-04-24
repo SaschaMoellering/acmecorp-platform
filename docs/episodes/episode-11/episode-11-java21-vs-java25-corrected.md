@@ -4,13 +4,13 @@
 
 In the previous episode, we built the vocabulary for reading JVM performance signals. We talked about what startup time, latency percentiles, heap behavior, and GC pauses actually mean, and what each of those signals does and does not tell you. That vocabulary matters now, because this episode is about applying it to a real decision.
 
-Java 25 is a new major JVM release. The release notes are long. The JEP list is impressive and blog posts are enthusiastic - for good reasons. 
+Java 25 is a new major JVM release and a new LTS baseline. The release notes are long. The JEP list is impressive and blog posts are enthusiastic - for good reasons. 
 
 A JVM upgrade is not a performance lottery ticket. You do not pull the lever and hope for a better number. It is a risk-managed decision, and like any risk-managed decision, it requires evidence. What changed? What does that change mean for your specific workload? What could go wrong?
 
 This episode is about how to answer those questions for the AcmeCorp platform, using the benchmark infrastructure we have built and the signals we learned to read in the previous episode. We are going to look at what changed between Java 21 and Java 25, run the comparison, interpret the results honestly, and apply a structured go/no-go check before making a recommendation.
 
-The goal is not to tell you that Java 25 is better or worse - usually this is the case of course. The goal is to show you how to find out for yourself, on your own workload, with your own evidence.
+The goal is not to tell you that Java 25 is universally better or worse. The goal is to show you how to find out for yourself, on your own workload, with your own evidence.
 
 ---
 
@@ -66,7 +66,9 @@ The load generation in the harness uses wrk or hey, not k6. k6 is part of the li
 
 The number of runs per version and the averaging behavior depend on the current harness configuration. Before drawing conclusions from the output, check what the harness actually did. A single run per version is not enough to account for JVM variance, especially around JIT compilation timing. If the harness ran only once, the results are directional at best. If it ran multiple times, look at the spread across runs before trusting the average.
 
-One additional constraint worth naming: the Quarkus catalog service image is currently hardcoded to Java 21 in the repository. That service is not part of the Java 25 comparison path. The benchmark covers the services that are included in the matrix, not the full platform.
+One additional constraint worth naming is that this is a branch comparison, not a pure JVM comparison. The Java 21 branch and the Java 25 branch do not differ only by the JDK. The Java 25 branch also carries newer framework versions and runtime assumptions. In this repository, the comparison is best described as a platform branch benchmark: Java 21 with its platform stack versus Java 25 with its platform stack.
+
+That distinction is not a weakness as long as we name it clearly. In production, teams rarely upgrade only the JVM in total isolation. Runtime upgrades often arrive together with framework, dependency, and build changes. But it means we must not claim that every measured difference is caused by the JVM itself.
 
 ---
 
@@ -74,13 +76,29 @@ One additional constraint worth naming: the Quarkus catalog service image is cur
 
 Let me walk through what the benchmark output looks like and how to read it.
 
-The startup benchmark output shows time-to-ready for each version. If Java 25 is consistently faster across runs, that is a signal worth noting. It is consistent with the kinds of JIT and class loading improvements that have accumulated across recent JDK versions. The difference is most meaningful for services that restart frequently, for example during rolling deployments or after a crash loop. For a service that runs for days without restarting, the startup difference is a one-time cost that quickly becomes irrelevant.
+In this run, the comparison was executed with one run per branch, a 60 second warmup, a 120 second measurement duration, and a concurrency of 25. That means the result is useful as a directional platform benchmark, but it is not yet a statistically strong result. A single run can show a meaningful signal, but it cannot tell us much about variance.
 
-The throughput and latency output shows requests per second and p95 latency under the load generator profile. This is the number that matters most for a production API service. If Java 25 shows a lower p95 under the same load, that is a real signal. If the numbers are within the variance of the runs, the difference is not meaningful and should not be treated as one.
+The final benchmark result after the investigation and optimization looked like this.
 
-The container memory output shows RSS after a period of steady load. A lower RSS on Java 25 means you can either reduce the container memory limit or run more pods on the same node. The direction matters even if the magnitude is modest. But remember that the harness measures RSS from docker stats, not from inside the JVM. The number reflects the full container footprint, not just the heap.
+Java 21 reached 6408.96 requests per second, with p50 at 3.57 milliseconds, p95 at 6.13 milliseconds, and p99 at 7.13 milliseconds.
 
-What you are looking for in these results is not a headline number. You are looking for consistency across runs, a clear directional signal in the metrics that matter for your workload, and the absence of anomalies that would suggest instability. A result that shows Java 25 is faster on throughput but has one run with a p95 spike that the others do not have is not a clean result. That spike needs an explanation before you can trust the average.
+Java 25 reached 5467.65 requests per second, with p50 at 4.18 milliseconds, p95 at 7.40 milliseconds, and p99 at 8.73 milliseconds.
+
+That means Java 25 was still slower in this benchmark. Throughput was roughly 15 percent lower. p95 latency was roughly 21 percent higher. p99 latency was roughly 22 percent higher.
+
+That is not a disaster, but it is also not a win. And this distinction matters. A JVM upgrade does not have to improve every number to be worth considering. But if the performance numbers regress, the decision needs a reason beyond enthusiasm.
+
+The memory picture was mixed. Most services stayed in a similar range, but the orders service remained noticeably larger on Java 25. In the measured run, orders-service used roughly 543.8 MiB on Java 21 and 674.4 MiB on Java 25. That is a signal we should not ignore. It does not prove a memory leak, but it tells us that the Java 25 branch has a larger runtime footprint for the service that sits on the benchmark hot path.
+
+One important lesson from this benchmark is that the first result was misleading until we investigated it. Earlier runs showed Java 25 much further behind, in the range of roughly forty to fifty percent lower throughput. At that point, the correct reaction was not to blame Java 25. The correct reaction was to isolate the hot path.
+
+The endpoint under load was `GET /api/gateway/orders`. We compared the gateway path against the direct orders-service path. The direct orders-service endpoint was already much slower on Java 25, which told us the gateway was not the primary cause. We then checked payload size. The response was tiny and effectively identical between the branches, so the regression was not caused by sending more data.
+
+The next check was the status endpoints. Both Java 21 and Java 25 handled the simple status endpoints at very high throughput. That ruled out a general HTTP server or Tomcat baseline problem. The slowdown was specific to the orders list path.
+
+The diagnostic endpoints then isolated the cause further. The current path used a Spring Data JPA Specification, even for the unfiltered list case. On Java 25, with Spring Boot 4, Spring Data JPA 4, and Hibernate 7, that Specification and Criteria path had a measurable fixed per-request cost. When we bypassed the Specification path for unfiltered requests and used a simpler repository query, direct orders throughput improved significantly.
+
+That optimization did not make Java 25 faster than Java 21. But it reduced the gap from a large regression to a more understandable platform difference. This is the point of benchmarking. The number is not the answer. The number is the beginning of the investigation.
 
 ---
 
@@ -92,8 +110,8 @@ What you are looking for in these results is not a headline number. You are look
 flowchart TD
     subgraph Reward Axis
         R1[Latency — GC pause behavior\nvisible in offline benchmark]
-        R2[Startup — warmup characteristics\nfaster in benchmark runs]
-        R3[Memory — RSS signal\nlower in container measurements]
+        R2[Startup — warmup characteristics\nnot captured in final run]
+        R3[Memory — RSS signal\nmixed container measurements]
         R4[Long-term support\nJava 25 is an LTS release]
     end
 
@@ -117,7 +135,7 @@ flowchart TD
 
 The benchmark results give you the reward side of the decision. Now let me talk about the risk side, because that is where most upgrade decisions go wrong.
 
-The first risk is compatibility. Java 25 tightens access to internal APIs and removes deprecated methods that were still present in Java 21. If any of the platform's dependencies use those APIs, the service will fail at startup or at runtime in ways that may not be immediately obvious. The platform runs Spring Boot 3.3.4 and Quarkus 3.15.0. Whether those specific versions are fully compatible with Java 25 needs to be verified explicitly. Do not assume compatibility based on the framework name alone. Check the framework's own compatibility matrix for the exact version in use.
+The first risk is compatibility. Java 25 tightens access to internal APIs and removes deprecated methods that were still present in Java 21. If any of the platform's dependencies use those APIs, the service will fail at startup or at runtime in ways that may not be immediately obvious. The Java 21 branch runs Spring Boot 3.3.4 and Quarkus 3.15.0. The Java 25 branch uses newer framework baselines, including Spring Boot 4 and a compatible Quarkus version. Whether those specific versions are fully compatible with Java 25 needs to be verified explicitly. Do not assume compatibility based on the framework name alone. Check the framework's own compatibility matrix for the exact version in use.
 
 The practical way to do this is to run the full test suite against Java 25 before running any benchmarks. If the tests pass, the compatibility surface is likely clean for the paths the tests exercise. If they fail, the failure tells you exactly where the incompatibility is. Fix it or wait for the dependency to release a compatible version. Do not benchmark a version that does not pass the tests.
 
@@ -176,21 +194,25 @@ The sixth check is whether the rollback path has been tested. Before applying th
 
 Let me be direct about where the platform stands against this checklist right now.
 
-The benchmark results from the harness give partial answers to checks three, four, and five. The offline measurements show startup time, p95 latency, and RSS for both versions. Those numbers are directional signals. Whether they hold under a more sustained load, with the full service graph running, is a separate question that the benchmark harness alone cannot answer.
+The benchmark gives us useful evidence, but it does not produce an automatic go decision.
 
-The crash loop check and the rollback check are not addressed by the benchmark harness at all. They require a deliberate staging run and a deliberate rollback exercise. Neither of those has been documented as completed in the current repository state.
+The Java 25 branch now starts, runs the benchmark path, and no longer shows the severe performance regression we saw initially. That is important. The initial result looked much worse. After isolating the orders-service hot path, we found that the unfiltered list endpoint was paying the cost of the Specification and Criteria path unnecessarily. Bypassing that path for unfiltered requests improved direct orders throughput and reduced the platform benchmark gap substantially.
 
-The honest conclusion is that the benchmark results are promising enough to justify continuing the evaluation. But several checks remain open, and a full go decision would be premature. The next step is to run the test suite on Java 25, resolve any compatibility issues, and then run a sustained staging validation before treating the upgrade as production-ready.
+But the final result is still not a performance win for Java 25. In the measured run, Java 25 delivered about 5468 requests per second versus about 6409 on Java 21. p95 and p99 latency were also higher. This does not mean Java 25 is bad. It means the Java 25 platform branch still carries a measurable performance cost for this workload.
 
-That is not a failure of the process. That is the process working correctly. The checklist exists to surface exactly these gaps before they become production incidents.
+The crash-loop check has improved. During the investigation, the Java 25 branch exposed real startup issues: missing framework wiring, Flyway startup behavior, and a notification-service Jackson runtime problem. These are exactly the kinds of compatibility issues a JVM and framework upgrade can surface. Fixing them is part of the upgrade process, not an optional cleanup step.
 
----
+The memory check remains open. The orders-service RSS is still higher on Java 25. It is within the local container run, but it would need to be checked against the actual Kubernetes memory limits before any production rollout.
+
+The rollback check is still not addressed by the benchmark harness. It requires a deliberate staging exercise. The benchmark can tell us whether the application is worth further validation. It cannot prove that rollback works.
+
+The honest conclusion is this: Java 25 is now viable enough to continue evaluating, but it is not a performance-driven go decision yet. If the reason to move is long-term support, framework alignment, and staying current, the branch is a reasonable candidate for continued hardening. If the reason to move is immediate performance improvement, the current evidence does not support that claim.
+
+That is not a failure of the process. That is the process working correctly. We found a regression, isolated it, fixed the largest avoidable cause, and ended with a more accurate decision.
 
 ## What is intentionally deferred
 
 This episode has not gone deep into individual JEPs. The Java Enhancement Proposal list for Java 25 is long, and most of the entries are not directly relevant to a platform like AcmeCorp. Virtual threads became stable in Java 21, and the AcmeCorp services use traditional thread-per-request models. The migration to virtual threads is a separate decision with its own tradeoffs, and it is not something Java 25 introduces. Structured concurrency remains in preview in Java 25 and is not a stable API for production adoption.
-
-Vendor-specific early access builds are also out of scope here. Amazon Corretto, Eclipse Temurin, and other distributions will each have their own release timelines and their own patches on top of the OpenJDK baseline. The comparison in this episode uses Temurin because it is what the platform already uses. Switching distributions is a separate decision that requires its own compatibility and stability checks.
 
 The point is not to evaluate every feature in the release. The point is to evaluate the features that affect your workload, measure the ones that can be measured, and make a decision based on evidence rather than release notes.
 
@@ -202,7 +224,7 @@ Every major JVM release comes with a wave of enthusiasm. Benchmark numbers from 
 
 The process we followed in this episode is the same process you should follow for any JVM upgrade. Understand the change surface honestly, including what is new and what predates this release. Check compatibility before benchmarking. Run the comparison under the best-controlled conditions your harness supports. Read the results honestly, including the variance and the gaps. Apply the go/no-go checklist. Test the rollback path. Then decide.
 
-For the AcmeCorp platform, the benchmark results are directional and worth acting on. But the checklist is not complete. Compatibility needs to be verified, a staging run needs to happen, and the rollback path needs to be exercised. The upgrade is not ready to ship today. It is ready to be validated properly.
+For the AcmeCorp platform, the benchmark results are directional and worth continuing to investigate, but they do not justify claiming a performance win for Java 25.
 
 That distinction matters. A process that tells you what still needs to happen is more useful than one that declares victory prematurely. The checklist is not a formality. It is the thing that keeps a promising benchmark result from becoming a production incident.
 
