@@ -10,7 +10,7 @@ case "$branch" in
     echo "[parity] Branch '$branch' is not a java* branch; skipping."
     exit 0
     ;;
- esac
+esac
 
 if ! git show-ref --verify --quiet "refs/heads/${BASE_BRANCH}"; then
   echo "[parity] Base branch '${BASE_BRANCH}' not found locally." >&2
