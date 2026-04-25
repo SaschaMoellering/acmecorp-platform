@@ -4,6 +4,12 @@ set -euo pipefail
 DEFAULT_TIMEOUT_SECONDS=180
 DEFAULT_INTERVAL_SECONDS=2
 
+COMPOSE_FILE_HINT="${COMPOSE_FILE_HINT:-}"
+if [[ -z "${COMPOSE_FILE_HINT}" && "${1:-}" =~ \.(yml|yaml)$ ]]; then
+  COMPOSE_FILE_HINT="$1"
+  shift
+fi
+
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-${1:-$DEFAULT_TIMEOUT_SECONDS}}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-${2:-$DEFAULT_INTERVAL_SECONDS}}"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
@@ -111,11 +117,16 @@ check_system_status() {
 print_diagnostics() {
   echo "[diagnostics] docker compose ps/logs" >&2
   if command -v docker >/dev/null 2>&1; then
-    if [[ -f infra/local/docker-compose.yml ]]; then
-      (cd infra/local && docker compose ps) || true
-      (cd infra/local && docker compose logs --tail 200) || true
+    local compose_file="${COMPOSE_FILE_HINT:-infra/local/docker-compose.yml}"
+    if [[ -f "${compose_file}" ]]; then
+      local compose_dir
+      compose_dir="$(cd "$(dirname "${compose_file}")" && pwd)"
+      local compose_name
+      compose_name="$(basename "${compose_file}")"
+      (cd "${compose_dir}" && docker compose -f "${compose_name}" ps) || true
+      (cd "${compose_dir}" && docker compose -f "${compose_name}" logs --tail 200) || true
     else
-      echo "[diagnostics] infra/local/docker-compose.yml not found" >&2
+      echo "[diagnostics] ${compose_file} not found" >&2
     fi
   else
     echo "[diagnostics] docker not available" >&2
