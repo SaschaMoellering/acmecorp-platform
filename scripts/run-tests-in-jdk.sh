@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run tests in a containerized workspace copied to /tmp so host repo stays clean.
-# If a local JDK is available (e.g. SDKMAN), set USE_LOCAL_JAVA=1 to use it.
-
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <11|17|21|25>" >&2
   exit 2
@@ -23,7 +20,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cache_volume="acmecorp-m2-cache-${version}"
 workspace_dir="/tmp/workspace"
 copy_reports="${COPY_TEST_REPORTS:-}"
-artifacts_root="${repo_root}/artifacts/test-reports/jdk${version}"
 
 use_local="${USE_LOCAL_JAVA:-}"
 sdkman_home="${SDKMAN_DIR:-$HOME/.sdkman}"

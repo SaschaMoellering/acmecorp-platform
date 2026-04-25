@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run builds in a containerized workspace copied to /tmp so host repo stays clean.
-
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <11|17|21|25>" >&2
   exit 2
