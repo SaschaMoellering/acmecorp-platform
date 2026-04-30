@@ -1,0 +1,28 @@
+name: Repo Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  repo-validation:
+    name: Lightweight Repo Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Run repository validation
+        run: bash scripts/validate-repo.sh

@@ -60,6 +60,8 @@ Default local endpoints:
 - Catalog: `http://localhost:8085`
 - RabbitMQ UI: `http://localhost:15672`
 
+For the observability overlay, smoke checks, and local credentials, use [infra/local/README.md](infra/local/README.md).
+
 ### AWS Platform
 
 High-level deploy order:
@@ -75,6 +77,7 @@ scripts/deploy-ui.sh
 ```
 
 Terraform provisions the AWS infrastructure, Kubernetes foundation, DNS, certificates, and the S3 + CloudFront hosting resources for the frontend. It does not upload frontend assets into the UI bucket.
+The production values render step now validates critical rendered values such as hosts, certificate ARNs, region, and secret-prefix wiring before Helm deployment.
 
 ### Deploy Frontend
 
@@ -91,6 +94,8 @@ See the full production runbooks under [docs/deployment/](docs/deployment/).
 ## Documentation Map
 
 - [docs/README.md](docs/README.md): documentation hub
+- [docs/codebase-overview.md](docs/codebase-overview.md): senior-engineer onboarding overview of the repository
+- [docs/system-map.md](docs/system-map.md): canonical repository and runtime mental model
 - [docs/branch-model.md](docs/branch-model.md): canonical branch purposes and sync direction
 - [docs/benchmarking.md](docs/benchmarking.md): canonical benchmark methodology and artifact usage
 - [docs/optimizations/README.md](docs/optimizations/README.md): optimization branch overviews

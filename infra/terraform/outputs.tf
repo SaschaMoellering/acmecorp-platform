@@ -1,7 +1,30 @@
 # Cluster
+# Boundary-contract outputs for Helm/rendering only. These expose the current
+# Terraform source-of-truth values without changing any infrastructure behavior.
+# If you change this contract, update docs/codebase-overview.md.
 output "aws_region" {
   description = "AWS region for this Terraform deployment"
   value       = var.aws_region
+}
+
+output "name_prefix" {
+  description = "Current deployment name prefix used for boundary contracts such as Secrets Manager naming."
+  value       = local.name_prefix
+}
+
+output "app_namespace" {
+  description = "Current application namespace assumption used by Terraform-to-Helm boundary contracts."
+  value       = "acmecorp"
+}
+
+output "observability_namespace" {
+  description = "Current observability namespace assumption used by Terraform-to-Helm boundary contracts."
+  value       = "observability"
+}
+
+output "external_secrets_namespace" {
+  description = "Current External Secrets namespace assumption used by Terraform-to-Helm boundary contracts."
+  value       = "external-secrets"
 }
 
 output "cluster_name" {

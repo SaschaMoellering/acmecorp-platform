@@ -64,6 +64,18 @@ terraform -chdir=infra/terraform output ui_custom_url
 terraform -chdir=infra/terraform output cluster_secrets_kms_key_arn
 ```
 
+Boundary-contract outputs used by the Helm/rendering path:
+
+Treat these outputs as the Terraform source of truth for the Terraform-to-Helm boundary contract. If these outputs or their semantics change, update the rendered-values workflow and the canonical docs.
+
+```bash
+terraform -chdir=infra/terraform output name_prefix
+terraform -chdir=infra/terraform output aws_region
+terraform -chdir=infra/terraform output app_namespace
+terraform -chdir=infra/terraform output observability_namespace
+terraform -chdir=infra/terraform output external_secrets_namespace
+```
+
 ## Important Inputs
 
 Commonly reviewed inputs include:
@@ -101,6 +113,10 @@ Frequently used outputs include:
 - `ui_cloudfront_distribution_id`
 - `ui_cloudfront_url`
 - `ui_custom_url`
+- `name_prefix`
+- `app_namespace`
+- `observability_namespace`
+- `external_secrets_namespace`
 
 ## State And Hosted-Zone Assumptions
 
@@ -116,3 +132,14 @@ Frequently used outputs include:
 - Do not run destroy commands unless teardown is explicitly intended and reviewed.
 - The EKS secrets KMS key is intentionally long-lived; normal rebuilds should reuse it rather than replace it.
 - Terraform creates infrastructure only. Application deployment continues through the Helm and UI deployment flows after Terraform succeeds.
+
+## Documented Defaults And Assumptions
+
+Some values remain intentionally hardcoded as project defaults or provider requirements, for example:
+
+- default region and project naming defaults in `variables.tf`
+- the `us-east-1` provider alias required for CloudFront ACM
+- the default Route53 fallback domain in the root module
+- backend key examples in `backend.tf.example`
+
+This pass does not change those behaviors. See `/tmp/terraform-hardcoded-values-audit.md` for the audit classification.

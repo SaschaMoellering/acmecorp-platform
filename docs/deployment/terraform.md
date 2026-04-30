@@ -81,6 +81,16 @@ terraform -chdir=infra/terraform output aurora_ingress_source_security_group_ids
 terraform -chdir=infra/terraform output mq_ingress_source_security_group_ids
 ```
 
+Boundary outputs that feed the Helm/rendering contract:
+
+```bash
+terraform -chdir=infra/terraform output name_prefix
+terraform -chdir=infra/terraform output aws_region
+terraform -chdir=infra/terraform output app_namespace
+terraform -chdir=infra/terraform output observability_namespace
+terraform -chdir=infra/terraform output external_secrets_namespace
+```
+
 Equivalent `tfvars` examples:
 
 ```hcl

@@ -7,6 +7,7 @@ set -euo pipefail
 # - IMAGE_TAG env var or second positional argument
 # Output:
 # - rendered values file at the first positional argument or /tmp/acmecorp-values-prod.generated.yaml
+# If you change this Terraform-to-Helm boundary contract, update docs/codebase-overview.md.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="${TF_DIR:-$ROOT_DIR/infra/terraform}"
@@ -28,6 +29,16 @@ require_value() {
   local value="$2"
   if [[ -z "$value" || "$value" == "null" ]]; then
     echo "ERROR: required value missing: $name" >&2
+    exit 1
+  fi
+}
+
+require_expected_value() {
+  local name="$1"
+  local value="$2"
+  local expected="$3"
+  if [[ "$value" != "$expected" ]]; then
+    echo "ERROR: required value mismatch: $name expected '$expected' but got '$value'" >&2
     exit 1
   fi
 }
@@ -55,6 +66,28 @@ tf_output_ecr() {
 
 require_cmd jq
 
+if [[ -z "$TF_OUTPUT_JSON" ]]; then
+  require_cmd terraform
+fi
+
+run_yq() {
+  local expression="$1"
+  local file_path="$2"
+
+  if command -v yq >/dev/null 2>&1; then
+    yq "$expression" "$file_path"
+    return
+  fi
+
+  require_cmd docker
+
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -v "${file_path}:${file_path}:ro" \
+    mikefarah/yq:4 \
+    "$expression" "$file_path"
+}
+
 run_yq_inplace() {
   local expression="$1"
   local file_path="$2"
@@ -77,6 +110,7 @@ run_yq_inplace() {
     -e UI_CUSTOM_URL \
     -e GATEWAY_CERT_ARN \
     -e GRAFANA_CERT_ARN \
+    -e SECRETS_NAME_PREFIX \
     -e ECR_GATEWAY \
     -e ECR_ORDERS \
     -e ECR_CATALOG \
@@ -87,6 +121,50 @@ run_yq_inplace() {
     -v "${file_path}:${file_path}" \
     mikefarah/yq:4 \
     -i "$expression" "$file_path"
+}
+
+read_rendered_value() {
+  local path="$1"
+  local file_path="$2"
+  local value
+
+  value="$(run_yq "$path" "$file_path" 2>/dev/null || true)"
+  value="${value//$'\r'/}"
+  value="${value//$'\n'/}"
+  printf '%s\n' "$value"
+}
+
+is_placeholder_or_example() {
+  local value="$1"
+
+  [[ "$value" == *"example.com"* ]] && return 0
+  [[ "$value" == *"PLACEHOLDER"* ]] && return 0
+  [[ "$value" == *"<REPLACE"* ]] && return 0
+  [[ "$value" == *"REPLACE_ME"* ]] && return 0
+  case "$value" in
+    \<*\>) return 0 ;;
+  esac
+
+  return 1
+}
+
+require_rendered_value() {
+  local path="$1"
+  local file_path="$2"
+  local check_name="$3"
+  local allow_example="${4:-false}"
+  local value
+
+  value="$(read_rendered_value "$path" "$file_path")"
+  if [[ -z "$value" || "$value" == "null" ]]; then
+    echo "ERROR: rendered production values check failed: ${check_name} is empty at ${path}" >&2
+    exit 1
+  fi
+
+  if [[ "$allow_example" != "true" ]] && is_placeholder_or_example "$value"; then
+    echo "ERROR: rendered production values check failed: ${check_name} contains a placeholder/example value at ${path}: ${value}" >&2
+    exit 1
+  fi
 }
 
 if [[ -z "$IMAGE_TAG" ]]; then
@@ -129,6 +207,10 @@ GRAFANA_HOST="$(tf_output_value grafana_ingress_host)"
 UI_CUSTOM_URL="$(tf_output_value ui_custom_url)"
 GATEWAY_CERT_ARN="$(tf_output_value gateway_certificate_arn)"
 GRAFANA_CERT_ARN="$(tf_output_value grafana_certificate_arn)"
+SECRETS_NAME_PREFIX="$(tf_output_value name_prefix)"
+APP_NAMESPACE="$(tf_output_value app_namespace)"
+OBSERVABILITY_NAMESPACE="$(tf_output_value observability_namespace)"
+EXTERNAL_SECRETS_NAMESPACE="$(tf_output_value external_secrets_namespace)"
 ECR_GATEWAY="$(tf_output_ecr acmecorp/gateway-service)"
 ECR_ORDERS="$(tf_output_ecr acmecorp/orders-service)"
 ECR_CATALOG="$(tf_output_ecr acmecorp/catalog-service)"
@@ -145,12 +227,19 @@ require_value "grafana_ingress_host" "$GRAFANA_HOST"
 require_value "ui_custom_url" "$UI_CUSTOM_URL"
 require_value "gateway_certificate_arn" "$GATEWAY_CERT_ARN"
 require_value "grafana_certificate_arn" "$GRAFANA_CERT_ARN"
+require_value "name_prefix" "$SECRETS_NAME_PREFIX"
+require_value "app_namespace" "$APP_NAMESPACE"
+require_value "observability_namespace" "$OBSERVABILITY_NAMESPACE"
+require_value "external_secrets_namespace" "$EXTERNAL_SECRETS_NAMESPACE"
 require_value "ecr_repository_urls[acmecorp/gateway-service]" "$ECR_GATEWAY"
 require_value "ecr_repository_urls[acmecorp/orders-service]" "$ECR_ORDERS"
 require_value "ecr_repository_urls[acmecorp/catalog-service]" "$ECR_CATALOG"
 require_value "ecr_repository_urls[acmecorp/billing-service]" "$ECR_BILLING"
 require_value "ecr_repository_urls[acmecorp/analytics-service]" "$ECR_ANALYTICS"
 require_value "ecr_repository_urls[acmecorp/notification-service]" "$ECR_NOTIFICATION"
+require_expected_value "app_namespace" "$APP_NAMESPACE" "acmecorp"
+require_expected_value "observability_namespace" "$OBSERVABILITY_NAMESPACE" "observability"
+require_expected_value "external_secrets_namespace" "$EXTERNAL_SECRETS_NAMESPACE" "external-secrets"
 
 export AWS_REGION
 export AURORA_ENDPOINT
@@ -161,6 +250,7 @@ export GRAFANA_HOST
 export UI_CUSTOM_URL
 export GATEWAY_CERT_ARN
 export GRAFANA_CERT_ARN
+export SECRETS_NAME_PREFIX
 export ECR_GATEWAY
 export ECR_ORDERS
 export ECR_CATALOG
@@ -173,6 +263,7 @@ cp "$BASE_VALUES" "$OUTPUT_PATH"
 
 run_yq_inplace '
   .global.awsRegion = env(AWS_REGION) |
+  .global.secretsNamePrefix = env(SECRETS_NAME_PREFIX) |
   .global.aurora.host = env(AURORA_ENDPOINT) |
   .global.mq.host = env(MQ_HOST) |
   .["gateway-service"].image.repository = env(ECR_GATEWAY) |
@@ -206,5 +297,25 @@ if grep -nE '<[^>]+>' "$OUTPUT_PATH" >/dev/null; then
   grep -nE '<[^>]+>' "$OUTPUT_PATH" >&2
   exit 1
 fi
+
+# Production-critical values must be non-empty and must not retain example or placeholder values.
+require_rendered_value '.global.awsRegion' "$OUTPUT_PATH" 'global.awsRegion'
+require_rendered_value '.global.secretsNamePrefix' "$OUTPUT_PATH" 'global.secretsNamePrefix'
+require_rendered_value '.global.namespaces.app' "$OUTPUT_PATH" 'global.namespaces.app'
+require_rendered_value '.global.namespaces.observability' "$OUTPUT_PATH" 'global.namespaces.observability'
+require_rendered_value '.global.namespaces.externalSecrets' "$OUTPUT_PATH" 'global.namespaces.externalSecrets'
+require_rendered_value '."gateway-service".ingress.host' "$OUTPUT_PATH" 'gateway ingress host'
+require_rendered_value '.grafana.ingress.host' "$OUTPUT_PATH" 'grafana ingress host'
+require_rendered_value '."gateway-service".config.gatewayCorsOriginUi' "$OUTPUT_PATH" 'UI CORS origin'
+require_rendered_value '."gateway-service".ingress.tls.certificateArn' "$OUTPUT_PATH" 'gateway ACM certificate ARN'
+require_rendered_value '.grafana.ingress.annotations."alb.ingress.kubernetes.io/certificate-arn"' "$OUTPUT_PATH" 'grafana ACM certificate ARN'
+require_rendered_value '.global.mq.host' "$OUTPUT_PATH" 'MQ host'
+require_rendered_value '.global.aurora.host' "$OUTPUT_PATH" 'Aurora host'
+
+require_expected_value 'rendered global.namespaces.app' "$(read_rendered_value '.global.namespaces.app' "$OUTPUT_PATH")" "$APP_NAMESPACE"
+require_expected_value 'rendered global.namespaces.observability' "$(read_rendered_value '.global.namespaces.observability' "$OUTPUT_PATH")" "$OBSERVABILITY_NAMESPACE"
+require_expected_value 'rendered global.namespaces.externalSecrets' "$(read_rendered_value '.global.namespaces.externalSecrets' "$OUTPUT_PATH")" "$EXTERNAL_SECRETS_NAMESPACE"
+require_expected_value 'rendered global.secretsNamePrefix' "$(read_rendered_value '.global.secretsNamePrefix' "$OUTPUT_PATH")" "$SECRETS_NAME_PREFIX"
+require_expected_value 'rendered global.awsRegion' "$(read_rendered_value '.global.awsRegion' "$OUTPUT_PATH")" "$AWS_REGION"
 
 echo "Generated production values: $OUTPUT_PATH"

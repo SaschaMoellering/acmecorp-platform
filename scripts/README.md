@@ -21,7 +21,7 @@ Treat these scripts as operational helpers, not as canonical branch-policy docum
 
 - `bootstrap-first-cluster.sh`: post-Terraform cluster bootstrap
 - `build-and-push-ecr.sh`: build and push service images
-- `render-prod-values.sh`: generate deployment-specific Helm values from Terraform outputs
+- `render-prod-values.sh`: generate deployment-specific Helm values from Terraform outputs and fail early on unresolved production-critical values
 - `validate-deploy.sh`: Terraform + Helm + manifest validation helper
 - `verify-first-deploy.sh`: post-deploy verification helper
 - `finalize-alb-dns.sh`: DNS finalization helper for ALB-backed ingress
@@ -39,3 +39,4 @@ Treat these scripts as operational helpers, not as canonical branch-policy docum
 - Review a script before running it against AWS or shared environments.
 - Prefer the canonical runbooks under `docs/deployment/` for command order and context.
 - Do not assume a script implies blind branch parity or blind merge guidance.
+- Treat `render-prod-values.sh` as the source of truth for the Terraform-to-Helm value bridge rather than editing generated production values by hand.

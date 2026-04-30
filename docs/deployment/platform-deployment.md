@@ -119,14 +119,20 @@ scripts/build-and-push-ecr.sh "$IMAGE_TAG"
 IMAGE_TAG="$IMAGE_TAG" scripts/render-prod-values.sh /tmp/acmecorp-values-prod.generated.yaml
 ```
 
+Treat Terraform outputs as the source of truth for the Terraform-to-Helm boundary contract. `scripts/render-prod-values.sh` is the canonical renderer for the deployment-specific rendered values file.
+
 Generated values include:
 - ECR image URLs
 - image tags
+- AWS region
+- secret-name prefix
 - Aurora endpoint
 - MQ endpoint
 - ingress hostnames
 - certificate ARNs
 - Redis DNS host for analytics
+
+The render step now fails early if production-critical values remain empty or still look like placeholders or example domains.
 
 ## 5. Deploy The Helm Release
 

@@ -42,6 +42,12 @@ Runs through the Java branches (`java11`, `java17`, `java21`, `main`, `java25`),
 
 Treat those runs as platform-branch comparisons unless you have explicitly isolated the JVM as the only changing variable.
 
+Benchmark integrity note:
+
+- confirm which branch you are actually on before treating a run as a baseline
+- branch results in this repository are usually cross-branch platform comparisons, not pure runtime-isolation measurements
+- do not describe `java21`, `main`, or `java25` results as interchangeable baselines unless the campaign setup proves that they are
+
 For the branch-to-branch Java 21 vs Java 25 comparison only, use the dedicated wrapper:
 
 ```bash

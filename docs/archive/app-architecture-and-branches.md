@@ -4,10 +4,11 @@ This document is retained as a historical architecture-and-branches snapshot.
 
 For current canonical references, use:
 
-- [branch-model.md](branch-model.md)
-- [architecture/system-overview.md](architecture/system-overview.md)
-- [deployment/platform-deployment.md](deployment/platform-deployment.md)
-- [benchmarking.md](benchmarking.md)
+- [../branch-model.md](../branch-model.md)
+- [../system-map.md](../system-map.md)
+- [../architecture/system-overview.md](../architecture/system-overview.md)
+- [../deployment/platform-deployment.md](../deployment/platform-deployment.md)
+- [../benchmarking.md](../benchmarking.md)
 
 The remainder of this file should be read as legacy context, not as the canonical branch model or deployment reference.
 

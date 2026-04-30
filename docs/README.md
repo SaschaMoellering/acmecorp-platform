@@ -12,6 +12,8 @@ This directory is organized around a practical documentation split:
 ## Start Here
 
 - [getting-started/quickstart.md](getting-started/quickstart.md)
+- [codebase-overview.md](codebase-overview.md)
+- [system-map.md](system-map.md)
 - [branch-model.md](branch-model.md)
 - [benchmarking.md](benchmarking.md)
 - [optimizations/README.md](optimizations/README.md)
@@ -49,5 +51,6 @@ These folders are still useful, but they are not the primary operational runbook
 - `docs/episodes/`
 - `docs/steering/`
 - `docs/standards/`
+- `docs/archive/`
 
 Historical top-level docs are retained only as compatibility entry points and now link back into this structure.

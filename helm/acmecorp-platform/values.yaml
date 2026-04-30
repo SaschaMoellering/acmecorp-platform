@@ -1,7 +1,8 @@
 global:
+  # If you change this boundary-contract shape or semantics, update docs/codebase-overview.md.
   imagePullSecrets: []
-  awsRegion: us-east-1
-  secretsNamePrefix: acmecorp-platform-prod
+  awsRegion: us-east-1           # baseline default; production rendering should overwrite from Terraform output aws_region
+  secretsNamePrefix: acmecorp-platform-prod   # must stay aligned with Terraform name_prefix for ExternalSecret lookups
   namespaces:
     app: acmecorp
     data: data

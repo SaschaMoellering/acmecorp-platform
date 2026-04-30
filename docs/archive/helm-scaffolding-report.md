@@ -1,7 +1,7 @@
 # Helm Scaffolding Requirements Report
 
 > Historical scaffolding report.
-> The canonical Helm deployment documentation now lives in [../helm/acmecorp-platform/README.md](../helm/acmecorp-platform/README.md) and [deployment/platform-deployment.md](deployment/platform-deployment.md).
+> The canonical Helm deployment documentation now lives in [../../helm/acmecorp-platform/README.md](../../helm/acmecorp-platform/README.md) and [../deployment/platform-deployment.md](../deployment/platform-deployment.md).
 > This file should be read as background context, not as the current operational source of truth.
 
 ## Overview
