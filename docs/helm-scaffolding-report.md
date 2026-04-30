@@ -1,5 +1,9 @@
 # Helm Scaffolding Requirements Report
 
+> Historical scaffolding report.
+> The canonical Helm deployment documentation now lives in [../helm/acmecorp-platform/README.md](../helm/acmecorp-platform/README.md) and [deployment/platform-deployment.md](deployment/platform-deployment.md).
+> This file should be read as background context, not as the current operational source of truth.
+
 ## Overview
 
 This report captures everything required to scaffold an umbrella Helm chart for the **backend only** (gateway, orders, catalog) so it can be deployed to Amazon EKS while the React SPA lives outside Helm (S3/CloudFront via Terraform). The details derive directly from the existing Docker Compose stack (`infra/local/docker-compose.yml`), Spring Boot / Quarkus configuration, current Kubernetes manifests (`infra/k8s/base/`), and the Java build artifacts in `services/`. No assumptions beyond repository facts are introduced.

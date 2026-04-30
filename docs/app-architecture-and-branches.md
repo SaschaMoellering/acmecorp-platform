@@ -1,3 +1,18 @@
+## Legacy Architecture Snapshot
+
+This document is retained as a historical architecture-and-branches snapshot.
+
+For current canonical references, use:
+
+- [branch-model.md](branch-model.md)
+- [architecture/system-overview.md](architecture/system-overview.md)
+- [deployment/platform-deployment.md](deployment/platform-deployment.md)
+- [benchmarking.md](benchmarking.md)
+
+The remainder of this file should be read as legacy context, not as the canonical branch model or deployment reference.
+
+---
+
 ## AcmeCorp Platform – Current Architecture (Implementation Snapshot)
 
 ### Overview

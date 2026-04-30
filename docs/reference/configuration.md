@@ -10,6 +10,20 @@ This page lists the main domains, environment variables, and outputs used across
 | API gateway | `api.acmecorp.autoscaling.io` |
 | Grafana | `grafana.acmecorp.autoscaling.io` |
 
+## Local Compose Defaults
+
+Main local runtime files:
+
+- `infra/local/docker-compose.yml`
+- `infra/local/docker-compose.observability.yml`
+
+Default local credentials:
+
+| Component | Username | Password |
+| --- | --- | --- |
+| PostgreSQL | `acmecorp` | `acmecorp` |
+| RabbitMQ | `acmecorp` | `acmecorp` |
+
 ## Frontend Configuration
 
 | Variable | Purpose | Default |
@@ -43,12 +57,18 @@ Key environment-backed properties in `gateway-service`:
 | Variable | Purpose |
 | --- | --- |
 | `eks_secrets_kms_key_arn` | optional existing KMS key ARN for EKS secrets envelope encryption |
+| `manage_eks_secrets_kms_key` | whether Terraform manages and retains the EKS secrets KMS key |
+| `public_hosted_zone_name` | canonical public Route53 hosted zone input |
 | `route53_zone_name` | public Route53 hosted zone |
 | `gateway_ingress_host` | API hostname |
 | `grafana_ingress_host` | Grafana hostname |
 | `ui_subdomain` | UI hostname label |
 | `ui_bucket_name_override` | optional explicit S3 bucket name |
 | `ui_build_assets_path` | local build path used by deploy workflows |
+
+Notes:
+- prefer `public_hosted_zone_name` for new usage
+- `route53_zone_name` is retained as a compatibility alias
 
 ## Terraform Outputs
 

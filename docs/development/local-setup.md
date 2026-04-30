@@ -13,6 +13,8 @@ cd infra/local
 docker compose up --build
 ```
 
+Infrastructure-specific local runtime notes live in [../../infra/local/README.md](../../infra/local/README.md).
+
 Then run the UI:
 
 ```bash
@@ -53,6 +55,10 @@ The UI uses:
 | RabbitMQ | `localhost:5672` |
 | RabbitMQ UI | `http://localhost:15672` |
 
+Default local credentials:
+- PostgreSQL: `acmecorp` / `acmecorp`
+- RabbitMQ: `acmecorp` / `acmecorp`
+
 ## UI API Configuration
 
 The UI has one source of truth for the API base URL:
@@ -87,6 +93,18 @@ Check gateway health:
 
 ```bash
 curl http://localhost:8080/api/gateway/status
+```
+
+Wait for the Compose stack:
+
+```bash
+bash scripts/wait-for-compose-health.sh
+```
+
+Run the local smoke checks:
+
+```bash
+BASE_URL=http://localhost:8080 bash scripts/smoke-local.sh
 ```
 
 Run frontend build:

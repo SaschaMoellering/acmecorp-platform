@@ -1,8 +1,11 @@
 # Episode 13 — Benchmarking & Performance Methodology
 
+> This file is teaching material.
+> For canonical benchmark commands, artifact names, and branch-interpretation rules, use [../../benchmarking.md](../../benchmarking.md) and [../../branch-model.md](../../branch-model.md).
+
 ## Opening – Benchmarks often lie
 
-In the previous two episodes we looked at JVM performance signals and then applied them to a real upgrade decision. We read benchmark output, compared numbers across versions, and drew conclusions. But there was a thread running through both of those episodes that deserves its own treatment: the question of whether the benchmark itself was trustworthy.
+In the episode 11 we looked at JVM performance signals and then applied them to a real upgrade decision. We read benchmark output, compared numbers across versions, and drew conclusions. But there was a thread running through both of those episodes that deserves its own treatment: the question of whether the benchmark itself was trustworthy.
 
 A benchmark that changes multiple variables at once does not measure performance. It measures the combined effect of everything that changed, and it cannot tell you which change caused which outcome. A benchmark run without warmup measures startup behavior and calls it steady-state performance. A benchmark with a single sample per version mistakes noise for signal. A benchmark that cannot be reproduced by someone else on a different day is not evidence. It is an anecdote.
 
@@ -112,23 +115,23 @@ The fourth phase is reporting. We record the raw results, repeat the full cycle 
 ```mermaid
 flowchart TD
     subgraph Matrix Runs
-        B1[Branch: java21\nfixed image, fixed config]
-        B2[Branch: java25\nfixed image, fixed config]
+        B1[Branch: java21\nfixed branch and config]
+        B2[Branch: java25\nfixed branch and config]
     end
 
     subgraph Per-run steps
-        R1[Pull image]
-        R2[Start container with fixed resource limits]
+        R1[Use branch worktree]
+        R2[Start compose stack]
         R3[Warmup — discard]
         R4[Measure — keep]
         R5[Capture RSS]
-        R6[Stop container]
+        R6[Stop stack]
     end
 
     subgraph Output
-        O1[startup.txt]
-        O2[latency.txt]
-        O3[memory.txt]
+        O1[summary.md]
+        O2[load.json]
+        O3[containers.json]
     end
 
     B1 --> R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> O1 & O2 & O3
@@ -155,7 +158,7 @@ Let me be concrete about how startup and steady-state measurements are separated
 
 Startup time is measured once, immediately after the container satisfies the readiness condition. It captures the full initialization path: JVM startup, class loading, framework bootstrap, dependency injection wiring, and database connection pool initialization. It is a cold measurement. It does not reflect what the service does under sustained load.
 
-[SHOW: benchmark output – startup.txt with time-to-ready per branch per run]
+[SHOW: benchmark output – summary.md and orders-startup.json with time-to-ready per branch per run]
 
 Steady-state performance is measured after warmup, during the measurement window. It captures throughput and latency after the JIT has compiled the hot paths and the GC pattern has stabilised. It reflects what the service does when it has been running for a while under representative load. It is the number that matters for production capacity planning.
 
@@ -177,7 +180,7 @@ The right approach is to take multiple RSS snapshots at fixed intervals during t
 
 When you compare RSS across branches, you are comparing distributions, not points. A branch that shows a lower median RSS but a higher maximum RSS than another branch is not straightforwardly better or worse. It depends on whether you are optimizing for average footprint or worst-case footprint. The benchmark should report both, and the interpretation should be explicit about which dimension matters for the decision at hand.
 
-[SHOW: benchmark output – memory.txt with min, median, max RSS per branch]
+[SHOW: benchmark output – containers.json with per-container RSS snapshots per branch]
 
 One more thing about RSS comparisons across JVM versions or framework versions: the RSS reflects the full process footprint, including native memory that the JVM does not report through its own metrics. Heap usage visible in Grafana is a subset of RSS. If RSS changes between two benchmark runs and the heap metrics look similar, the difference is in native memory — metaspace, JIT code cache, thread stacks, or direct buffers. That distinction matters for diagnosing the cause of a memory difference, even if it does not change the container sizing decision.
 

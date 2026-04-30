@@ -91,6 +91,9 @@ See the full production runbooks under [docs/deployment/](docs/deployment/).
 ## Documentation Map
 
 - [docs/README.md](docs/README.md): documentation hub
+- [docs/branch-model.md](docs/branch-model.md): canonical branch purposes and sync direction
+- [docs/benchmarking.md](docs/benchmarking.md): canonical benchmark methodology and artifact usage
+- [docs/optimizations/README.md](docs/optimizations/README.md): optimization branch overviews
 - [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md): onboarding and quickstart
 - [docs/development/local-setup.md](docs/development/local-setup.md): local development flow
 - [docs/architecture/system-overview.md](docs/architecture/system-overview.md): system design and request flow
@@ -101,6 +104,9 @@ See the full production runbooks under [docs/deployment/](docs/deployment/).
 - [docs/operations/troubleshooting.md](docs/operations/troubleshooting.md): troubleshooting and recovery
 - [docs/reference/configuration.md](docs/reference/configuration.md): important env vars, domains, and outputs
 - [docs/reference/services.md](docs/reference/services.md): service inventory
+- [infra/README.md](infra/README.md): infrastructure-specific READMEs
+- [bench/README.md](bench/README.md): benchmark tooling reference
+- [scripts/README.md](scripts/README.md): script index and safe usage notes
 
 ## Tech Stack
 

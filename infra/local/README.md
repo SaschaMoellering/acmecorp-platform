@@ -2,6 +2,16 @@
 
 This stack runs Postgres, Redis, RabbitMQ, and the backend services with the `docker` profile.
 
+Canonical local-development guidance also lives in:
+
+- [../../docs/development/local-setup.md](../../docs/development/local-setup.md)
+- [../../docs/operations/observability.md](../../docs/operations/observability.md)
+
+## Compose Files
+
+- `infra/local/docker-compose.yml`: main local stack
+- `infra/local/docker-compose.observability.yml`: Prometheus, Grafana, Alertmanager, and optional `k6`
+
 ## Start the stack
 
 ```bash
@@ -22,6 +32,26 @@ docker compose build --no-cache --pull
 docker compose up -d
 ```
 
+## Default Ports
+
+- Gateway: `http://localhost:8080`
+- Orders: `http://localhost:8081`
+- Billing: `http://localhost:8082`
+- Notification: `http://localhost:8083`
+- Analytics: `http://localhost:8084`
+- Catalog: `http://localhost:8085`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+- RabbitMQ: `localhost:5672`
+- RabbitMQ UI: `http://localhost:15672`
+
+## Local Credentials
+
+- PostgreSQL: `acmecorp` / `acmecorp`
+- RabbitMQ: `acmecorp` / `acmecorp`
+
+These are the local Compose defaults. They are not the same as the older plain Kubernetes base manifests under `infra/k8s/base/`.
+
 ## Redis expectations
 
 - Redis runs as the `redis` service and is used by `analytics-service`.
@@ -31,6 +61,18 @@ docker compose up -d
 
 ```bash
 ./validate-health.sh
+```
+
+Wait for the full stack from the repo root:
+
+```bash
+bash scripts/wait-for-compose-health.sh
+```
+
+Run the local smoke checks from the repo root:
+
+```bash
+BASE_URL=http://localhost:8080 bash scripts/smoke-local.sh
 ```
 
 ## RabbitMQ DLQ demo
@@ -92,4 +134,21 @@ docker compose \
   -f infra/local/docker-compose.observability.yml \
   --profile load \
   up --abort-on-container-exit k6
+```
+
+## Stop Safely
+
+From `infra/local/`:
+
+```bash
+docker compose down
+```
+
+From the repo root with the observability overlay:
+
+```bash
+docker compose \
+  -f infra/local/docker-compose.yml \
+  -f infra/local/docker-compose.observability.yml \
+  down
 ```

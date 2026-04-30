@@ -2,6 +2,12 @@
 
 This is the canonical AWS deployment flow for the backend platform and supporting infrastructure.
 
+Infrastructure-specific operator docs:
+
+- [../../infra/terraform/README.md](../../infra/terraform/README.md)
+- [../../helm/acmecorp-platform/README.md](../../helm/acmecorp-platform/README.md)
+- [../../scripts/README.md](../../scripts/README.md)
+
 ## Flow
 
 1. Apply Terraform for the foundation and platform services
@@ -136,6 +142,12 @@ Expected result:
 - Redis in `data`
 - Prometheus and Grafana in `observability`
 - gateway ALB ingress
+
+If you want a preflight validation before the upgrade, use:
+
+```bash
+PROD_VALUES=/tmp/acmecorp-values-prod.generated.yaml scripts/validate-deploy.sh
+```
 
 ## 6. Verify Deployment
 

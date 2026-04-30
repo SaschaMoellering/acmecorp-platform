@@ -45,6 +45,8 @@ Important top-level areas:
 
 This repository uses long-lived platform branches aligned to Java generations and optimization tracks.
 
+The canonical branch model document is [docs/branch-model.md](docs/branch-model.md).
+
 Examples:
 
 - `java11`

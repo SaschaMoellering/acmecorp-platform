@@ -1,6 +1,8 @@
-# Benchmark harness (single branch)
+# Benchmark Harness
 
 This directory contains helper scripts to run a lightweight benchmark for the current branch without touching the Java toolchain.
+
+The canonical benchmark methodology document is [docs/benchmarking.md](../docs/benchmarking.md).
 
 ## Prerequisites
 
@@ -13,6 +15,8 @@ This directory contains helper scripts to run a lightweight benchmark for the cu
 - `collect.sh`: helper that gathers memory usage from the gateway, orders, and catalog containers (using `docker stats`) and saves a JSON array to the provided results directory.
 - `loadtest.sh`: executes a warmup + measurement load run against the gateway using the first available tool (prefer `wrk`, fall back to `hey`). It outputs JSON with requests/sec and latency percentiles.
 - `run-matrix.sh`: iterates the Java variant branches, packages the code, runs the compose stack, times readiness with millisecond precision, captures `orders-service` startup milestones from `/api/orders/startup`, invokes `loadtest.sh`, collects metrics, and emits per-branch + matrix summaries (see section below).
+- `run-java21-vs-java25.sh`: dedicated worktree-based campaign wrapper for the `java21` versus `java25` comparison.
+- `run-episode07-refresh.sh`: repeated-run median refresh helper for Episode 7 teaching assets.
 
 ## Use
 
@@ -20,7 +24,7 @@ This directory contains helper scripts to run a lightweight benchmark for the cu
 bash bench/run-once.sh
 ```
 
-Results will be under `bench/results/<timestamp>/`. Each run produces `summary.json`, `summary.md`, and `containers.json`.
+Results will be under `bench/results/<timestamp>/`. Each run produces `summary.json`, `summary.md`, `load.json`, `containers.json`, and `orders-startup.json`.
 
 Both scripts accept `HEALTH_URL`, `HEALTH_TIMEOUT_SECONDS`, `HEALTH_POLL_INTERVAL_SECONDS`, and `ORDERS_STARTUP_URL` environment variables. The default metric remains application-level readiness via the gateway, so dependency startup and service-to-service connectivity are part of the measured time unless you point `HEALTH_URL` at a more direct endpoint.
 
@@ -35,6 +39,8 @@ bash bench/run-matrix.sh
 ```
 
 Runs through the Java branches (`java11`, `java17`, `java21`, `main`, `java25`), capturing startup time, RSS, latency p50/p95/p99, and throughput. Matrix-wide results appear under `bench/results/<timestamp>/matrix-summary.md`.
+
+Treat those runs as platform-branch comparisons unless you have explicitly isolated the JVM as the only changing variable.
 
 For the branch-to-branch Java 21 vs Java 25 comparison only, use the dedicated wrapper:
 

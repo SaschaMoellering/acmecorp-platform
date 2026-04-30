@@ -2,8 +2,8 @@
 flowchart TD
     subgraph Reward Axis
         R1[Latency — GC pause behavior<br>visible in offline benchmark]
-        R2[Startup — warmup characteristics<br>faster in benchmark runs]
-        R3[Memory — RSS signal<br>lower in container measurements]
+        R2[Startup — warmup characteristics<br>not captured in final run]
+        R3[Memory — RSS signal<br>mixed container measurements]
         R4[Long-term support<br>Java 25 is an LTS release]
     end
 

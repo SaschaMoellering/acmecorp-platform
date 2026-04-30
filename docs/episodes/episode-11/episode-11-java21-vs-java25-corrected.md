@@ -1,5 +1,8 @@
 # Episode 11 — Cutting Edge JVMs: Java 21 vs Java 25
 
+> This file is teaching material.
+> For canonical benchmark interpretation and branch semantics, use [../../benchmarking.md](../../benchmarking.md) and [../../branch-model.md](../../branch-model.md).
+
 ## Opening – Upgrades are decisions, not lottery tickets
 
 In the previous episode, we built the vocabulary for reading JVM performance signals. We talked about what startup time, latency percentiles, heap behavior, and GC pauses actually mean, and what each of those signals does and does not tell you. That vocabulary matters now, because this episode is about applying it to a real decision.

@@ -1,8 +1,9 @@
 # Course Blueprint — AcmeCorp Platform
 
 > **Consolidated & Restored Blueprint**  
-> This document is the *single source of truth* for the course narrative.  
-> It restores the detailed narrative content from earlier iterations **and** keeps the normalized episode order, visuals, and hands‑on model.
+> This document is the course blueprint for narrative planning.  
+> It restores the detailed narrative content from earlier iterations **and** keeps the normalized episode order, visuals, and hands-on model.  
+> Canonical operational and benchmark truth lives in the current repository docs such as `docs/branch-model.md`, `docs/benchmarking.md`, and the runbooks under `docs/`.
 
 ---
 

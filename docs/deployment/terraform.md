@@ -2,6 +2,8 @@
 
 Terraform under `infra/terraform/` provisions the AWS foundation for the platform.
 
+Infrastructure-specific operator notes also live in [../../infra/terraform/README.md](../../infra/terraform/README.md).
+
 ## Modules
 
 | Module | Purpose |
@@ -25,8 +27,10 @@ The most important variables are:
 - `cluster_name`
 - `admin_principal_arn`
 - `eks_secrets_kms_key_arn`
+- `manage_eks_secrets_kms_key`
 - `enable_aurora`
 - `enable_mq`
+- `public_hosted_zone_name`
 - `route53_zone_name`
 - `gateway_ingress_host`
 - `grafana_ingress_host`
@@ -222,3 +226,10 @@ Then either:
 This recovery path is operator guidance only. Terraform does not automate KMS recovery.
 
 Continue with [platform-deployment.md](platform-deployment.md) and [ui-cloudfront.md](ui-cloudfront.md).
+
+## Safety
+
+- Review `terraform plan` before `terraform apply`.
+- Do not run destroy commands casually.
+- Treat `public_hosted_zone_name` as the canonical DNS-zone input and `route53_zone_name` as the compatibility alias.
+- Remember that Terraform provisions infrastructure but does not publish application images or UI assets by itself.

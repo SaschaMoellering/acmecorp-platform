@@ -1,28 +1,14 @@
-# Java Standards
+# Java Standards (Historical Steering Note)
 
-The platform supports multiple Java LTS versions.
+This steering note is retained for historical context.
 
-Supported versions:
+Use the current canonical docs instead:
 
-- Java 11
-- Java 17
-- Java 21
-- Java 25 (experimental)
+- [../branch-model.md](../branch-model.md) for maintained branches and experiment branches
+- [../benchmarking.md](../benchmarking.md) for benchmark interpretation rules
 
-Rules:
+Current repository guidance:
 
-- code must compile across supported versions where possible
-- version-specific optimizations must be clearly documented
-
-Build tools:
-
-- Maven
-
-Framework versions:
-
-- Spring Boot 3.x
-- Quarkus 3.x
-
-Java distribution recommendation:
-
-- Temurin
+- supported long-lived branches include `java11`, `java17`, `java21`, `java25`, plus `main`
+- `java25` is the leading newest-generation technical reference branch, not an automatically experimental throwaway branch
+- version-specific optimizations and branch baselines must be documented explicitly

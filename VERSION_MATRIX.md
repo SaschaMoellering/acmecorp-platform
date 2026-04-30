@@ -1,24 +1,28 @@
 # Java Version Matrix
 
-This document defines the branch strategy and allowed deltas while keeping the **business logic identical** across all Java variants. Use the matrix to understand which settings may change per branch and to document any additional justifications.
+This file is a compatibility summary only.
+
+The canonical branch strategy lives in [docs/branch-model.md](docs/branch-model.md).
+Use that document for branch purpose, sync direction, experiment semantics, and benchmark interpretation rules.
+
+This matrix is retained to summarize the Java and image baselines that usually characterize the long-lived branches. It must not be read as a claim that the branches differ only by configuration or that they preserve exact parity in implementation details.
 
 ## Branch matrix
 
 | Branch | Java version | Build image (JDK) | Runtime image (JRE) | JVM flags (baseline) | Notes / allowed caveats |
 | --- | --- | --- | --- | --- | --- |
-| `main` | 21 (current baseline) | `maven:3.9.9-eclipse-temurin-21` (as in Dockerfiles) | `eclipse-temurin:21-jre` | `-server` (default Spring Boot) | Reference branch; all features validated here |
-| `java11` | 11 | `maven:3.9.9-eclipse-temurin-11` | `eclipse-temurin:11-jre` | same baseline, add compatibility flags only if compiler/jvm refuses to start | Allowed changes: Maven compiler release/toolchain, Docker `FROM`, JVM flags. No logic changes unless noted |
-| `java17` | 17 | `maven:3.9.9-eclipse-temurin-17` | `eclipse-temurin:17-jre` | baseline | Same change set as java11 |
-| `java21` | 21 | `maven:3.9.9-eclipse-temurin-21` | `eclipse-temurin:21-jre` | baseline | Mirrors `main` but used for explicit comparison runs |
-| `java25` | 25 | `maven:3.9.9-eclipse-temurin-25`* | `eclipse-temurin:25-jre`* | baseline | If official Temurin 25 images are unavailable, document alternative in notes. |
-
-\* If the JVM version is not yet published, note the closest compatible image (e.g., `openjdk:25-jdk`).
+| `main` | 21-based integration branch | Java 21-based tooling and docs integration | Java 21-based local and integration assumptions | integration-oriented defaults | Canonical docs and shared tooling; not necessarily identical to `java21` |
+| `java11` | 11 | branch-specific Java 11 toolchain | Java 11 runtime baseline | Java 11-compatible baseline | Maintained older baseline; preserve Java 11 compatibility |
+| `java17` | 17 | branch-specific Java 17 toolchain | Java 17 runtime baseline | Java 17-compatible baseline | Maintained older baseline; preserve Java 17 compatibility |
+| `java21` | 21 | branch-specific Java 21 toolchain | Java 21 runtime baseline | Java 21-compatible baseline | Clean Java 21 baseline for stable comparison |
+| `java25` | 25 | branch-specific Java 25 toolchain | Java 25 runtime baseline | Java 25-compatible baseline | Leading newest-generation technical reference; not an automatic performance win |
 
 ## Policy
 
-- **Business logic parity**: All branches must keep the same source files, DTOs, API contracts, and configuration values unless a change is explicitly noted in this table.
-- **Allowed diffs**: Only update Maven compiler/toolchain settings, Docker build/runtime images, and JVM launch flags to satisfy version compatibility. Any other change requires a justification entry in the matrix notes.
-- **Benchmark harness**: When the benchmark scripts exist, they must run identically on every branch except for the JVM they invoke.
+- **No blind parity claims**: The long-lived branches can differ in framework baseline, runtime behavior, build setup, and experiment semantics.
+- **No blind merges**: Port fixes deliberately and preserve the target branch baseline.
+- **Benchmark interpretation**: Treat `java21` versus `java25` as a platform-branch comparison unless the harness explicitly isolates only the JVM.
+- **Experiment branches**: `cds`, `crac`, and `graalvm` are separate experiment branches and should not be treated as cumulative optimization layers by default.
 
 ## Java enforcement
 
@@ -33,11 +37,11 @@ This document defines the branch strategy and allowed deltas while keeping the *
 git fetch origin
 git checkout java17
 
-# after making configuration-only changes run the benchmark harness (scripts will live under bench/)
+# run the current-branch benchmark harness
 bench/run-once.sh
 
-# to run the full matrix once scripts exist
+# run the full matrix
 bench/run-matrix.sh
 ```
 
-Update this file whenever a new Java branch or special override is introduced.
+If branch purpose, sync direction, or experiment semantics change, update [docs/branch-model.md](docs/branch-model.md) first and keep this file as a supporting summary.

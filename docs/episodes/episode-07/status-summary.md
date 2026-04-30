@@ -1,5 +1,8 @@
 # Episode 7 – Benchmark and Documentation Status
 
+> Historical status summary for the Episode 7 teaching material.
+> For canonical benchmark methodology and artifact interpretation, use [../../benchmarking.md](../../benchmarking.md).
+
 ## Executive Summary
 
 Episode 7 now presents a maintained platform branch comparison across Java 11, Java 17, Java 21, and Java 25. The benchmark refresh workflow completed successfully and produced a 5-run median result set that is stored in the repository. The teleprompter has been refined so that it no longer frames the results as a pure JVM-only comparison, and it now treats `orders-service main-to-ready` as the primary startup metric. The Mermaid benchmark diagrams were updated to reflect the measured medians and to describe the benchmark as a maintained platform branch comparison. A new tradeoff diagram was added to make the benchmark story easier to understand on slides: different branches lead different metrics. The repository also now contains a Mermaid diagram style guide and reusable templates, which means the Episode 7 visual language is aligned with a broader course-level standard. Based on the current repository state, all five improvement areas are implemented: teleprompter narrative refinement, benchmark diagram wording updates, startup comparison visual improvements, tradeoff diagram introduction, and a reusable diagram design system.
@@ -63,9 +66,7 @@ BRANCHES="java11 java17 java21 java25" \
 bash bench/run-episode07-refresh.sh
 ```
 
-The workflow reports medians rather than single-run values, which improves comparability and aligns with the documented methodology used in Episode 7. Raw data is written into per-branch result directories and includes `summary.md`, `orders-startup.json`, `load.json`, and `containers.json`. The consolidated result JSON currently present in the repository is:
-
-- [episode07-median-summary-20260314T103931Z.json](/home/videouser/development/acme/acmecorp-platform/bench/results/episode07-median-summary-20260314T103931Z.json)
+The workflow reports medians rather than single-run values, which improves comparability and aligns with the documented methodology used in Episode 7. Raw data is written into per-branch result directories and includes `summary.md`, `orders-startup.json`, `load.json`, and `containers.json`.
 
 This improvement area is completed.
 

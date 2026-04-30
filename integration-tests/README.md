@@ -1,5 +1,10 @@
 # Integration Tests
 
+Supporting local-runtime and script references:
+
+- [../infra/local/README.md](../infra/local/README.md)
+- [../scripts/README.md](../scripts/README.md)
+
 ## Base URL
 
 The integration tests target the gateway and derive the base URL from:

@@ -72,6 +72,8 @@ Validate before deploy:
 PROD_VALUES=/tmp/acmecorp-values-prod.generated.yaml scripts/validate-deploy.sh
 ```
 
+Chart-specific deployment assumptions are documented in [../../helm/acmecorp-platform/README.md](../../helm/acmecorp-platform/README.md).
+
 Inspect workloads:
 
 ```bash
@@ -101,3 +103,12 @@ kubectl get secret analytics-redis-credentials -n acmecorp
 kubectl get externalsecret analytics-redis-credentials -n acmecorp -o yaml
 kubectl get deploy acmecorp-platform-analytics-service -n acmecorp -o yaml
 ```
+
+## Local RabbitMQ UI Credentials Do Not Work
+
+For the local Compose stack, use:
+
+- username: `acmecorp`
+- password: `acmecorp`
+
+The older plain Kubernetes base manifests under `infra/k8s/base/` still use separate demo defaults.

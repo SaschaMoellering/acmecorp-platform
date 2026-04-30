@@ -10,6 +10,11 @@ The platform uses Prometheus and Grafana for metrics-based observability.
 - Spring Boot Actuator metrics on Spring services
 - Quarkus metrics on the catalog service
 
+Infrastructure-specific observability docs:
+
+- [../../infra/observability/README.md](../../infra/observability/README.md)
+- [../../infra/local/README.md](../../infra/local/README.md)
+
 ## Metrics Endpoints
 
 | Component | Metrics Endpoint |
@@ -29,6 +34,10 @@ Expected local URLs:
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
 - Alertmanager: `http://localhost:9093`
+
+Default local Grafana credentials:
+- username: `admin`
+- password: `admin`
 
 ## Kubernetes Observability
 

@@ -12,6 +12,9 @@ This directory is organized around a practical documentation split:
 ## Start Here
 
 - [getting-started/quickstart.md](getting-started/quickstart.md)
+- [branch-model.md](branch-model.md)
+- [benchmarking.md](benchmarking.md)
+- [optimizations/README.md](optimizations/README.md)
 - [development/local-setup.md](development/local-setup.md)
 - [architecture/system-overview.md](architecture/system-overview.md)
 
@@ -30,6 +33,13 @@ This directory is organized around a practical documentation split:
 
 - [reference/configuration.md](reference/configuration.md)
 - [reference/services.md](reference/services.md)
+
+## Infrastructure And Tooling
+
+- [../infra/README.md](../infra/README.md)
+- [../helm/acmecorp-platform/README.md](../helm/acmecorp-platform/README.md)
+- [../bench/README.md](../bench/README.md)
+- [../scripts/README.md](../scripts/README.md)
 
 ## Legacy Content
 

@@ -1,39 +1,14 @@
-# Benchmark Methodology
+# Benchmark Methodology (Historical Steering Note)
 
-Startup benchmarks follow strict rules.
+This steering note is retained for historical context.
 
-Metric
+Use the current canonical benchmark reference instead:
 
-Time until successful HTTP response from:
+- [../benchmarking.md](../benchmarking.md)
+- [../branch-model.md](../branch-model.md)
 
-/actuator/health
+Current repository guidance:
 
-Conditions
-
-- cold start
-- identical machine
-- identical build artifact
-
-Runs
-
-Each benchmark must run at least:
-
-5 runs
-
-Reported metric
-
-Median of runs.
-
-Benchmarks compare:
-
-- Java 11
-- Java 17
-- Java 21
-
-Optional:
-
-- Java 25
-
-Benchmark scripts live in:
-
-bench/
+- benchmark scripts live under `bench/`
+- startup, load, and memory outputs should be cited from current harness artifacts such as `summary.md`, `load.json`, `containers.json`, and `orders-startup.json`
+- `java21` versus `java25` results should normally be described as platform-branch comparisons, not pure JVM comparisons
