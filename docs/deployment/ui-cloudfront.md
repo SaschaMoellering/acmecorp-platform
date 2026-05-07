@@ -7,8 +7,8 @@ The UI is deployed separately from the Kubernetes workloads.
 - Terraform provisions the S3 bucket, CloudFront distribution, ACM certificate in `us-east-1`, and Route53 alias records
 - The S3 bucket is private
 - CloudFront reads from S3 through Origin Access Control
-- The UI is published at `https://app.acmecorp.autoscaling.io`
-- The built UI calls the gateway at `https://api.acmecorp.autoscaling.io`
+- The UI is published at `https://app.acmecorp.example.com`
+- The built UI calls the gateway at `https://api.acmecorp.example.com`
 
 ## Terraform Resources
 
@@ -28,7 +28,7 @@ The UI uses `VITE_API_BASE_URL`.
 
 Defaults:
 - local dev: `webapp/.env.development` -> `http://localhost:8080`
-- production build: `webapp/.env.production` -> `https://api.acmecorp.autoscaling.io`
+- production build: `webapp/.env.production` -> `https://api.acmecorp.example.com`
 
 The deploy workflow overrides the production value from Terraform output:
 

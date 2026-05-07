@@ -67,7 +67,7 @@ The UI has one source of truth for the API base URL:
 
 Defaults:
 - `webapp/.env.development` -> `http://localhost:8080`
-- `webapp/.env.production` -> `https://api.acmecorp.autoscaling.io`
+- `webapp/.env.production` -> `https://api.acmecorp.example.com`
 
 Override manually if needed:
 
@@ -83,7 +83,7 @@ The gateway explicitly allows:
 - `http://127.0.0.1:5173`
 - `http://localhost:4173`
 - `http://127.0.0.1:4173`
-- `https://app.acmecorp.autoscaling.io`
+- `https://app.acmecorp.example.com`
 
 That keeps local UI development working without opening the policy broadly.
 

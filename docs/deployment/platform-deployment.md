@@ -196,9 +196,9 @@ aws cloudfront create-invalidation \
 
 ## Domains
 
-- UI: `https://app.acmecorp.autoscaling.io`
-- API: `https://api.acmecorp.autoscaling.io`
-- Grafana: `https://grafana.acmecorp.autoscaling.io`
+- UI: `https://app.acmecorp.example.com`
+- API: `https://api.acmecorp.example.com`
+- Grafana: `https://grafana.acmecorp.example.com`
 
 For the UI-specific hosting path, see [ui-cloudfront.md](ui-cloudfront.md).
 

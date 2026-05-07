@@ -7,7 +7,7 @@ imagePullSecrets: []
 service:
   port: 8080
 config:
-  gatewayCorsOriginUi: https://app.acmecorp.autoscaling.io
+  gatewayCorsOriginUi: https://app.acmecorp.example.com
   springProfilesActive: default
 resources:
   limits:

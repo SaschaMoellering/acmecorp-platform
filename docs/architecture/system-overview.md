@@ -42,9 +42,9 @@ flowchart LR
 
 ### Deployed Flow
 
-1. Browser loads the SPA from `https://app.acmecorp.autoscaling.io`
+1. Browser loads the SPA from `https://app.acmecorp.example.com`
 2. CloudFront serves static assets from the private S3 bucket
-3. The built UI calls `https://api.acmecorp.autoscaling.io`
+3. The built UI calls `https://api.acmecorp.example.com`
 4. `gateway-service` routes requests to backend services
 5. Backend services use Aurora, Redis, RabbitMQ, and Secrets Manager-backed credentials
 

@@ -13,8 +13,8 @@ It combines:
 ## Architecture Summary
 
 At runtime, the platform is split into three layers:
-- **UI**: static frontend assets hosted from S3 and served through CloudFront at `https://app.acmecorp.autoscaling.io`
-- **API entry point**: `gateway-service`, exposed at `https://api.acmecorp.autoscaling.io`
+- **UI**: static frontend assets hosted from S3 and served through CloudFront at `https://app.acmecorp.example.com`
+- **API entry point**: `gateway-service`, exposed at `https://api.acmecorp.example.com`
 - **Backend services**: orders, catalog, billing, notification, and analytics, backed by Aurora, Redis, RabbitMQ, and Secrets Manager
 
 High-level request path:
@@ -30,6 +30,8 @@ For the full architecture and request flow, see [docs/architecture/system-overvi
 - Strict gateway CORS for local UI development and the deployed UI domain
 - GitHub Actions CI for backend, frontend, integration, and smoke tests
 - GitHub Actions UI deploy workflow for S3 sync and CloudFront invalidation
+
+The public hostnames shown in this repository use the reserved example zone `acmecorp.example.com` as documentation and sample-config placeholders. Replace them with your real hosted zone in environment-specific configuration.
 
 ## Quickstart
 

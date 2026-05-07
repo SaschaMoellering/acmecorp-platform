@@ -4,11 +4,13 @@ This page lists the main domains, environment variables, and outputs used across
 
 ## Public Domains
 
+These public hostnames are example placeholders built on the reserved example zone `acmecorp.example.com`. Replace them with your real hosted zone in Terraform inputs, Helm values, UI environment files, and gateway CORS settings.
+
 | Purpose | Domain |
 | --- | --- |
-| UI | `app.acmecorp.autoscaling.io` |
-| API gateway | `api.acmecorp.autoscaling.io` |
-| Grafana | `grafana.acmecorp.autoscaling.io` |
+| UI | `app.acmecorp.example.com` |
+| API gateway | `api.acmecorp.example.com` |
+| Grafana | `grafana.acmecorp.example.com` |
 
 ## Local Compose Defaults
 
@@ -28,7 +30,7 @@ Default local credentials:
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | Browser-facing gateway base URL used by the UI build | `http://localhost:8080` in development, `https://api.acmecorp.autoscaling.io` in production |
+| `VITE_API_BASE_URL` | Browser-facing gateway base URL used by the UI build | `http://localhost:8080` in development, `https://api.acmecorp.example.com` in production |
 
 Config files:
 - `webapp/.env.development`
