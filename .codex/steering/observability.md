@@ -1,19 +1,17 @@
 # Observability Standards
 
-All services must expose Prometheus metrics.
+This file is a Codex compatibility note.
 
-Required endpoint:
+Canonical observability guidance lives in:
 
-/actuator/prometheus
+- `../../docs/operations/observability.md`
+- `../../infra/observability/README.md`
+- `../../docs/reference/services.md`
 
-Metrics should include:
+Current endpoint rules:
 
-- JVM metrics
-- HTTP request metrics
-- database connection metrics
+- Spring Boot services expose metrics at `/actuator/prometheus`.
+- The Quarkus `catalog-service` exposes metrics at `/q/metrics`.
+- Observability assets live under `infra/observability/` and `infra/local/observability/`.
 
-Visualization:
-
-Grafana dashboards are provided in:
-
-/observability/grafana
+Do not rename scrape paths, metric names, or dashboard assumptions without updating the matching observability assets and docs.

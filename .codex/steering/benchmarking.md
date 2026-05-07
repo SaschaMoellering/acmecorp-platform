@@ -1,26 +1,15 @@
 # Benchmarking Steering
 
-The AcmeCorp Platform includes benchmark-based comparisons across runtime
-versions, frameworks, and optimization techniques.
+This file is a Codex compatibility note.
 
-## Benchmarking Principles
+Canonical benchmark guidance lives in:
 
-1. Reproducibility over anecdotal numbers
-2. Comparability over isolated wins
-3. Documented methodology over informal measurement
-4. Repeated runs over single-run claims
+- `../../docs/benchmarking.md`
+- `../../docs/branch-model.md`
+- `../../bench/README.md`
 
-## Agents must protect
+Rules:
 
-- benchmark scripts
-- JVM flags used for measurement
-- container resource settings
-- startup measurement methodology
-- baseline comparability across branches
-
-## Any change that affects measured performance must answer
-
-- what changed
-- why it changed
-- whether old results remain comparable
-- whether benchmarks must be rerun
+- Treat `java11`, `java17`, `java21`, and `java25` comparisons as platform-branch comparisons unless the harness isolates only the JVM.
+- Reuse the existing scripts in `bench/` before inventing one-off commands.
+- Never edit course or benchmark docs as if single-run numbers were canonical results.

@@ -15,6 +15,20 @@ AcmeCorp Platform is a teaching and demonstration repository for:
 
 The repository is intentionally used for both runnable software and course content. Code, benchmarks, diagrams, and documentation are part of the product.
 
+## Canonical Docs
+
+Use these documents as the source of truth instead of copying facts into tool-specific agent files:
+
+- `docs/codebase-overview.md` — repository onboarding and ownership map
+- `docs/system-map.md` — short architecture and runtime map
+- `docs/branch-model.md` — branch purposes, sync direction, and porting rules
+- `docs/benchmarking.md` — benchmark methodology and result interpretation
+- `docs/development/local-setup.md` and `infra/local/README.md` — local workflow
+- `docs/deployment/terraform.md`, `docs/deployment/platform-deployment.md`, and `docs/deployment/ui-cloudfront.md` — deployment truth
+- `docs/operations/observability.md` and `infra/observability/README.md` — metrics, dashboards, and scrape wiring
+- `docs/reference/services.md` — current service inventory and endpoints
+- `scripts/README.md` and `bench/README.md` — supported helper scripts and benchmark entry points
+
 ## Architecture Principles
 
 - Preserve clean service boundaries between gateway, backend services, UI, and infrastructure.
@@ -34,12 +48,13 @@ Important top-level areas:
 - `infra/k8s/` — Kubernetes manifests
 - `infra/terraform/` — Terraform infrastructure definitions
 - `infra/observability/` — Prometheus, Grafana, ServiceMonitors, dashboards
-- `charts/` and `helm/` — Helm packaging and deployment assets
+- `helm/` — canonical Helm deployment assets
+- `charts/` — legacy Helm compatibility assets
 - `integration-tests/` — integration test suite
 - `bench/` — benchmark harness, collection scripts, and results
 - `docs/` — course material, architecture notes, standards, and episode assets
 - `.github/workflows/` — CI automation and repository workflows
-- `.codex/steering/` — deeper architecture, coding, observability, and benchmarking guidance
+- `.codex/`, `.kiro/`, `CLAUDE.md` — thin tool-specific wrappers around this file and the canonical docs
 
 ## Branch Strategy
 
@@ -79,6 +94,18 @@ Agent requirements:
 - For benchmark and documentation work, validate scripts, source files, and generated assets instead of inventing ad hoc measurements.
 - If tests are skipped or cannot be run, say so clearly.
 
+## Common Validation Commands
+
+Prefer the smallest relevant command for the area you changed:
+
+- `bash scripts/validate-repo.sh`
+- `bash scripts/validate-boundary-contract.sh /tmp/acmecorp-values-prod.generated.yaml`
+- `helm template acmecorp-platform helm/acmecorp-platform --namespace acmecorp -f helm/acmecorp-platform/values.yaml`
+- `terraform -chdir=infra/terraform fmt -check -recursive`
+- `bash scripts/wait-for-compose-health.sh`
+- `BASE_URL=http://localhost:8080 bash scripts/smoke-local.sh`
+- `bash bench/run-once.sh`
+
 ## CI and Workflow Rules
 
 - Respect existing GitHub Actions workflows under `.github/workflows/`.
@@ -92,7 +119,7 @@ The platform supports multiple operating modes:
 
 - local development with Docker Compose under `infra/local/`
 - Kubernetes deployment using manifests under `infra/k8s/`
-- Helm-based deployment via `charts/` and `helm/`
+- Helm-based deployment via `helm/acmecorp-platform`
 - Amazon EKS deployment patterns supported by Helm and Terraform assets
 
 Agent requirements:
@@ -100,6 +127,7 @@ Agent requirements:
 - Keep Docker Compose, Kubernetes, Helm, and Terraform representations aligned when the same behavior is modeled in more than one place.
 - Infrastructure changes must preserve observability wiring, service discovery, and configuration overrides.
 - Do not silently break EKS assumptions, IAM-related Terraform wiring, or Helm values structure.
+- Treat `infra/k8s/base/` and `charts/acmecorp-platform/` as compatibility/demo paths unless the task explicitly targets them.
 
 ## Observability Rules
 
@@ -140,8 +168,9 @@ Documentation here is operational, educational, and benchmark-facing.
 Before making substantial changes:
 
 1. Read this file.
-2. Read the relevant guidance under `.codex/steering/`.
-3. Inspect the local code and scripts before proposing new architecture or workflow.
+2. Read the most relevant canonical doc under `docs/`, `infra/`, `scripts/`, or `bench/`.
+3. Read the tool-specific wrapper you are running under if one exists (`.codex/`, `.kiro/`, `CLAUDE.md`).
+4. Inspect the local code and scripts before proposing new architecture or workflow.
 
 While working:
 

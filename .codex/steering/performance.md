@@ -1,14 +1,15 @@
 # Performance Optimization
 
-This repository demonstrates Java startup optimizations.
+This file is a Codex compatibility note.
 
-Agents should preserve benchmark comparability.
+Canonical performance and optimization guidance lives in:
 
-## Techniques
+- `../../docs/benchmarking.md`
+- `../../docs/branch-model.md`
+- `../../docs/optimizations/README.md`
 
-- AppCDS
-- GraalVM Native Image
-- CRaC
-- Custom JRE images
+Rules:
 
-Agents must NOT introduce changes that invalidate performance benchmarks.
+- Preserve benchmark comparability before chasing a local optimization.
+- Treat `cds`, `crac`, and `graalvm` as separate experiment branches.
+- Do not assume an optimization applies across branches without branch-specific validation.

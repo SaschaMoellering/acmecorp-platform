@@ -1,26 +1,25 @@
 # Architecture Steering
 
-The AcmeCorp Platform demonstrates modern cloud-native Java architectures.
+This file is a Codex compatibility note.
 
-## Core Principles
+Canonical architecture facts live in:
 
-1. Microservice architecture
-2. Container-first deployments
-3. Observable systems
-4. Performance transparency
+- `../../docs/system-map.md`
+- `../../docs/codebase-overview.md`
+- `../../docs/architecture/system-overview.md`
+- `../../docs/reference/services.md`
 
-## Services
+Current application services:
 
-gateway-service
-orders-service
-catalog-service
-inventory-service
+- `gateway-service`
+- `orders-service`
+- `billing-service`
+- `notification-service`
+- `analytics-service`
+- `catalog-service`
 
-## Communication
+Guardrails:
 
-HTTP REST APIs.
-
-Future episodes may introduce:
-
-- messaging
-- event-driven architecture
+- Preserve the gateway boundary between the UI and backend services.
+- Do not invent or reference removed services such as `inventory-service`.
+- Treat `infra/k8s/base/` as a compatibility/demo path and `helm/acmecorp-platform/` as the canonical AWS packaging path.

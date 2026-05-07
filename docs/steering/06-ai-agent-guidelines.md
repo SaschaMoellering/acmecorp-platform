@@ -1,29 +1,21 @@
 # AI Agent Guidelines
 
-These rules apply to AI assistants:
+This steering note is retained as a compatibility pointer.
 
-- Codex
-- Kiro
-- Amazon Q Developer
+Current agent entry points:
 
-Agents must follow project conventions.
+- `AGENTS.md` for repository-wide guidance
+- `.codex/agents.md` for Codex-specific emphasis
+- `.kiro/agents.md` for Kiro-specific emphasis
+- `CLAUDE.md` for Claude Code
 
-Architecture
+Canonical facts belong in:
 
-- services must remain independent
-- Spring Boot and Quarkus must not share runtime dependencies
+- `docs/codebase-overview.md`
+- `docs/system-map.md`
+- `docs/branch-model.md`
+- `docs/benchmarking.md`
+- `docs/development/local-setup.md`
+- `docs/deployment/`
 
-Benchmarks
-
-- benchmark results must never be fabricated
-- only measured results are allowed
-
-Diagrams
-
-- use Mermaid
-- follow AcmeCorp color scheme
-
-Documentation
-
-- Markdown only
-- diagrams must render on GitHub
+Do not duplicate large architecture, deployment, or benchmark explanations in tool-specific agent files. Keep those files short and point back to the canonical docs.

@@ -380,8 +380,6 @@ Explain event-driven architecture fundamentals with RabbitMQ, including retries 
 
 Synchronous calls are easy — until they become your bottleneck and your failure amplifier. Messaging introduces decoupling, but it also introduces new failure modes. This episode teaches the mental models: delivery guarantees, retries, idempotency, and DLQs.
 
-> Note: In the course plan, finalizing this episode can be intentionally postponed. The blueprint still defines the target scope.
-
 ## Architecture & Visuals
 - **E13-D01-sync-vs-async-boundaries** — Where async replaces sync
 - **E13-D02-event-flow-orders-to-notifications** — Orders emits events → Notifications consumes

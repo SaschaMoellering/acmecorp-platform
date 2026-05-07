@@ -7,8 +7,9 @@ These instructions apply to OpenAI Codex working in this repository.
 Before editing:
 
 1. Read `AGENTS.md`.
-2. Read the relevant files in `.codex/steering/`.
-3. Inspect the local module, script, or document you are changing.
+2. Read the most relevant canonical docs under `docs/`, `infra/`, `scripts/`, or `bench/`.
+3. Use `.codex/steering/` only as a thin compatibility layer; when it conflicts with the canonical docs, follow `AGENTS.md` and the canonical docs.
+4. Inspect the local module, script, or document you are changing.
 
 ## Working Style
 
@@ -16,6 +17,7 @@ Before editing:
 - Keep changes reviewable and local to the task.
 - Reuse existing repository patterns before introducing new ones.
 - Preserve the teachable structure of the codebase and docs.
+- Do not make speculative infrastructure, observability, or benchmark changes.
 
 ## Validation
 
@@ -35,3 +37,13 @@ Before editing:
 - Follow the benchmark methodology already present in `bench/`.
 - Protect comparability across `java11`, `java17`, `java21`, and `java25`.
 - Treat branch comparisons as maintained platform branch comparisons unless the repo explicitly isolates the JVM as the only variable.
+
+## Canonical References
+
+- `docs/codebase-overview.md`
+- `docs/system-map.md`
+- `docs/branch-model.md`
+- `docs/benchmarking.md`
+- `docs/development/local-setup.md`
+- `docs/deployment/platform-deployment.md`
+- `docs/operations/observability.md`

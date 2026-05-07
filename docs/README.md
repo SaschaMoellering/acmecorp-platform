@@ -20,6 +20,13 @@ This directory is organized around a practical documentation split:
 - [development/local-setup.md](development/local-setup.md)
 - [architecture/system-overview.md](architecture/system-overview.md)
 
+## AI Agent Readiness
+
+- Start at [../AGENTS.md](../AGENTS.md).
+- Tool-specific wrappers are [../.codex/agents.md](../.codex/agents.md), [../.kiro/agents.md](../.kiro/agents.md), and [../CLAUDE.md](../CLAUDE.md).
+- Use this docs tree for canonical facts. Tool-specific agent files should point here instead of duplicating branch, benchmark, deployment, or service-inventory details.
+- Treat `docs/steering/` as historical or compatibility-oriented unless a file explicitly says it is the authoritative source.
+
 ## Deployment
 
 - [deployment/terraform.md](deployment/terraform.md)
