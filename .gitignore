@@ -3,12 +3,16 @@ node_modules/
 webapp/node_modules/
 dist/
 build/
-*.attach_pid*
 
 # Java / Maven
 target/
-services/spring-boot/billing-service/target/*
+*.jar
+*.war
+*.ear
+
+# Logs
 *.log
+*.attach_pid*
 
 # IDEs
 .idea/
@@ -20,9 +24,19 @@ services/spring-boot/billing-service/target/*
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+terraform.tfvars.json
 
-# Temp / render
+# Helm / Kubernetes
+*.tgz
+
+# Generated YAML / render output
 yaml/
+rendered/
+tmp/
 
-.terraform/
-.terraform/
+# Benchmarks / generated results
+bench/results/
+
+# OS files
+.DS_Store
+Thumbs.db
